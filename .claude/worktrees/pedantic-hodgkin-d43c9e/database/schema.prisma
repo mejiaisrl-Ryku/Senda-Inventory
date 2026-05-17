@@ -1,0 +1,141 @@
+// Canonical Prisma schema — kept in /database and copied to /backend/prisma/schema.prisma.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+enum Unit {
+  KG
+  LITERS
+  PIECES
+}
+
+enum StockReason {
+  RECEIVED
+  USED
+  ADJUSTED
+  WASTE
+}
+
+enum OrderStatus {
+  PENDING
+  RECEIVED
+  CANCELLED
+}
+
+// ─────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────
+
+model Restaurant {
+  id        String    @id @default(cuid())
+  name      String
+  address   String?
+  phone     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  users    User[]
+  products Product[]
+  orders   Order[]
+
+  @@map("restaurants")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  password     String
+  role         Role       @default(STAFF)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  stockLogs StockLog[]
+
+  @@index([restaurantId])
+  @@map("users")
+}
+
+model Product {
+  id           String     @id @default(cuid())
+  name         String
+  sku          String?    @unique
+  category     String?
+  unit         Unit       @default(PIECES)
+  costPerUnit  Float      @default(0)
+  currentStock Float      @default(0)
+  minimumStock Float      @default(0)
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  stockLogs  StockLog[]
+  orderItems OrderItem[]
+
+  @@index([restaurantId])
+  @@map("products")
+}
+
+model StockLog {
+  id               String      @id @default(cuid())
+  productId        String
+  product          Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  previousQuantity Float
+  newQuantity      Float
+  change           Float
+  reason           StockReason
+  timestamp        DateTime    @default(now())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id])
+  notes            String?
+
+  @@index([productId])
+  @@index([userId])
+  @@map("stock_logs")
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  status       OrderStatus @default(PENDING)
+  totalCost    Float       @default(0)
+  createdAt    DateTime    @default(now())
+  deliveredAt  DateTime?
+
+  orderItems OrderItem[]
+
+  @@index([restaurantId])
+  @@map("orders")
+}
+
+// Explicit join table for Order <-> Product many-to-many.
+// Stores quantity ordered and the unit cost locked at order time.
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Float
+  unitCost  Float
+
+  @@unique([orderId, productId])
+  @@index([productId])
+  @@map("order_items")
+}

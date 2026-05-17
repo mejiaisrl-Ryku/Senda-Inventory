@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Environment files — never commit real secrets
+.env
+.env.local
+.env.*.local
+
+# Prisma generated client
+backend/node_modules/.prisma/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.vscode/
+.idea/
+
+# Vercel
+.vercel/
+
+# Coverage
+coverage/
