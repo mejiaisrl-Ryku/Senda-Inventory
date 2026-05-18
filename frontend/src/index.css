@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Prevent iOS Safari from auto-zooming into inputs (requires 16px font-size) */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* Eliminate scroll bounce / rubber-band on iOS at the app level */
+html,
+body {
+  overscroll-behavior: none;
+}
+
+/* Safe-area insets for iPhone notch / Dynamic Island */
+#root {
+  padding-bottom: env(safe-area-inset-bottom);
+}
