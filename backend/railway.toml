@@ -5,3 +5,4 @@ builder = "nixpacks"
 startCommand = "npm run dev"
 restartPolicy = "on-failure"
 numReplicas = 1
+# Updated
