@@ -106,7 +106,7 @@ api.interceptors.response.use(
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const authApi = {
-  register: (data: { email: string; password: string; restaurantName: string }) =>
+  register: (data: { name: string; email: string; password: string; restaurantName: string }) =>
     api
       .post<{ user: import("../types").User; token: string; refreshToken: string }>(
         "/auth/register",

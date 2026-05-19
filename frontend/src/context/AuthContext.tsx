@@ -16,7 +16,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, restaurantName: string) => Promise<void>;
+  register: (name: string, email: string, password: string, restaurantName: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -105,8 +105,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const register = useCallback(
-    async (email: string, password: string, restaurantName: string) => {
-      const data = await authApi.register({ email, password, restaurantName });
+    async (name: string, email: string, password: string, restaurantName: string) => {
+      const data = await authApi.register({ name, email, password, restaurantName });
       storeSession(data.user, data.token, data.refreshToken);
       setUser(data.user);
       setToken(data.token);

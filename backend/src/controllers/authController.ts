@@ -5,19 +5,13 @@ import { prisma } from "../lib/prisma";
 import { signToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
 import { AuthRequest } from "../types";
 
-export const registerSchema = z
-  .object({
-    email: z.string().email(),
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    role: z.enum(["ADMIN", "STAFF"]).default("ADMIN"),
-    // Self-service signup: provide restaurantName → creates the restaurant automatically.
-    // Internal / invite flow: provide an existing restaurantId instead.
-    restaurantName: z.string().min(1).max(255).trim().optional(),
-    restaurantId: z.string().cuid().optional(),
-  })
-  .refine((d) => d.restaurantName || d.restaurantId, {
-    message: "Either restaurantName or restaurantId is required",
-  });
+// Self-service registration: any new user creates their own restaurant in one step.
+export const registerSchema = z.object({
+  name: z.string().min(1, "Name is required").max(255).trim(),
+  email: z.string().email(),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  restaurantName: z.string().min(1, "Restaurant name is required").max(255).trim(),
+});
 
 export const loginSchema = z.object({
   email: z.string().email(),
@@ -28,7 +22,7 @@ export const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
-const safeUser = { id: true, email: true, role: true, restaurantId: true } as const;
+const safeUser = { id: true, name: true, email: true, role: true, restaurantId: true } as const;
 
 function makeTokenPair(userId: string, role: import("@prisma/client").Role, restaurantId: string) {
   const payload = { userId, role, restaurantId };
@@ -40,27 +34,23 @@ function makeTokenPair(userId: string, role: import("@prisma/client").Role, rest
 
 export async function register(req: Request, res: Response, next: NextFunction) {
   try {
-    const { email, password, role, restaurantId, restaurantName } = req.body;
+    const { name, email, password, restaurantName } = req.body as {
+      name: string;
+      email: string;
+      password: string;
+      restaurantName: string;
+    };
     const hashed = await bcrypt.hash(password, 12);
 
-    if (restaurantName && !restaurantId) {
-      // Self-service signup: create the restaurant and first admin in one transaction.
-      const user = await prisma.$transaction(async (tx) => {
-        const restaurant = await tx.restaurant.create({ data: { name: restaurantName } });
-        return tx.user.create({
-          data: { email, password: hashed, role: "ADMIN", restaurantId: restaurant.id },
-          select: safeUser,
-        });
+    // Create the restaurant and the first ADMIN user atomically.
+    const user = await prisma.$transaction(async (tx) => {
+      const restaurant = await tx.restaurant.create({ data: { name: restaurantName } });
+      return tx.user.create({
+        data: { name, email, password: hashed, role: "ADMIN", restaurantId: restaurant.id },
+        select: safeUser,
       });
-      const tokens = makeTokenPair(user.id, user.role, user.restaurantId);
-      return res.status(201).json({ user, ...tokens });
-    }
-
-    // Invite / internal flow: join an existing restaurant.
-    const user = await prisma.user.create({
-      data: { email, password: hashed, role: role ?? "STAFF", restaurantId },
-      select: safeUser,
     });
+
     const tokens = makeTokenPair(user.id, user.role, user.restaurantId);
     res.status(201).json({ user, ...tokens });
   } catch (err) {

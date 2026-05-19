@@ -32,7 +32,7 @@ export function Register() {
 
     setLoading(true);
     try {
-      await register(email, password, restaurantName);
+      await register(name, email, password, restaurantName);
       navigate("/");
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
