@@ -16,6 +16,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, restaurantName: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -103,6 +104,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(data.token);
   }, []);
 
+  const register = useCallback(
+    async (email: string, password: string, restaurantName: string) => {
+      const data = await authApi.register({ email, password, restaurantName });
+      storeSession(data.user, data.token, data.refreshToken);
+      setUser(data.user);
+      setToken(data.token);
+    },
+    []
+  );
+
   const logout = useCallback(() => {
     authApi.logout().catch(() => {});
     clearSession();
@@ -119,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!token && !!user,
         isAdmin: user?.role === "ADMIN",
         login,
+        register,
         logout,
       }}
     >

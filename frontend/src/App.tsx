@@ -5,6 +5,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { SocketProvider } from "./context/SocketContext";
 import { Layout } from "./components/Layout";
 import { Login } from "./components/Login";
+import { Register } from "./components/Register";
 import { Dashboard } from "./components/Dashboard";
 import { ProductList } from "./components/ProductList";
 import { StockPage } from "./components/StockPage";
@@ -47,6 +48,7 @@ function AppRoutes() {
       <Routes>
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
         </Route>
         <Route element={<ProtectedRoutes />}>
           <Route element={<Layout />}>
