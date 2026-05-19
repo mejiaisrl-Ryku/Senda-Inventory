@@ -22,7 +22,30 @@ export const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
-const safeUser = { id: true, name: true, email: true, role: true, restaurantId: true } as const;
+// Select shape — includes the restaurant relation so every response carries restaurantName.
+const safeUser = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  restaurantId: true,
+  restaurant: { select: { name: true } },
+} as const;
+
+type SafeUserResult = {
+  id: string;
+  name: string | null;
+  email: string;
+  role: import("@prisma/client").Role;
+  restaurantId: string;
+  restaurant: { name: string };
+};
+
+/** Flatten the nested restaurant relation into a top-level restaurantName field. */
+function toUserResponse(u: SafeUserResult) {
+  const { restaurant, ...rest } = u;
+  return { ...rest, restaurantName: restaurant.name };
+}
 
 function makeTokenPair(userId: string, role: import("@prisma/client").Role, restaurantId: string) {
   const payload = { userId, role, restaurantId };
@@ -52,7 +75,7 @@ export async function register(req: Request, res: Response, next: NextFunction) 
     });
 
     const tokens = makeTokenPair(user.id, user.role, user.restaurantId);
-    res.status(201).json({ user, ...tokens });
+    res.status(201).json({ user: toUserResponse(user), ...tokens });
   } catch (err) {
     next(err);
   }
@@ -61,19 +84,22 @@ export async function register(req: Request, res: Response, next: NextFunction) 
 export async function login(req: Request, res: Response, next: NextFunction) {
   try {
     const { email, password } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
+    // Fetch full row for bcrypt compare, then re-query with safeUser select.
+    const raw = await prisma.user.findUnique({ where: { email } });
     // Use constant-time compare even when user is not found to prevent timing attacks.
-    const passwordMatch = user
-      ? await bcrypt.compare(password, user.password)
+    const passwordMatch = raw
+      ? await bcrypt.compare(password, raw.password)
       : await bcrypt.compare(password, "$2b$12$placeholder.hash.that.never.matches");
-    if (!user || !passwordMatch) {
+    if (!raw || !passwordMatch) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
-    const tokens = makeTokenPair(user.id, user.role, user.restaurantId);
-    res.json({
-      user: { id: user.id, email: user.email, role: user.role, restaurantId: user.restaurantId },
-      ...tokens,
+    // Re-fetch with the safe select so we get the restaurant join.
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: raw.id },
+      select: safeUser,
     });
+    const tokens = makeTokenPair(user.id, user.role, user.restaurantId);
+    res.json({ user: toUserResponse(user), ...tokens });
   } catch (err) {
     next(err);
   }
@@ -95,7 +121,7 @@ export async function refresh(req: Request, res: Response, next: NextFunction) {
     });
     if (!user) return res.status(401).json({ error: "User no longer exists" });
     const tokens = makeTokenPair(user.id, user.role, user.restaurantId);
-    res.json({ user, ...tokens });
+    res.json({ user: toUserResponse(user), ...tokens });
   } catch (err) {
     next(err);
   }
@@ -112,9 +138,8 @@ export async function me(req: AuthRequest, res: Response, next: NextFunction) {
       where: { id: req.user.userId },
       select: safeUser,
     });
-    res.json(user);
+    res.json(toUserResponse(user));
   } catch (err) {
     next(err);
   }
 }
-// force redeploy Tue May 19 16:05:53 EDT 2026

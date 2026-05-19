@@ -69,15 +69,39 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-gray-200 dark:border-gray-700">
+      <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-brand-500 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
-            </svg>
+          {/* Hexagon mark */}
+          <svg width="38" height="38" viewBox="0 0 40 40" fill="none" aria-hidden="true" className="flex-shrink-0">
+            <polygon
+              points="20,2 35.6,11 35.6,29 20,38 4.4,29 4.4,11"
+              fill="#3dbf8a"
+            />
+            <text
+              x="20"
+              y="27"
+              textAnchor="middle"
+              fill="#ffffff"
+              fontSize="20"
+              fontWeight="700"
+              fontFamily="Inter, system-ui, sans-serif"
+            >
+              K
+            </text>
+          </svg>
+
+          {/* Wordmark */}
+          <div className="flex flex-col leading-none">
+            <span className="text-white font-bold text-base tracking-tight" style={{ fontFamily: "Inter, sans-serif" }}>
+              kyru
+            </span>
+            <span
+              className="text-xs font-semibold tracking-widest"
+              style={{ color: "#3dbf8a", fontFamily: "Inter, sans-serif", letterSpacing: "0.18em" }}
+            >
+              ADVISORY
+            </span>
           </div>
-          <span className="font-bold text-gray-900 dark:text-white text-sm">Senda Inventory</span>
         </div>
       </div>
 
@@ -185,7 +209,9 @@ export function Layout() {
             </svg>
           </button>
 
-          <span className="font-bold text-gray-900 dark:text-white">Senda</span>
+          <span className="font-bold text-gray-900 dark:text-white truncate">
+            {user?.restaurantName ?? "Inventory"}
+          </span>
 
           <div className="ml-auto">
             {user && (

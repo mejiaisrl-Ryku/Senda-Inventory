@@ -4,6 +4,7 @@ export interface User {
   email: string;
   role: "ADMIN" | "STAFF";
   restaurantId: string;
+  restaurantName?: string;
 }
 
 export type Unit = "KG" | "LITERS" | "PIECES";
