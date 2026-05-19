@@ -2,7 +2,8 @@ import axios, { AxiosRequestConfig } from "axios";
 import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport } from "../types";
 import { cacheGet, cacheSet, cachePurge } from "../utils/offlineCache";
 
-const BASE = process.env.REACT_APP_API_URL ?? "http://localhost:4000/api";
+// TODO: remove hardcode — set REACT_APP_API_URL env var in Vercel and revert this line
+const BASE = "https://senda-inventory-production.up.railway.app/api";
 
 export const api = axios.create({
   baseURL: BASE,
