@@ -14,7 +14,8 @@ import reportsRouter from "./routes/reports";
 
 const isProd = process.env.NODE_ENV === "production";
 
-export const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000").split(",");
+const DEFAULT_ORIGINS = "http://localhost:3000,https://aapp-final-1.vercel.app";
+export const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? DEFAULT_ORIGINS).split(",");
 
 const app = express();
 
