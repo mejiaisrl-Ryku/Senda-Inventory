@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm ci && npm run build && npx prisma generate"
+buildCommand = "npm ci --cache /tmp/npm-cache && npm run build && npx prisma generate"
 
 [deploy]
 startCommand = "npm run start:prod"
