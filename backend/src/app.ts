@@ -42,11 +42,15 @@ app.use(apiLimiter);
 
 // Health check with DB ping — used by Railway health checks and uptime monitors.
 app.get("/health", async (_req, res) => {
+  const meta = {
+    timestamp: new Date().toISOString(),
+    version: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+  };
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "ok", db: "ok", timestamp: new Date().toISOString() });
+    res.json({ status: "ok", db: "ok", ...meta });
   } catch {
-    res.status(503).json({ status: "error", db: "error", timestamp: new Date().toISOString() });
+    res.status(503).json({ status: "error", db: "error", ...meta });
   }
 });
 
