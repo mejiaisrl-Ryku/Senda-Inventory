@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig } from "axios";
-import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory } from "../types";
+import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, CogsReport } from "../types";
 import { cacheGet, cacheSet, cachePurge } from "../utils/offlineCache";
 
 // TODO: remove hardcode — set REACT_APP_API_URL env var in Vercel and revert this line
@@ -198,6 +198,11 @@ export const reportsApi = {
         a.click();
         URL.revokeObjectURL(url);
       }),
+
+  cogsToSales: (startDate: string, endDate: string) =>
+    api
+      .get<CogsReport>("/reports/cogs-to-sales", { params: { startDate, endDate } })
+      .then((r) => r.data),
 };
 
 // ── Sales ─────────────────────────────────────────────────────────────────────

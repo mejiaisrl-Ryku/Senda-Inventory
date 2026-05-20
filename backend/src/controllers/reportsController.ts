@@ -293,67 +293,91 @@ export async function getCogsToSales(req: AuthRequest, res: Response, next: Next
 
     type Bucket = { sales: number; cogs: number };
 
-    // weekKey → category → Bucket
+    const zeroBuckets = () =>
+      Object.fromEntries(ALL_CATEGORIES.map((c) => [c, { sales: 0, cogs: 0 }]));
+
+    // dayKey (YYYY-MM-DD) → category → Bucket
+    const dayMap = new Map<string, Record<string, Bucket>>();
+    // weekKey (YYYY-MM-DD of Monday) → category → Bucket
     const weekMap = new Map<string, Record<string, Bucket>>();
     // category → Bucket  (period totals)
-    const categoryTotals: Record<string, Bucket> = Object.fromEntries(
-      ALL_CATEGORIES.map((c) => [c, { sales: 0, cogs: 0 }])
-    );
+    const categoryTotals: Record<string, Bucket> = zeroBuckets();
 
+    function getDayBucket(dk: string): Record<string, Bucket> {
+      if (!dayMap.has(dk)) dayMap.set(dk, zeroBuckets());
+      return dayMap.get(dk)!;
+    }
     function getWeekBucket(wk: string): Record<string, Bucket> {
-      if (!weekMap.has(wk)) {
-        weekMap.set(
-          wk,
-          Object.fromEntries(ALL_CATEGORIES.map((c) => [c, { sales: 0, cogs: 0 }]))
-        );
-      }
+      if (!weekMap.has(wk)) weekMap.set(wk, zeroBuckets());
       return weekMap.get(wk)!;
     }
 
-    // Accumulate sales
+    // Accumulate sales — bucket by day and week
     for (const entry of salesEntries) {
+      const dk = entry.date.toISOString().slice(0, 10); // @db.Date → midnight UTC
       const wk = weekStart(entry.date);
       const amount = Number(entry.amount);
+      getDayBucket(dk)[entry.category].sales += amount;
       getWeekBucket(wk)[entry.category].sales += amount;
       categoryTotals[entry.category].sales += amount;
     }
 
-    // Accumulate COGS from stock usage
+    // Accumulate COGS from stock usage — bucket by day and week
     for (const log of stockLogs) {
       if (!log.product?.cogsCategory) continue; // uncategorized — skip
+      const dk = log.timestamp.toISOString().slice(0, 10);
       const wk = weekStart(log.timestamp);
       const cogs = Math.abs(log.change) * log.product.costPerUnit;
+      getDayBucket(dk)[log.product.cogsCategory].cogs += cogs;
       getWeekBucket(wk)[log.product.cogsCategory].cogs += cogs;
       categoryTotals[log.product.cogsCategory].cogs += cogs;
     }
 
     // ── Build response ────────────────────────────────────────────────────────
 
-    // All weeks in range (including weeks with no data → zeroes)
-    const allWeeks = weeksInRange(start, endInclusive);
-    const weeks = allWeeks.map((wk) => {
-      const byCategory = getWeekBucket(wk);
-      const weekSales = ALL_CATEGORIES.reduce((s, c) => s + byCategory[c].sales, 0);
-      const weekCogs = ALL_CATEGORIES.reduce((s, c) => s + byCategory[c].cogs, 0);
+    /** Shared shape builder — same logic for day and week periods. */
+    function buildPeriod(buckets: Record<string, Bucket>) {
+      const totalSales = ALL_CATEGORIES.reduce((s, c) => s + buckets[c].sales, 0);
+      const totalCogs = ALL_CATEGORIES.reduce((s, c) => s + buckets[c].cogs, 0);
       return {
-        weekStart: wk,
         byCategory: Object.fromEntries(
           ALL_CATEGORIES.map((c) => [
             c,
             {
-              sales: round2(byCategory[c].sales),
-              cogs: round2(byCategory[c].cogs),
-              cogsRatio: safeRatio(byCategory[c].cogs, byCategory[c].sales),
+              sales: round2(buckets[c].sales),
+              cogs: round2(buckets[c].cogs),
+              cogsRatio: safeRatio(buckets[c].cogs, buckets[c].sales),
             },
           ])
         ),
         totals: {
-          sales: round2(weekSales),
-          cogs: round2(weekCogs),
-          cogsRatio: safeRatio(weekCogs, weekSales),
+          sales: round2(totalSales),
+          cogs: round2(totalCogs),
+          cogsRatio: safeRatio(totalCogs, totalSales),
         },
       };
-    });
+    }
+
+    // All days in range (including days with no data → zeroes)
+    const allDates: string[] = [];
+    {
+      const cursor = new Date(start);
+      while (cursor <= endInclusive) {
+        allDates.push(cursor.toISOString().slice(0, 10));
+        cursor.setUTCDate(cursor.getUTCDate() + 1);
+      }
+    }
+    const days = allDates.map((dk) => ({
+      date: dk,
+      ...buildPeriod(getDayBucket(dk)),
+    }));
+
+    // All weeks in range (including weeks with no data → zeroes)
+    const allWeeks = weeksInRange(start, endInclusive);
+    const weeks = allWeeks.map((wk) => ({
+      weekStart: wk,
+      ...buildPeriod(getWeekBucket(wk)),
+    }));
 
     const byCategory = Object.fromEntries(
       ALL_CATEGORIES.map((c) => {
@@ -375,6 +399,7 @@ export async function getCogsToSales(req: AuthRequest, res: Response, next: Next
     res.json({
       startDate: startStr,
       endDate: endStr,
+      days,
       weeks,
       byCategory,
       period: {

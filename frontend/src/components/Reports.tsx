@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -10,7 +10,7 @@ import {
   Filler,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
-import { WeeklyReport, Unit } from "../types";
+import { WeeklyReport, Unit, SalesCategory, CogsReport, CogsBucket, CogsPeriodTotals, CogsPeriodSummary } from "../types";
 import { reportsApi } from "../api";
 import { formatCurrency, unitLabel } from "../utils/stock";
 import { PageSpinner } from "./shared/Spinner";
@@ -23,6 +23,11 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function firstOfMonthISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
 function formatChartLabel(dateStr: string): string {
@@ -57,6 +62,345 @@ function SummaryCard({
       <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</p>
       <p className={`mt-1 text-2xl font-bold ${accent}`}>{value}</p>
       {sub && <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{sub}</p>}
+    </div>
+  );
+}
+
+// ── COGS Report helpers ───────────────────────────────────────────────────────
+
+const COGS_CATEGORIES: SalesCategory[] = [
+  "BEER", "LIQUOR", "WINE", "FOOD", "NON_ALCOHOLIC",
+];
+
+const CATEGORY_LABELS: Record<SalesCategory, string> = {
+  BEER: "Beer",
+  LIQUOR: "Liquor",
+  WINE: "Wine",
+  FOOD: "Food",
+  NON_ALCOHOLIC: "Non-Alcoholic",
+};
+
+type CogsTab = "daily" | "weekly" | "monthly";
+
+interface DisplayPeriod {
+  key: string;
+  label: string;
+  byCategory: Record<string, CogsBucket>;
+  totals: CogsPeriodTotals;
+}
+
+function fmtDay(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00Z`).toLocaleDateString("es-MX", {
+    weekday: "short", month: "short", day: "numeric", timeZone: "UTC",
+  });
+}
+
+function fmtWeek(weekStartStr: string): string {
+  const s = new Date(`${weekStartStr}T00:00:00Z`);
+  const e = new Date(s);
+  e.setUTCDate(e.getUTCDate() + 6);
+  const fmt = (d: Date) =>
+    d.toLocaleDateString("es-MX", { month: "short", day: "numeric", timeZone: "UTC" });
+  return `${fmt(s)} – ${fmt(e)}`;
+}
+
+function fmtMonth(monthKey: string): string {
+  return new Date(`${monthKey}-01T00:00:00Z`).toLocaleDateString("es-MX", {
+    month: "long", year: "numeric", timeZone: "UTC",
+  });
+}
+
+function aggregateToMonths(days: CogsReport["days"]): DisplayPeriod[] {
+  const map = new Map<string, { byCategory: Record<string, CogsBucket>; totals: CogsPeriodTotals }>();
+  for (const d of days) {
+    const mk = d.date.slice(0, 7);
+    if (!map.has(mk)) {
+      map.set(mk, {
+        byCategory: Object.fromEntries(
+          COGS_CATEGORIES.map((c) => [c, { sales: 0, cogs: 0, cogsRatio: null }])
+        ),
+        totals: { sales: 0, cogs: 0, cogsRatio: null },
+      });
+    }
+    const m = map.get(mk)!;
+    for (const c of COGS_CATEGORIES) {
+      m.byCategory[c].sales += d.byCategory[c]?.sales ?? 0;
+      m.byCategory[c].cogs += d.byCategory[c]?.cogs ?? 0;
+    }
+    m.totals.sales += d.totals.sales;
+    m.totals.cogs += d.totals.cogs;
+  }
+  return [...map.entries()].sort().map(([mk, data]) => {
+    for (const c of COGS_CATEGORIES) {
+      const b = data.byCategory[c];
+      b.cogsRatio = b.sales > 0 ? Math.round((b.cogs / b.sales) * 1000) / 1000 : null;
+    }
+    const t = data.totals;
+    t.cogsRatio = t.sales > 0 ? Math.round((t.cogs / t.sales) * 1000) / 1000 : null;
+    return { key: mk, label: fmtMonth(mk), byCategory: data.byCategory, totals: t };
+  });
+}
+
+/** COGS% colour — green < 25%, yellow 25–35%, red > 35% */
+function ratioBadge(ratio: number | null): string {
+  if (ratio === null) return "text-gray-400 dark:text-gray-500";
+  if (ratio < 0.25) return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400";
+  if (ratio <= 0.35) return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400";
+  return "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400";
+}
+
+function fmtRatio(ratio: number | null): string {
+  return ratio === null ? "—" : `${(ratio * 100).toFixed(1)}%`;
+}
+
+function fmtMXN(n: number): string {
+  return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
+}
+
+// ── CogsReportSection ─────────────────────────────────────────────────────────
+
+function CogsReportSection() {
+  const toast = useToast();
+  const [startDate, setStartDate] = useState(firstOfMonthISO);
+  const [endDate, setEndDate] = useState(todayISO);
+  const [tab, setTab] = useState<CogsTab>("weekly");
+  const [data, setData] = useState<CogsReport | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    reportsApi
+      .cogsToSales(startDate, endDate)
+      .then(setData)
+      .catch((err) => toast.error(getApiError(err)))
+      .finally(() => setLoading(false));
+  }, [startDate, endDate, toast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  /** Derive the row list for the active tab */
+  const periods = useMemo<DisplayPeriod[]>(() => {
+    if (!data) return [];
+    if (tab === "daily")
+      return data.days
+        .filter((d) => d.totals.sales > 0 || d.totals.cogs > 0) // skip empty days
+        .map((d) => ({ key: d.date, label: fmtDay(d.date), byCategory: d.byCategory, totals: d.totals }));
+    if (tab === "weekly")
+      return data.weeks.map((w) => ({
+        key: w.weekStart, label: fmtWeek(w.weekStart), byCategory: w.byCategory, totals: w.totals,
+      }));
+    return aggregateToMonths(data.days);
+  }, [data, tab]);
+
+  const tabs: { id: CogsTab; label: string }[] = [
+    { id: "daily", label: "Daily" },
+    { id: "weekly", label: "Weekly" },
+    { id: "monthly", label: "Monthly" },
+  ];
+
+  const inputCls =
+    "px-2 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
+
+  return (
+    <div className="space-y-4">
+      {/* Section header + date pickers */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">COGS Report</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Cost of Goods Sold vs. sales revenue by category
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="date"
+            value={startDate}
+            max={endDate}
+            onChange={(e) => e.target.value && setStartDate(e.target.value)}
+            className={inputCls}
+          />
+          <span className="text-gray-400 dark:text-gray-500 text-sm">–</span>
+          <input
+            type="date"
+            value={endDate}
+            min={startDate}
+            max={todayISO()}
+            onChange={(e) => e.target.value && setEndDate(e.target.value)}
+            className={inputCls}
+          />
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 dark:border-gray-700 gap-1">
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              tab === t.id
+                ? "border-brand-500 text-brand-600 dark:text-brand-400"
+                : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        {loading ? (
+          <div className="py-12 text-center">
+            <div className="inline-block w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : !data || periods.length === 0 ? (
+          <div className="py-14 text-center">
+            <svg className="w-10 h-10 mx-auto mb-3 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No data for this period. Add sales entries and tag products with a COGS category.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 dark:border-gray-700">
+                  {["Period", "Category", "Sales", "COGS", "COGS %"].map((h, i) => (
+                    <th
+                      key={h}
+                      className={`px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider ${
+                        i >= 2 ? "text-right" : "text-left"
+                      }`}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {periods.map((period) => (
+                  <React.Fragment key={period.key}>
+                    {/* Period header row */}
+                    <tr className="bg-gray-50 dark:bg-gray-700/40 border-t border-gray-100 dark:border-gray-700">
+                      <td
+                        colSpan={2}
+                        className="px-5 py-2 text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide"
+                      >
+                        {period.label}
+                      </td>
+                      <td className="px-5 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 tabular-nums">
+                        {fmtMXN(period.totals.sales)}
+                      </td>
+                      <td className="px-5 py-2 text-right text-xs font-semibold text-gray-700 dark:text-gray-200 tabular-nums">
+                        {fmtMXN(period.totals.cogs)}
+                      </td>
+                      <td className="px-5 py-2 text-right">
+                        {period.totals.cogsRatio !== null && (
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${ratioBadge(period.totals.cogsRatio)}`}>
+                            {fmtRatio(period.totals.cogsRatio)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+
+                    {/* Category rows */}
+                    {COGS_CATEGORIES.map((cat) => {
+                      const b = period.byCategory[cat] ?? { sales: 0, cogs: 0, cogsRatio: null };
+                      return (
+                        <tr
+                          key={cat}
+                          className="border-t border-gray-50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/20 transition-colors"
+                        >
+                          <td className="px-5 py-2.5 text-gray-300 dark:text-gray-600 text-xs">—</td>
+                          <td className="px-5 py-2.5 text-gray-600 dark:text-gray-300 font-medium">
+                            {CATEGORY_LABELS[cat]}
+                          </td>
+                          <td className="px-5 py-2.5 text-right text-gray-700 dark:text-gray-200 tabular-nums">
+                            {b.sales > 0 ? fmtMXN(b.sales) : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                          </td>
+                          <td className="px-5 py-2.5 text-right text-gray-700 dark:text-gray-200 tabular-nums">
+                            {b.cogs > 0 ? fmtMXN(b.cogs) : <span className="text-gray-300 dark:text-gray-600">—</span>}
+                          </td>
+                          <td className="px-5 py-2.5 text-right">
+                            {b.cogsRatio !== null ? (
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${ratioBadge(b.cogsRatio)}`}>
+                                {fmtRatio(b.cogsRatio)}
+                              </span>
+                            ) : (
+                              <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Summary card */}
+      {data && !loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Total Sales
+            </p>
+            <p className="mt-1 text-2xl font-bold text-brand-500 tabular-nums">
+              {fmtMXN((data.period as CogsPeriodSummary).totalSales)}
+            </p>
+            <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+              {startDate} – {endDate}
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Total COGS
+            </p>
+            <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white tabular-nums">
+              {fmtMXN((data.period as CogsPeriodSummary).totalCOGS)}
+            </p>
+            <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+              from stock usage × cost/unit
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Overall COGS %
+            </p>
+            {data.period.cogsRatio !== null ? (
+              <>
+                <p className={`mt-1 text-2xl font-bold tabular-nums ${
+                  data.period.cogsRatio < 0.25
+                    ? "text-green-600 dark:text-green-400"
+                    : data.period.cogsRatio <= 0.35
+                    ? "text-yellow-600 dark:text-yellow-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}>
+                  {fmtRatio(data.period.cogsRatio)}
+                </p>
+                <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                  {data.period.cogsRatio < 0.25
+                    ? "✓ Under target"
+                    : data.period.cogsRatio <= 0.35
+                    ? "⚠ Near threshold"
+                    : "✗ Over target"}
+                </p>
+              </>
+            ) : (
+              <p className="mt-1 text-2xl font-bold text-gray-400 dark:text-gray-500">—</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -289,6 +633,9 @@ export function Reports() {
               </table>
             </div>
           </div>
+
+          {/* COGS Report ────────────────────────────────────────────── */}
+          <CogsReportSection />
 
           {/* Most used products ─────────────────────────────────────── */}
           {report.mostUsed.length > 0 ? (

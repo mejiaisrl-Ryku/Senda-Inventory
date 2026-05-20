@@ -104,6 +104,48 @@ export interface MostUsedEntry {
   unit: string;
 }
 
+// ── COGS Report ───────────────────────────────────────────────────────────────
+
+export interface CogsBucket {
+  sales: number;
+  cogs: number;
+  cogsRatio: number | null; // null when sales = 0
+}
+
+export interface CogsPeriodTotals {
+  sales: number;
+  cogs: number;
+  cogsRatio: number | null;
+}
+
+export interface CogsDay {
+  date: string; // YYYY-MM-DD
+  byCategory: Record<SalesCategory, CogsBucket>;
+  totals: CogsPeriodTotals;
+}
+
+export interface CogsWeek {
+  weekStart: string; // YYYY-MM-DD (Monday)
+  byCategory: Record<SalesCategory, CogsBucket>;
+  totals: CogsPeriodTotals;
+}
+
+/** Shape of the top-level `period` summary (different keys from per-day/week totals). */
+export interface CogsPeriodSummary {
+  totalSales: number;
+  totalCOGS: number;
+  cogsRatio: number | null;
+}
+
+export interface CogsReport {
+  startDate: string;
+  endDate: string;
+  days: CogsDay[];
+  weeks: CogsWeek[];
+  byCategory: Record<SalesCategory, CogsPeriodSummary>;
+  period: CogsPeriodSummary;
+}
+
 export interface WeeklyReport {
   startDate: string;
   endDate: string;
