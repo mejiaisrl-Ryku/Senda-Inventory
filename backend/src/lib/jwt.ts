@@ -38,3 +38,28 @@ export function signRefreshToken(payload: JwtPayload): string {
 export function verifyRefreshToken(token: string): JwtPayload {
   return jwt.verify(token, REFRESH_SECRET) as JwtPayload;
 }
+
+// ── Invite tokens ─────────────────────────────────────────────────────────────
+
+export interface InvitePayload {
+  purpose: "invite";
+  restaurantId: string;
+  restaurantName: string;
+  role: "STAFF";
+  email: string;
+}
+
+/** Short-lived invite link token — signed with the same secret as access tokens. */
+export function signInviteToken(
+  data: Omit<InvitePayload, "purpose">
+): string {
+  return jwt.sign({ ...data, purpose: "invite" }, SECRET, {
+    expiresIn: "7d" as SignOptions["expiresIn"],
+  });
+}
+
+export function verifyInviteToken(token: string): InvitePayload {
+  const decoded = jwt.verify(token, SECRET) as InvitePayload;
+  if (decoded.purpose !== "invite") throw new Error("Invalid token purpose");
+  return decoded;
+}

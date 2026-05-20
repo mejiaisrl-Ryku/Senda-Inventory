@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig } from "axios";
-import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, CogsReport } from "../types";
+import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, CogsReport, TeamMember } from "../types";
 import { cacheGet, cacheSet, cachePurge } from "../utils/offlineCache";
 
 // TODO: remove hardcode — set REACT_APP_API_URL env var in Vercel and revert this line
@@ -202,6 +202,27 @@ export const reportsApi = {
   cogsToSales: (startDate: string, endDate: string) =>
     api
       .get<CogsReport>("/reports/cogs-to-sales", { params: { startDate, endDate } })
+      .then((r) => r.data),
+};
+
+// ── Team ──────────────────────────────────────────────────────────────────────
+export const teamApi = {
+  list: () => api.get<TeamMember[]>("/team").then((r) => r.data),
+
+  invite: (data: { name: string; email: string }) =>
+    api.post("/team/invite", data).then((r) => r.data),
+
+  create: (data: { name: string; email: string; password: string }) =>
+    api.post<TeamMember>("/team/create", data).then((r) => r.data),
+
+  remove: (userId: string) => api.delete(`/team/${userId}`),
+
+  registerViaInvite: (data: { token: string; name: string; email: string; password: string }) =>
+    api
+      .post<{ user: import("../types").User; token: string; refreshToken: string }>(
+        "/team/register-via-invite",
+        data
+      )
       .then((r) => r.data),
 };
 

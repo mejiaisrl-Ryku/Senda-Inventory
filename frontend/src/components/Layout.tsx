@@ -3,7 +3,14 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 
-const navItems = [
+interface NavItem {
+  to: string;
+  label: string;
+  adminOnly?: boolean;
+  icon: React.ReactNode;
+}
+
+const navItems: NavItem[] = [
   {
     to: "/",
     label: "Dashboard",
@@ -57,10 +64,22 @@ const navItems = [
   {
     to: "/reports",
     label: "Reports",
+    adminOnly: true,
     icon: (
       <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
           d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
+  {
+    to: "/team",
+    label: "Team",
+    adminOnly: true,
+    icon: (
+      <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
   },
@@ -118,7 +137,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       {/* Nav — min-h-[44px] on every item for touch compliance */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {navItems
-          .filter(({ to }) => to !== "/reports" || isAdmin)
+          .filter(({ adminOnly }) => !adminOnly || isAdmin)
           .map(({ to, label, icon }) => (
             <NavLink
               key={to}

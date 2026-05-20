@@ -146,6 +146,13 @@ export interface CogsReport {
   period: CogsPeriodSummary;
 }
 
+export interface TeamMember {
+  id: string;
+  name: string | null;
+  email: string;
+  role: "ADMIN" | "STAFF";
+}
+
 export interface WeeklyReport {
   startDate: string;
   endDate: string;

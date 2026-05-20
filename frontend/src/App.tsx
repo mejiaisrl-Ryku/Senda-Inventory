@@ -11,6 +11,7 @@ import { ProductList } from "./components/ProductList";
 import { StockPage } from "./components/StockPage";
 import { OrderList } from "./components/OrderList";
 import { SalesPage } from "./components/SalesPage";
+import { TeamPage } from "./components/TeamPage";
 import { Spinner } from "./components/shared/Spinner";
 import { ToastProvider } from "./context/ToastContext";
 import { ToastContainer } from "./components/shared/Toast";
@@ -73,6 +74,7 @@ function AppRoutes() {
                   </Suspense>
                 }
               />
+              <Route path="team" element={<TeamPage />} />
             </Route>
           </Route>
         </Route>
