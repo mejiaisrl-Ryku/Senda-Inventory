@@ -10,6 +10,18 @@ export interface User {
 export type Unit = "KG" | "LITERS" | "PIECES";
 export type StockReason = "RECEIVED" | "USED" | "ADJUSTED" | "WASTE";
 export type OrderStatus = "PENDING" | "RECEIVED" | "CANCELLED";
+export type SalesCategory = "BEER" | "LIQUOR" | "WINE" | "FOOD" | "NON_ALCOHOLIC";
+
+export interface SalesEntry {
+  id: string;
+  restaurantId: string;
+  /** ISO string from @db.Date — always midnight UTC, e.g. "2025-05-19T00:00:00.000Z" */
+  date: string;
+  category: SalesCategory;
+  amount: number;
+  notes?: string | null;
+  createdAt: string;
+}
 
 export interface Product {
   id: string;

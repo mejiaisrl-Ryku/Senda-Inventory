@@ -46,6 +46,25 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
   }
 }
 
+// ── DELETE /api/sales/:id ─────────────────────────────────────────────────────
+
+export async function deleteSale(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+
+    // Verify the entry belongs to this restaurant before deleting (tenant isolation).
+    const entry = await prisma.salesEntry.findFirst({
+      where: { id, restaurantId: req.user.restaurantId },
+    });
+    if (!entry) return res.status(404).json({ error: "Sales entry not found" });
+
+    await prisma.salesEntry.delete({ where: { id } });
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ── GET /api/sales?startDate=&endDate=&category= ──────────────────────────────
 
 export async function listSales(req: AuthRequest, res: Response, next: NextFunction) {

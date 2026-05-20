@@ -10,6 +10,7 @@ import { Dashboard } from "./components/Dashboard";
 import { ProductList } from "./components/ProductList";
 import { StockPage } from "./components/StockPage";
 import { OrderList } from "./components/OrderList";
+import { SalesPage } from "./components/SalesPage";
 import { Spinner } from "./components/shared/Spinner";
 import { ToastProvider } from "./context/ToastContext";
 import { ToastContainer } from "./components/shared/Toast";
@@ -56,6 +57,7 @@ function AppRoutes() {
             <Route path="products" element={<ProductList />} />
             <Route path="stock" element={<StockPage />} />
             <Route path="orders" element={<OrderList />} />
+            <Route path="sales" element={<SalesPage />} />
             <Route
                 path="reports"
                 element={
