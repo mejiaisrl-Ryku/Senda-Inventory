@@ -37,6 +37,23 @@ enum OrderStatus {
   CANCELLED
 }
 
+enum SalesCategory {
+  BEER
+  LIQUOR
+  WINE
+  FOOD
+  NON_ALCOHOLIC
+}
+
+// Maps a product's COGS to one of the sales categories for cost-vs-revenue reporting.
+enum COGSCategory {
+  BEER
+  LIQUOR
+  WINE
+  FOOD
+  NON_ALCOHOLIC
+}
+
 // ─────────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────────
@@ -49,9 +66,10 @@ model Restaurant {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  users    User[]
-  products Product[]
-  orders   Order[]
+  users        User[]
+  products     Product[]
+  orders       Order[]
+  salesEntries SalesEntry[]
 
   @@map("restaurants")
 }
@@ -72,18 +90,19 @@ model User {
 }
 
 model Product {
-  id           String     @id @default(cuid())
+  id           String        @id @default(cuid())
   name         String
-  sku          String?    @unique
+  sku          String?       @unique
   category     String?
-  unit         Unit       @default(PIECES)
-  costPerUnit  Float      @default(0)
-  currentStock Float      @default(0)
-  minimumStock Float      @default(0)
+  cogsCategory COGSCategory?
+  unit         Unit          @default(PIECES)
+  costPerUnit  Float         @default(0)
+  currentStock Float         @default(0)
+  minimumStock Float         @default(0)
   restaurantId String
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   stockLogs  StockLog[]
   orderItems OrderItem[]
@@ -123,6 +142,22 @@ model Order {
 
   @@index([restaurantId])
   @@map("orders")
+}
+
+// Daily sales figures per category — used for COGS-vs-revenue reporting.
+model SalesEntry {
+  id           String        @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  date         DateTime      @db.Date
+  category     SalesCategory
+  amount       Decimal       @db.Decimal(10, 2)
+  notes        String?
+  createdAt    DateTime      @default(now())
+
+  @@index([restaurantId])
+  @@index([restaurantId, date])
+  @@map("sales_entries")
 }
 
 // Explicit join table for Order <-> Product many-to-many.
