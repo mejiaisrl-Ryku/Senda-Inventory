@@ -37,6 +37,12 @@ function ProtectedRoutes() {
   return <Outlet />;
 }
 
+function AdminRoute() {
+  const { isAdmin } = useAuth();
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return <Outlet />;
+}
+
 function PublicRoute() {
   const { isAuthenticated } = useAuth();
   if (isAuthenticated) return <Navigate to="/" replace />;
@@ -58,7 +64,8 @@ function AppRoutes() {
             <Route path="stock" element={<StockPage />} />
             <Route path="orders" element={<OrderList />} />
             <Route path="sales" element={<SalesPage />} />
-            <Route
+            <Route element={<AdminRoute />}>
+              <Route
                 path="reports"
                 element={
                   <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Spinner size="lg" /></div>}>
@@ -66,6 +73,7 @@ function AppRoutes() {
                   </Suspense>
                 }
               />
+            </Route>
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

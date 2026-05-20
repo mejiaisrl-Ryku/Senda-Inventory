@@ -220,7 +220,7 @@ export function ProductList() {
           title="No products found"
           description={search ? "Try a different search or scan again." : "Add your first product to get started."}
           action={
-            !search && (
+            !search && isAdmin && (
               <button
                 onClick={() => setAddOpen(true)}
                 className="min-h-[44px] px-4 bg-brand-500 text-white text-sm rounded-xl hover:bg-brand-600 transition-colors"

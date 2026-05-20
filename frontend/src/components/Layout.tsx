@@ -67,7 +67,7 @@ const navItems = [
 ];
 
 function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const { dark, toggleDark } = useTheme();
   const navigate = useNavigate();
 
@@ -117,24 +117,26 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
       {/* Nav — min-h-[44px] on every item for touch compliance */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ to, label, icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={to === "/"}
-            onClick={onNavClick}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 min-h-[44px] rounded-xl text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400"
-                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
-              }`
-            }
-          >
-            {icon}
-            {label}
-          </NavLink>
-        ))}
+        {navItems
+          .filter(({ to }) => to !== "/reports" || isAdmin)
+          .map(({ to, label, icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === "/"}
+              onClick={onNavClick}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 min-h-[44px] rounded-xl text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400"
+                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
+                }`
+              }
+            >
+              {icon}
+              {label}
+            </NavLink>
+          ))}
       </nav>
 
       {/* Bottom: theme + user */}

@@ -9,6 +9,7 @@ import { EmptyState } from "./shared/EmptyState";
 import { OrderForm } from "./OrderForm";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
+import { useAuth } from "../context/AuthContext";
 
 const statusStyles: Record<OrderStatus, string> = {
   PENDING: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400",
@@ -23,6 +24,7 @@ const statusLabels: Record<OrderStatus, string> = {
 };
 
 export function OrderList() {
+  const { isAdmin } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "">("");
@@ -189,12 +191,14 @@ export function OrderList() {
                       >
                         {receiving === order.id ? "Receiving…" : "Mark as Received"}
                       </button>
-                      <button
-                        onClick={() => setCancelTarget(order)}
-                        className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        Cancel
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => setCancelTarget(order)}
+                          className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate } from "../middleware/auth";
+import { authenticate, requireAdmin } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import {
   createOrder,
@@ -16,7 +16,8 @@ router.use(authenticate as never);
 
 router.post("/", validate(createOrderSchema), createOrder as never);
 router.get("/", listOrders as never);
-router.put("/:id", validate(updateOrderSchema), updateOrder as never);
+// Cancelling/updating order status is an admin action
+router.put("/:id", requireAdmin as never, validate(updateOrderSchema), updateOrder as never);
 router.post("/:id/receive", receiveOrder as never);
 
 export default router;
