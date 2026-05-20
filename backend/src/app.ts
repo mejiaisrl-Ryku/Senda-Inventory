@@ -40,9 +40,8 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 // "combined" includes :response-time ms — used by Railway's log-based alerting.
 app.use(morgan(isProd ? "combined" : "dev"));
 app.use(express.json({ limit: "1mb" }));
-app.use(apiLimiter);
 
-// Health check with DB ping — used by Railway health checks and uptime monitors.
+// Health check — registered before the rate limiter so Railway uptime pings are never blocked.
 app.get("/health", async (_req, res) => {
   const meta = {
     timestamp: new Date().toISOString(),
@@ -55,6 +54,9 @@ app.get("/health", async (_req, res) => {
     res.status(503).json({ status: "error", db: "error", ...meta });
   }
 });
+
+// Rate limiter applied only to /api — /health stays exempt.
+app.use("/api", apiLimiter);
 
 app.use("/api/auth", authRouter);
 app.use("/api/products", productsRouter);
