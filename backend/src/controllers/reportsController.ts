@@ -1,5 +1,6 @@
 import { Response, NextFunction } from "express";
 import { z } from "zod";
+import { SalesCategory } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 
@@ -205,6 +206,183 @@ export async function exportReport(req: AuthRequest, res: Response, next: NextFu
       `attachment; filename="stock-report-${startStr}-to-${endStr}.csv"`
     );
     res.send(csv);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── GET /reports/cogs-to-sales?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD ───────
+//
+// Returns COGS (from stock usage logs) vs sales revenue, grouped by week and
+// category. COGS is derived from StockLog entries with reason USED or WASTE,
+// multiplied by the product's costPerUnit and bucketed by product.cogsCategory.
+// Products with no cogsCategory set are excluded from COGS totals.
+
+const ALL_CATEGORIES = Object.values(SalesCategory) as SalesCategory[];
+
+/** Return the ISO date (YYYY-MM-DD) of the Monday on or before the given date. */
+function weekStart(date: Date): string {
+  const d = new Date(date);
+  const day = d.getUTCDay(); // 0 = Sun
+  const daysToMonday = day === 0 ? 6 : day - 1;
+  d.setUTCDate(d.getUTCDate() - daysToMonday);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Generate every Monday key from the week containing startDate through endDate. */
+function weeksInRange(start: Date, end: Date): string[] {
+  const weeks: string[] = [];
+  const cursor = new Date(start);
+  // Snap cursor back to Monday
+  const day = cursor.getUTCDay();
+  cursor.setUTCDate(cursor.getUTCDate() - (day === 0 ? 6 : day - 1));
+  while (cursor <= end) {
+    weeks.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 7);
+  }
+  return weeks;
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function safeRatio(cogs: number, sales: number): number | null {
+  return sales > 0 ? round2(cogs / sales) : null;
+}
+
+export async function getCogsToSales(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const startStr = typeof req.query.startDate === "string" ? req.query.startDate : null;
+    const endStr = typeof req.query.endDate === "string" ? req.query.endDate : null;
+
+    if (!startStr || !dateSchema.safeParse(startStr).success) {
+      return res.status(400).json({ error: "startDate is required (YYYY-MM-DD)" });
+    }
+    if (!endStr || !dateSchema.safeParse(endStr).success) {
+      return res.status(400).json({ error: "endDate is required (YYYY-MM-DD)" });
+    }
+
+    const start = toUTCDay(startStr);
+    const endInclusive = toUTCDay(endStr);
+    const endExclusive = addDays(endInclusive, 1); // for timestamp-based queries
+
+    const restaurantId = req.user.restaurantId;
+
+    // Fetch sales entries and stock usage logs in parallel
+    const [salesEntries, stockLogs] = await Promise.all([
+      prisma.salesEntry.findMany({
+        where: {
+          restaurantId,
+          date: { gte: start, lte: endInclusive }, // @db.Date — inclusive lte is correct
+        },
+      }),
+      prisma.stockLog.findMany({
+        where: {
+          reason: { in: ["USED", "WASTE"] },
+          timestamp: { gte: start, lt: endExclusive },
+          product: { restaurantId },
+        },
+        include: {
+          product: { select: { cogsCategory: true, costPerUnit: true } },
+        },
+      }),
+    ]);
+
+    // ── Accumulators ──────────────────────────────────────────────────────────
+
+    type Bucket = { sales: number; cogs: number };
+
+    // weekKey → category → Bucket
+    const weekMap = new Map<string, Record<string, Bucket>>();
+    // category → Bucket  (period totals)
+    const categoryTotals: Record<string, Bucket> = Object.fromEntries(
+      ALL_CATEGORIES.map((c) => [c, { sales: 0, cogs: 0 }])
+    );
+
+    function getWeekBucket(wk: string): Record<string, Bucket> {
+      if (!weekMap.has(wk)) {
+        weekMap.set(
+          wk,
+          Object.fromEntries(ALL_CATEGORIES.map((c) => [c, { sales: 0, cogs: 0 }]))
+        );
+      }
+      return weekMap.get(wk)!;
+    }
+
+    // Accumulate sales
+    for (const entry of salesEntries) {
+      const wk = weekStart(entry.date);
+      const amount = Number(entry.amount);
+      getWeekBucket(wk)[entry.category].sales += amount;
+      categoryTotals[entry.category].sales += amount;
+    }
+
+    // Accumulate COGS from stock usage
+    for (const log of stockLogs) {
+      if (!log.product?.cogsCategory) continue; // uncategorized — skip
+      const wk = weekStart(log.timestamp);
+      const cogs = Math.abs(log.change) * log.product.costPerUnit;
+      getWeekBucket(wk)[log.product.cogsCategory].cogs += cogs;
+      categoryTotals[log.product.cogsCategory].cogs += cogs;
+    }
+
+    // ── Build response ────────────────────────────────────────────────────────
+
+    // All weeks in range (including weeks with no data → zeroes)
+    const allWeeks = weeksInRange(start, endInclusive);
+    const weeks = allWeeks.map((wk) => {
+      const byCategory = getWeekBucket(wk);
+      const weekSales = ALL_CATEGORIES.reduce((s, c) => s + byCategory[c].sales, 0);
+      const weekCogs = ALL_CATEGORIES.reduce((s, c) => s + byCategory[c].cogs, 0);
+      return {
+        weekStart: wk,
+        byCategory: Object.fromEntries(
+          ALL_CATEGORIES.map((c) => [
+            c,
+            {
+              sales: round2(byCategory[c].sales),
+              cogs: round2(byCategory[c].cogs),
+              cogsRatio: safeRatio(byCategory[c].cogs, byCategory[c].sales),
+            },
+          ])
+        ),
+        totals: {
+          sales: round2(weekSales),
+          cogs: round2(weekCogs),
+          cogsRatio: safeRatio(weekCogs, weekSales),
+        },
+      };
+    });
+
+    const byCategory = Object.fromEntries(
+      ALL_CATEGORIES.map((c) => {
+        const { sales, cogs } = categoryTotals[c];
+        return [
+          c,
+          {
+            totalSales: round2(sales),
+            totalCOGS: round2(cogs),
+            cogsRatio: safeRatio(cogs, sales),
+          },
+        ];
+      })
+    );
+
+    const periodSales = ALL_CATEGORIES.reduce((s, c) => s + categoryTotals[c].sales, 0);
+    const periodCogs = ALL_CATEGORIES.reduce((s, c) => s + categoryTotals[c].cogs, 0);
+
+    res.json({
+      startDate: startStr,
+      endDate: endStr,
+      weeks,
+      byCategory,
+      period: {
+        totalSales: round2(periodSales),
+        totalCOGS: round2(periodCogs),
+        cogsRatio: safeRatio(periodCogs, periodSales),
+      },
+    });
   } catch (err) {
     next(err);
   }
