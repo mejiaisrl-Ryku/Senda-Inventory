@@ -1,19 +1,26 @@
 import nodemailer from "nodemailer";
+import SMTPTransport from "nodemailer/lib/smtp-transport";
 
 /**
  * Lazily-created transporter — only initialised when sendMail is called so that
  * missing SMTP env vars in dev/test environments don't crash the process at startup.
  */
 function createTransporter() {
-  return nodemailer.createTransport({
+  // `family` is a Node.js net.connect option passed through by nodemailer but not
+  // reflected in the @types/nodemailer SMTPTransport.Options interface, so we widen
+  // the type with an intersection rather than suppressing the error globally.
+  const options: SMTPTransport.Options & { family?: number } = {
     host: process.env.SMTP_HOST ?? "smtp.gmail.com",
     port: Number(process.env.SMTP_PORT ?? 587),
-    secure: false, // STARTTLS on port 587
+    secure: false,    // STARTTLS on port 587 (not implicit TLS)
+    requireTLS: true, // abort if STARTTLS upgrade fails
+    family: 4,        // force IPv4 — prevents ENETUNREACH on IPv6-only resolution
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-  });
+  };
+  return nodemailer.createTransport(options);
 }
 
 const SENDER = process.env.SMTP_USER ?? "noreply@kyruadvisory.com";
