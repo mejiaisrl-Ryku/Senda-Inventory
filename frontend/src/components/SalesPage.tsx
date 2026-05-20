@@ -62,7 +62,7 @@ function firstOfMonth(): string {
 
 /** Format a @db.Date ISO string (midnight UTC) as a readable date */
 function formatSaleDate(iso: string): string {
-  return new Intl.DateTimeFormat("es-MX", {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeZone: "UTC",
   }).format(new Date(iso));

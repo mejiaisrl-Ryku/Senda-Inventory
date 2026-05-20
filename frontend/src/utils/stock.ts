@@ -51,7 +51,7 @@ export function formatCurrency(n: number) {
 }
 
 export function formatDate(iso: string) {
-  return new Intl.DateTimeFormat("es-MX", {
+  return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(iso));

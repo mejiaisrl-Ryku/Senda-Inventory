@@ -17,8 +17,8 @@ router.use(authenticate as never);
 
 router.get("/", listProducts as never);
 router.get("/:id", getProduct as never);
-router.post("/", validate(createProductSchema), createProduct as never);
-router.put("/:id", validate(updateProductSchema), updateProduct as never);
+router.post("/", requireAdmin as never, validate(createProductSchema), createProduct as never);
+router.put("/:id", requireAdmin as never, validate(updateProductSchema), updateProduct as never);
 router.delete("/:id", requireAdmin as never, deleteProduct as never);
 
 export default router;

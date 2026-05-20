@@ -90,7 +90,7 @@ interface DisplayPeriod {
 }
 
 function fmtDay(dateStr: string): string {
-  return new Date(`${dateStr}T00:00:00Z`).toLocaleDateString("es-MX", {
+  return new Date(`${dateStr}T00:00:00Z`).toLocaleDateString("en-US", {
     weekday: "short", month: "short", day: "numeric", timeZone: "UTC",
   });
 }
@@ -100,12 +100,12 @@ function fmtWeek(weekStartStr: string): string {
   const e = new Date(s);
   e.setUTCDate(e.getUTCDate() + 6);
   const fmt = (d: Date) =>
-    d.toLocaleDateString("es-MX", { month: "short", day: "numeric", timeZone: "UTC" });
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   return `${fmt(s)} – ${fmt(e)}`;
 }
 
 function fmtMonth(monthKey: string): string {
-  return new Date(`${monthKey}-01T00:00:00Z`).toLocaleDateString("es-MX", {
+  return new Date(`${monthKey}-01T00:00:00Z`).toLocaleDateString("en-US", {
     month: "long", year: "numeric", timeZone: "UTC",
   });
 }
