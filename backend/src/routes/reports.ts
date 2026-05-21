@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate, requireAdmin } from "../middleware/auth";
+import { authenticate } from "../middleware/auth";
 import {
   getDailyReport,
   getWeeklyReport,
@@ -10,7 +10,6 @@ import {
 const router = Router();
 
 router.use(authenticate as never);
-router.use(requireAdmin as never);
 
 router.get("/daily", getDailyReport as never);
 router.get("/weekly", getWeeklyReport as never);
