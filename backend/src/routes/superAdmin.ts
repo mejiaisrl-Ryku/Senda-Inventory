@@ -2,6 +2,8 @@ import { Router } from "express";
 import { authenticate, requireSuperAdmin } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import {
+  superAdminLogin,
+  superAdminLoginSchema,
   listRestaurants,
   createRestaurant,
   deleteRestaurant,
@@ -13,7 +15,11 @@ import {
 
 const router = Router();
 
-// Every route under /api/super-admin requires a valid JWT AND SUPER_ADMIN role.
+// ── Public ────────────────────────────────────────────────────────────────────
+// Login must be registered BEFORE the authenticate/requireSuperAdmin wall.
+router.post("/login", validate(superAdminLoginSchema), superAdminLogin as never);
+
+// ── Protected — valid JWT + SUPER_ADMIN role required ────────────────────────
 router.use(authenticate as never);
 router.use(requireSuperAdmin as never);
 

@@ -41,9 +41,7 @@ export function SuperAdminProvider({ children }: { children: React.ReactNode }) 
 
   const login = useCallback(async (email: string, password: string) => {
     const data = await superAdminApi.login(email, password);
-    if (data.user.role !== "SUPER_ADMIN") {
-      throw new Error("Access denied — super-admin account required.");
-    }
+    // Role enforcement is done server-side; the endpoint 403s non-SUPER_ADMIN accounts.
     localStorage.setItem(SA_TOKEN_KEY, data.token);
     localStorage.setItem(SA_REFRESH_KEY, data.refreshToken);
     localStorage.setItem(SA_USER_KEY, JSON.stringify(data.user));

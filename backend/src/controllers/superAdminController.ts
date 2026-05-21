@@ -1,12 +1,17 @@
-import { Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { signInviteToken } from "../lib/jwt";
+import { signToken, signRefreshToken, signInviteToken } from "../lib/jwt";
 import { sendInviteEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";
 
 // ── Validation schemas ────────────────────────────────────────────────────────
+
+export const superAdminLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
 
 export const createRestaurantSchema = z.object({
   name: z.string().min(1, "Restaurant name is required").max(255).trim(),
@@ -22,6 +27,43 @@ export const inviteAdminSchema = z.object({
 });
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
+
+/**
+ * POST /api/super-admin/login  (PUBLIC — no auth middleware)
+ * Authenticates a user and rejects anyone whose role is not SUPER_ADMIN.
+ * Role compared as a plain string — no dependency on the Prisma enum.
+ */
+export async function superAdminLogin(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { email, password } = req.body as { email: string; password: string };
+
+    const raw = await prisma.user.findUnique({ where: { email } });
+
+    // Constant-time compare even when the user doesn't exist.
+    const passwordMatch = raw
+      ? await bcrypt.compare(password, raw.password)
+      : await bcrypt.compare(password, "$2b$12$placeholder.hash.that.never.matches");
+
+    if (!raw || !passwordMatch) {
+      return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    // String comparison — independent of the Prisma-generated Role enum.
+    if ((raw.role as string) !== "SUPER_ADMIN") {
+      return res.status(403).json({ error: "Access denied — super-admin account required." });
+    }
+
+    const payload = { userId: raw.id, role: raw.role as string, restaurantId: raw.restaurantId ?? "" };
+
+    res.json({
+      user: { id: raw.id, name: raw.name, email: raw.email, role: raw.role as string },
+      token: signToken(payload),
+      refreshToken: signRefreshToken(payload),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
 
 /**
  * GET /api/super-admin/restaurants

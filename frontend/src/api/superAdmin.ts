@@ -43,10 +43,10 @@ export interface SAUser {
 // ── API calls ─────────────────────────────────────────────────────────────────
 
 export const superAdminApi = {
-  /** Log in and verify the account is SUPER_ADMIN. Returns raw auth response. */
+  /** Dedicated super-admin login — backend rejects non-SUPER_ADMIN accounts. */
   login: (email: string, password: string) =>
     saApi.post<{ user: { id: string; name: string | null; email: string; role: string }; token: string; refreshToken: string }>(
-      "/auth/login",
+      "/super-admin/login",
       { email, password }
     ).then((r) => r.data),
 
