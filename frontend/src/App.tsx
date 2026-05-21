@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { SocketProvider } from "./context/SocketContext";
+import { SuperAdminProvider, useSuperAdmin } from "./context/SuperAdminContext";
 import { Layout } from "./components/Layout";
 import { Login } from "./components/Login";
 import { Register } from "./components/Register";
@@ -12,6 +13,9 @@ import { StockPage } from "./components/StockPage";
 import { OrderList } from "./components/OrderList";
 import { SalesPage } from "./components/SalesPage";
 import { TeamPage } from "./components/TeamPage";
+import { SuperAdminLogin } from "./components/superadmin/SuperAdminLogin";
+import { SuperAdminLayout } from "./components/superadmin/SuperAdminLayout";
+import { SuperAdminDashboard } from "./components/superadmin/SuperAdminDashboard";
 import { Spinner } from "./components/shared/Spinner";
 import { ToastProvider } from "./context/ToastContext";
 import { ToastContainer } from "./components/shared/Toast";
@@ -50,6 +54,26 @@ function PublicRoute() {
   return <Outlet />;
 }
 
+// ── Super Admin guards ────────────────────────────────────────────────────────
+
+function SAProtectedRoute() {
+  const { isAuthenticated, bootstrapping } = useSuperAdmin();
+  if (bootstrapping) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <Spinner size="lg" />
+    </div>
+  );
+  if (!isAuthenticated) return <Navigate to="/super-admin/login" replace />;
+  return <Outlet />;
+}
+
+function SAPublicRoute() {
+  const { isAuthenticated, bootstrapping } = useSuperAdmin();
+  if (bootstrapping) return null;
+  if (isAuthenticated) return <Navigate to="/super-admin" replace />;
+  return <Outlet />;
+}
+
 function AppRoutes() {
   return (
     <BootstrapGate>
@@ -78,6 +102,19 @@ function AppRoutes() {
             </Route>
           </Route>
         </Route>
+
+        {/* ── Super Admin portal — completely separate from regular auth ── */}
+        <Route path="super-admin">
+          <Route element={<SAPublicRoute />}>
+            <Route path="login" element={<SuperAdminLogin />} />
+          </Route>
+          <Route element={<SAProtectedRoute />}>
+            <Route element={<SuperAdminLayout />}>
+              <Route index element={<SuperAdminDashboard />} />
+            </Route>
+          </Route>
+        </Route>
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BootstrapGate>
@@ -88,14 +125,16 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <SocketProvider>
-          <ToastProvider>
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-            <ToastContainer />
-          </ToastProvider>
-        </SocketProvider>
+        <SuperAdminProvider>
+          <SocketProvider>
+            <ToastProvider>
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+              <ToastContainer />
+            </ToastProvider>
+          </SocketProvider>
+        </SuperAdminProvider>
       </AuthProvider>
     </ThemeProvider>
   );
