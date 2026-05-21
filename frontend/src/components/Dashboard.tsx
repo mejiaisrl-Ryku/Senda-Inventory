@@ -11,25 +11,17 @@ function StatCard({
   label,
   value,
   sub,
-  color = "default",
 }: {
   label: string;
   value: string | number;
   sub?: string;
-  color?: "default" | "green" | "yellow" | "red";
+  color?: string; // kept for call-site compatibility, ignored
 }) {
-  const accent = {
-    default: "text-brand-500",
-    green: "text-green-500",
-    yellow: "text-yellow-500",
-    red: "text-red-500",
-  }[color];
-
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-card p-6 border border-gray-200 dark:border-gray-800 min-w-0">
-      <p className="text-2xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest truncate">{label}</p>
-      <p className={`mt-2 text-3xl sm:text-4xl font-bold tracking-tight truncate ${accent}`}>{value}</p>
-      {sub && <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500 truncate">{sub}</p>}
+    <div className="bg-[#1f1f1f] rounded-[6px] p-6 border border-[#2a2a2a] min-w-0">
+      <p className="text-[10px] font-medium text-[#666] uppercase tracking-[0.1em] truncate">{label}</p>
+      <p className="mt-2 text-[32px] font-semibold text-white tracking-tight leading-none truncate">{value}</p>
+      {sub && <p className="mt-2 text-xs text-[#555] truncate">{sub}</p>}
     </div>
   );
 }
@@ -59,10 +51,10 @@ export function Dashboard() {
   if (loading) return <PageSpinner />;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       <div>
-        <h1 className="text-[28px] font-bold tracking-tight text-gray-900 dark:text-white">{pageTitle}</h1>
-        <p className="text-sm text-gray-500 mt-1">Stock overview</p>
+        <h1 className="text-[24px] font-bold text-white">{pageTitle}</h1>
+        <p className="text-[13px] text-[#555] mt-1">Stock overview</p>
       </div>
 
       {report && (
@@ -87,8 +79,8 @@ export function Dashboard() {
 
           {/* Category breakdown */}
           {Object.keys(report.byCategory).length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Value by Category</h2>
+            <div className="bg-[#1f1f1f] rounded-[6px] border border-[#2a2a2a] p-5">
+              <h2 className="text-[13px] font-semibold text-white mb-4">Value by Category</h2>
               <div className="space-y-3">
                 {Object.entries(report.byCategory)
                   .sort(([, a], [, b]) => b.value - a.value)

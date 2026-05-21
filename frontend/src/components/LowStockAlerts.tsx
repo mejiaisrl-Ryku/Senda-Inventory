@@ -40,7 +40,7 @@ export function LowStockAlerts({ compact = false }: LowStockAlertsProps) {
     <div className={compact ? "" : "p-6 space-y-5"}>
       {!compact && (
         <div>
-          <h1 className="text-[28px] font-bold tracking-tight text-gray-900 dark:text-white">Low Stock Alerts</h1>
+          <h1 className="text-[24px] font-bold text-white">Low Stock Alerts</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {critical.length} critical · {low.length} low
           </p>

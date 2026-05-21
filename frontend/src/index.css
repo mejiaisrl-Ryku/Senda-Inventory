@@ -5,8 +5,7 @@
 /* ── Global base ──────────────────────────────────────────────────────────── */
 @layer base {
   html {
-    /* Dark-first: page background #1a1a1a, default text white */
-    background-color: #1a1a1a;
+    background-color: #0f0f0f;
     color: #ffffff;
     font-family: "Inter", system-ui, sans-serif;
     line-height: 1.6;
@@ -15,7 +14,7 @@
   }
 
   body {
-    background-color: #1a1a1a;
+    background-color: #0f0f0f;
   }
 
   /* Light mode override (toggled via ThemeContext) */

@@ -27,11 +27,11 @@ export function StockPage() {
   const inputClass = "w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[28px] font-bold tracking-tight text-gray-900 dark:text-white">Stock</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Manage inventory movements</p>
+          <h1 className="text-[24px] font-bold text-white">Stock</h1>
+          <p className="text-[13px] text-[#555]">Manage inventory movements</p>
         </div>
         <button
           onClick={() => { setSelectedProduct(null); setAdjustModal(true); }}

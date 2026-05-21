@@ -98,7 +98,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="px-5 py-4 border-b border-[#2a2a2a]">
         <div className="flex items-center gap-3">
           {/* Hexagon mark */}
           <svg width="38" height="38" viewBox="0 0 40 40" fill="none" aria-hidden="true" className="flex-shrink-0">
@@ -147,8 +147,8 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
               className={({ isActive }) =>
                 `flex items-center gap-2.5 border-l-[3px] pl-[13px] pr-3 min-h-[44px] text-[13px] font-medium transition-colors ${
                   isActive
-                    ? "border-brand-500 text-white bg-white/5 dark:bg-white/5"
-                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5"
+                    ? "border-[#3dbf8a] text-white"
+                    : "border-transparent text-[#666] hover:text-white"
                 }`
               }
             >
@@ -159,10 +159,10 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       </nav>
 
       {/* Bottom: theme + user */}
-      <div className="py-3 border-t border-gray-200 dark:border-gray-700 space-y-0.5">
+      <div className="py-3 border-t border-[#2a2a2a] space-y-0.5">
         <button
           onClick={toggleDark}
-          className="w-full flex items-center gap-2.5 border-l-[3px] border-transparent pl-[13px] pr-3 min-h-[44px] text-[13px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+          className="w-full flex items-center gap-2.5 border-l-[3px] border-transparent pl-[13px] pr-3 min-h-[44px] text-[13px] text-[#666] hover:text-white transition-colors"
         >
           {dark ? (
             <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -183,14 +183,14 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
             {user?.email[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{user?.email}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{user?.role.toLowerCase()}</p>
+            <p className="text-xs font-medium text-white truncate">{user?.email}</p>
+            <p className="text-xs text-[#666] capitalize">{user?.role.toLowerCase()}</p>
           </div>
         </div>
 
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 border-l-[3px] border-transparent pl-[13px] pr-3 min-h-[44px] text-[13px] font-medium text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50/50 dark:hover:bg-red-900/20 transition-colors"
+          className="w-full flex items-center gap-2.5 border-l-[3px] border-transparent pl-[13px] pr-3 min-h-[44px] text-[13px] font-medium text-[#666] hover:text-red-400 transition-colors"
         >
           <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -208,9 +208,9 @@ export function Layout() {
   const { user } = useAuth();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex">
+    <div className="min-h-screen bg-[#0f0f0f] flex">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:flex-shrink-0 w-[220px] border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-col">
+      <aside className="hidden lg:flex lg:flex-shrink-0 w-[220px] border-r border-[#2a2a2a] bg-[#141414] flex-col">
         <SidebarContent />
       </aside>
 
@@ -221,7 +221,7 @@ export function Layout() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setSidebarOpen(false)}
           />
-          <aside className="relative w-72 max-w-[85vw] h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-2xl">
+          <aside className="relative w-72 max-w-[85vw] h-full bg-[#141414] border-r border-[#2a2a2a] flex flex-col shadow-2xl">
             <SidebarContent onNavClick={() => setSidebarOpen(false)} />
           </aside>
         </div>
@@ -230,18 +230,18 @@ export function Layout() {
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile topbar — 56px height, 44px+ tap targets */}
-        <header className="lg:hidden flex items-center gap-2 px-3 h-14 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <header className="lg:hidden flex items-center gap-2 px-3 h-14 bg-[#141414] border-b border-[#2a2a2a] flex-shrink-0">
           <button
             onClick={() => setSidebarOpen(true)}
             aria-label="Open navigation menu"
-            className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className="flex items-center justify-center min-h-[44px] min-w-[44px] rounded-xl text-[#666] hover:text-white transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
 
-          <span className="font-bold text-gray-900 dark:text-white truncate">
+          <span className="font-bold text-white truncate">
             {user?.restaurantName ?? "Inventory"}
           </span>
 

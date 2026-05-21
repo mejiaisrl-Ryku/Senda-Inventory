@@ -250,11 +250,11 @@ export function TeamPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4">
       {/* Page header */}
       <div>
-        <h1 className="text-[28px] font-bold tracking-tight text-gray-900 dark:text-white">Team</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+        <h1 className="text-[24px] font-bold text-white">Team</h1>
+        <p className="text-[13px] text-[#555] mt-1">
           Manage who has access to {user?.restaurantName ?? "your restaurant"}
         </p>
       </div>
@@ -284,7 +284,7 @@ export function TeamPage() {
           </div>
         ) : members.length === 0 ? (
           <div className="py-12 text-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">No team members yet. Invite or create one above.</p>
+            <p className="text-[13px] text-[#555]">No team members yet. Invite or create one above.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -190,11 +190,11 @@ export function SalesPage() {
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       {/* Header */}
       <div>
-        <h1 className="text-[28px] font-bold tracking-tight text-gray-900 dark:text-white">Sales</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+        <h1 className="text-[24px] font-bold text-white">Sales</h1>
+        <p className="text-[13px] text-[#555] mt-1">
           Record daily sales by category
         </p>
       </div>

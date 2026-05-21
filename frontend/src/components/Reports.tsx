@@ -207,7 +207,7 @@ function CogsReportSection() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">COGS Report</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-[13px] text-[#555]">
             Cost of Goods Sold vs. sales revenue by category
           </p>
         </div>
@@ -260,7 +260,7 @@ function CogsReportSection() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
                 d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-[13px] text-[#555]">
               No data for this period. Add sales entries and tag products with a COGS category.
             </p>
           </div>
@@ -509,13 +509,13 @@ export function Reports() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-4">
       {/* Header ───────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-[28px] font-bold tracking-tight text-gray-900 dark:text-white">Reports</h1>
+          <h1 className="text-[24px] font-bold text-white">Reports</h1>
           {report && (
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+            <p className="text-[13px] text-[#555] mt-1">
               {formatChartLabel(report.startDate)} – {formatChartLabel(report.endDate)}
             </p>
           )}
