@@ -9,6 +9,7 @@
     background-color: #1a1a1a;
     color: #ffffff;
     font-family: "Inter", system-ui, sans-serif;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }

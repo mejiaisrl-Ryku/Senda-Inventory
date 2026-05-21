@@ -11,6 +11,16 @@ module.exports = {
         sans: ["Inter", ...defaultTheme.fontFamily.sans],
       },
 
+      fontSize: {
+        // 11px label text used in stat cards and table headers
+        "2xs": ["11px", { lineHeight: "1.4", letterSpacing: "0.07em" }],
+      },
+
+      borderRadius: {
+        // 8px card radius used across redesigned cards
+        card: "8px",
+      },
+
       colors: {
         // Primary accent — #3dbf8a and surrounding shades
         brand: {

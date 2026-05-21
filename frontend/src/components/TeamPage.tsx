@@ -253,7 +253,7 @@ export function TeamPage() {
     <div className="p-4 sm:p-6 space-y-6">
       {/* Page header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Team</h1>
+        <h1 className="text-[28px] font-bold tracking-tight text-gray-900 dark:text-white">Team</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
           Manage who has access to {user?.restaurantName ?? "your restaurant"}
         </p>

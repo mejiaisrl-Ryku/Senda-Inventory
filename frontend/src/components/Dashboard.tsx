@@ -26,10 +26,10 @@ function StatCard({
   }[color];
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 min-w-0">
-      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate">{label}</p>
-      <p className={`mt-1 text-2xl sm:text-3xl font-bold truncate ${accent}`}>{value}</p>
-      {sub && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500 truncate">{sub}</p>}
+    <div className="bg-white dark:bg-gray-800 rounded-card p-6 border border-gray-200 dark:border-gray-800 min-w-0">
+      <p className="text-2xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest truncate">{label}</p>
+      <p className={`mt-2 text-3xl sm:text-4xl font-bold tracking-tight truncate ${accent}`}>{value}</p>
+      {sub && <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500 truncate">{sub}</p>}
     </div>
   );
 }
@@ -61,8 +61,8 @@ export function Dashboard() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{pageTitle}</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Stock overview</p>
+        <h1 className="text-[28px] font-bold tracking-tight text-gray-900 dark:text-white">{pageTitle}</h1>
+        <p className="text-sm text-gray-500 mt-1">Stock overview</p>
       </div>
 
       {report && (

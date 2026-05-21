@@ -30,7 +30,7 @@ export function StockPage() {
     <div className="p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Stock</h1>
+          <h1 className="text-[28px] font-bold tracking-tight text-gray-900 dark:text-white">Stock</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">Manage inventory movements</p>
         </div>
         <button

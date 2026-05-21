@@ -513,7 +513,7 @@ export function Reports() {
       {/* Header ───────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Reports</h1>
+          <h1 className="text-[28px] font-bold tracking-tight text-gray-900 dark:text-white">Reports</h1>
           {report && (
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
               {formatChartLabel(report.startDate)} – {formatChartLabel(report.endDate)}

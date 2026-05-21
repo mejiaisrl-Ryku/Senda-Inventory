@@ -135,7 +135,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       </div>
 
       {/* Nav — min-h-[44px] on every item for touch compliance */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 py-3 space-y-0.5 overflow-y-auto">
         {navItems
           .filter(({ adminOnly }) => !adminOnly || isAdmin)
           .map(({ to, label, icon }) => (
@@ -145,10 +145,10 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
               end={to === "/"}
               onClick={onNavClick}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 min-h-[44px] rounded-xl text-sm font-medium transition-colors ${
+                `flex items-center gap-2.5 border-l-[3px] pl-[13px] pr-3 min-h-[44px] text-[13px] font-medium transition-colors ${
                   isActive
-                    ? "bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400"
-                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white"
+                    ? "border-brand-500 text-white bg-white/5 dark:bg-white/5"
+                    : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5"
                 }`
               }
             >
@@ -159,10 +159,10 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       </nav>
 
       {/* Bottom: theme + user */}
-      <div className="px-3 py-3 border-t border-gray-200 dark:border-gray-700 space-y-0.5">
+      <div className="py-3 border-t border-gray-200 dark:border-gray-700 space-y-0.5">
         <button
           onClick={toggleDark}
-          className="w-full flex items-center gap-3 px-3 min-h-[44px] rounded-xl text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          className="w-full flex items-center gap-2.5 border-l-[3px] border-transparent pl-[13px] pr-3 min-h-[44px] text-[13px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
         >
           {dark ? (
             <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -178,7 +178,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
           {dark ? "Light mode" : "Dark mode"}
         </button>
 
-        <div className="flex items-center gap-3 px-3 min-h-[44px]">
+        <div className="flex items-center gap-2.5 pl-[16px] pr-3 min-h-[44px]">
           <div className="w-7 h-7 rounded-full bg-brand-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
             {user?.email[0].toUpperCase()}
           </div>
@@ -190,7 +190,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 min-h-[44px] rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+          className="w-full flex items-center gap-2.5 border-l-[3px] border-transparent pl-[13px] pr-3 min-h-[44px] text-[13px] font-medium text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50/50 dark:hover:bg-red-900/20 transition-colors"
         >
           <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -210,7 +210,7 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:flex-shrink-0 w-60 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-col">
+      <aside className="hidden lg:flex lg:flex-shrink-0 w-[220px] border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex-col">
         <SidebarContent />
       </aside>
 
