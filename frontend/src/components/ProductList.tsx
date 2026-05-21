@@ -141,36 +141,34 @@ export function ProductList() {
           <p className="text-[13px] text-[#555]">{filtered.length} items</p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* BOH / FOH toggle */}
-          <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden">
-            {(["BOH", "FOH"] as const).map((dept) => (
-              <button
-                key={dept}
-                onClick={() => setDeptView(dept)}
-                className={`px-5 py-2 text-[13px] font-semibold transition-colors ${
-                  deptView === dept
-                    ? "bg-[#3dbf8a] text-white"
-                    : "bg-[#0a0a0a] text-[#555] hover:text-[#888]"
-                }`}
-              >
-                {dept}
-              </button>
-            ))}
-          </div>
+        {isAdmin && (
+          <button
+            onClick={() => setAddOpen(true)}
+            className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-xl transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Product
+          </button>
+        )}
+      </div>
 
-          {isAdmin && (
-            <button
-              onClick={() => setAddOpen(true)}
-              className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-xl transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Product
-            </button>
-          )}
-        </div>
+      {/* BOH / FOH section switcher */}
+      <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden w-fit">
+        {(["BOH", "FOH"] as const).map((dept) => (
+          <button
+            key={dept}
+            onClick={() => setDeptView(dept)}
+            className={`px-6 py-2 text-[13px] font-semibold transition-colors ${
+              deptView === dept
+                ? "bg-[#3dbf8a] text-white"
+                : "bg-[#0a0a0a] text-[#555] hover:text-[#888]"
+            }`}
+          >
+            {dept}
+          </button>
+        ))}
       </div>
 
       {/* Filters */}

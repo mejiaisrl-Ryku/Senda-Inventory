@@ -131,7 +131,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="px-4 py-[18px] border-b border-[#1a1a1a]">
+      <div className="px-4 pt-7 pb-5 border-b border-[#1a1a1a]">
         <div className="flex items-center gap-2.5">
           <svg width="28" height="28" viewBox="0 0 40 40" fill="none" aria-hidden="true" className="flex-shrink-0">
             <polygon points="20,2 35.6,11 35.6,29 20,38 4.4,29 4.4,11" fill="#3dbf8a" />
