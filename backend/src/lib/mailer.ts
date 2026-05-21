@@ -1,29 +1,12 @@
-import nodemailer from "nodemailer";
-import SMTPTransport from "nodemailer/lib/smtp-transport";
+import { Resend } from "resend";
 
-/**
- * Lazily-created transporter — only initialised when sendMail is called so that
- * missing SMTP env vars in dev/test environments don't crash the process at startup.
- */
-function createTransporter() {
-  // `family` is a Node.js net.connect option passed through by nodemailer but not
-  // reflected in the @types/nodemailer SMTPTransport.Options interface, so we widen
-  // the type with an intersection rather than suppressing the error globally.
-  const options: SMTPTransport.Options & { family?: number } = {
-    host: process.env.SMTP_HOST ?? "smtp.gmail.com",
-    port: Number(process.env.SMTP_PORT ?? 587),
-    secure: false,    // STARTTLS on port 587 (not implicit TLS)
-    requireTLS: true, // abort if STARTTLS upgrade fails
-    family: 4,        // force IPv4 — prevents ENETUNREACH on IPv6-only resolution
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  };
-  return nodemailer.createTransport(options);
+const FROM = "noreply@kyruadvisory.com";
+
+function getClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error("RESEND_API_KEY is not set");
+  return new Resend(apiKey);
 }
-
-const SENDER = process.env.SMTP_USER ?? "noreply@kyruadvisory.com";
 
 export async function sendInviteEmail({
   to,
@@ -36,7 +19,7 @@ export async function sendInviteEmail({
   restaurantName: string;
   inviteUrl: string;
 }) {
-  const transporter = createTransporter();
+  const resend = getClient();
 
   const html = `
 <!DOCTYPE html>
@@ -115,11 +98,13 @@ export async function sendInviteEmail({
 </body>
 </html>`;
 
-  await transporter.sendMail({
-    from: `"kyru Advisory" <${SENDER}>`,
-    to: `"${toName}" <${to}>`,
+  const { error } = await resend.emails.send({
+    from: `kyru Advisory <${FROM}>`,
+    to: `${toName} <${to}>`,
     subject: `You're invited to join ${restaurantName} on kyru`,
     text: `Hi ${toName},\n\nYou've been invited to join ${restaurantName} on kyru.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 7 days.\n\n— kyru Advisory`,
     html,
   });
+
+  if (error) throw new Error(`Resend error: ${error.message}`);
 }

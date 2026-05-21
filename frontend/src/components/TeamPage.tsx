@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { TeamMember } from "../types";
 import { teamApi } from "../api";
 import { useToast } from "../context/ToastContext";
@@ -214,23 +214,25 @@ function CreateForm({ onSuccess }: { onSuccess: () => void }) {
 export function TeamPage() {
   const { user } = useAuth();
   const toast = useToast();
+
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [removeTarget, setRemoveTarget] = useState<TeamMember | null>(null);
   const [removing, setRemoving] = useState(false);
 
-  const loadMembers = useCallback(() => {
+  // Plain function — called on mount and after mutations. Not a dep of any effect.
+  function loadMembers() {
     setLoadingMembers(true);
     teamApi
       .list()
       .then(setMembers)
       .catch(() => toast.error("Failed to load team members"))
       .finally(() => setLoadingMembers(false));
-  }, [toast]);
+  }
 
-  useEffect(() => {
-    loadMembers();
-  }, [loadMembers]);
+  // Empty dep array — fires exactly once when the component mounts.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadMembers(); }, []);
 
   async function handleRemove() {
     if (!removeTarget) return;

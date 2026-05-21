@@ -65,15 +65,15 @@ function AppRoutes() {
             <Route path="stock" element={<StockPage />} />
             <Route path="orders" element={<OrderList />} />
             <Route path="sales" element={<SalesPage />} />
+            <Route
+              path="reports"
+              element={
+                <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Spinner size="lg" /></div>}>
+                  <Reports />
+                </Suspense>
+              }
+            />
             <Route element={<AdminRoute />}>
-              <Route
-                path="reports"
-                element={
-                  <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Spinner size="lg" /></div>}>
-                    <Reports />
-                  </Suspense>
-                }
-              />
               <Route path="team" element={<TeamPage />} />
             </Route>
           </Route>

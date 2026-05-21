@@ -64,7 +64,6 @@ const navItems: NavItem[] = [
   {
     to: "/reports",
     label: "Reports",
-    adminOnly: true,
     icon: (
       <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
