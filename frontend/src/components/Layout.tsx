@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
 
 // ── Nav structure ─────────────────────────────────────────────────────────────
 
@@ -65,7 +64,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    header: "Manage",
+    header: "Admin",
     items: [
       {
         to: "/sales",
@@ -107,17 +106,16 @@ const navGroups: NavGroup[] = [
 
 function navItemClass(isActive: boolean) {
   const base =
-    "flex items-center gap-2.5 w-full px-3 py-2 rounded-[6px] text-[13px] font-medium transition-colors min-h-[44px] lg:min-h-0";
+    "flex items-center gap-2.5 w-full pl-[10px] pr-3 py-2 rounded-[6px] text-[13px] font-medium transition-colors min-h-[44px] lg:min-h-0 outline-none border-l-2";
   return isActive
-    ? `${base} bg-[#1a1a1a] text-white`
-    : `${base} text-[#888] hover:text-white hover:bg-[#111]`;
+    ? `${base} bg-[#1a1a1a] text-white border-[#3dbf8a]`
+    : `${base} text-[#888] hover:text-white hover:bg-[#111] border-transparent`;
 }
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
 function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const { user, logout, isAdmin } = useAuth();
-  const { dark, toggleDark } = useTheme();
   const navigate = useNavigate();
 
   function handleLogout() {
@@ -180,27 +178,8 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
         })}
       </nav>
 
-      {/* Bottom: theme toggle + user + logout */}
+      {/* Bottom: user + logout */}
       <div className="px-3 py-3 border-t border-[#1a1a1a] space-y-0.5">
-        {/* Dark mode toggle */}
-        <button
-          onClick={toggleDark}
-          className={navItemClass(false)}
-        >
-          {dark ? (
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M12 3v1m0 16v1m8.66-9h-1M4.34 12h-1m15.07-6.07-.71.71M5.64 18.36l-.71.71M18.36 18.36l-.71-.71M5.64 5.64l-.71-.71M12 7a5 5 0 100 10A5 5 0 0012 7z" />
-            </svg>
-          ) : (
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-            </svg>
-          )}
-          {dark ? "Light mode" : "Dark mode"}
-        </button>
-
         {/* Log out */}
         <button onClick={handleLogout} className={navItemClass(false)}>
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -213,11 +192,12 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
         {/* User row */}
         <div className="flex items-center gap-2.5 px-3 py-2 mt-1">
           <div className="w-6 h-6 rounded-full bg-[#3dbf8a] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
-            {user?.email[0].toUpperCase()}
+            {(user?.name ?? user?.email ?? "?")[0].toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-medium text-white truncate">{user?.email}</p>
-            <p className="text-[11px] text-[#555] capitalize">{user?.role.toLowerCase()}</p>
+            <p className="text-[12px] font-medium text-white truncate">
+              {user?.name ? user.name.split(" ")[0] : user?.email}
+            </p>
           </div>
         </div>
       </div>
