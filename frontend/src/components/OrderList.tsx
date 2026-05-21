@@ -73,10 +73,10 @@ export function OrderList() {
   }
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-8 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-[24px] font-bold text-white">Orders</h1>
+          <h1 className="text-[22px] font-semibold text-white">Orders</h1>
           <p className="text-[13px] text-[#555]">{orders.length} orders</p>
         </div>
         <button

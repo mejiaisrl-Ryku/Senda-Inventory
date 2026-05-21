@@ -250,10 +250,10 @@ export function TeamPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-4">
+    <div className="p-8 space-y-4">
       {/* Page header */}
       <div>
-        <h1 className="text-[24px] font-bold text-white">Team</h1>
+        <h1 className="text-[22px] font-semibold text-white">Team</h1>
         <p className="text-[13px] text-[#555] mt-1">
           Manage who has access to {user?.restaurantName ?? "your restaurant"}
         </p>

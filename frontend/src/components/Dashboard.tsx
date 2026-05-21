@@ -18,9 +18,9 @@ function StatCard({
   color?: string; // kept for call-site compatibility, ignored
 }) {
   return (
-    <div className="bg-[#1f1f1f] rounded-[6px] p-6 border border-[#2a2a2a] min-w-0">
-      <p className="text-[10px] font-medium text-[#666] uppercase tracking-[0.1em] truncate">{label}</p>
-      <p className="mt-2 text-[32px] font-semibold text-white tracking-tight leading-none truncate">{value}</p>
+    <div className="bg-[#0a0a0a] rounded-[8px] px-6 py-5 border border-[#1a1a1a] min-w-0">
+      <p className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] truncate">{label}</p>
+      <p className="mt-2 text-[28px] font-semibold text-white tracking-tight leading-none truncate">{value}</p>
       {sub && <p className="mt-2 text-xs text-[#555] truncate">{sub}</p>}
     </div>
   );
@@ -51,9 +51,9 @@ export function Dashboard() {
   if (loading) return <PageSpinner />;
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="p-8 space-y-4">
       <div>
-        <h1 className="text-[24px] font-bold text-white">{pageTitle}</h1>
+        <h1 className="text-[22px] font-semibold text-white">{pageTitle}</h1>
         <p className="text-[13px] text-[#555] mt-1">Stock overview</p>
       </div>
 
@@ -79,7 +79,7 @@ export function Dashboard() {
 
           {/* Category breakdown */}
           {Object.keys(report.byCategory).length > 0 && (
-            <div className="bg-[#1f1f1f] rounded-[6px] border border-[#2a2a2a] p-5">
+            <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5">
               <h2 className="text-[13px] font-semibold text-white mb-4">Value by Category</h2>
               <div className="space-y-3">
                 {Object.entries(report.byCategory)
