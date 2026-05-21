@@ -139,8 +139,8 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
               fontFamily="Inter, system-ui, sans-serif">K</text>
           </svg>
           <div className="flex flex-col leading-none">
-            <span className="text-white font-semibold text-[14px] tracking-tight">kyru</span>
-            <span className="text-[10px] font-semibold tracking-[0.16em]" style={{ color: "#3dbf8a" }}>
+            <span className="text-white font-semibold text-[22px] tracking-tight">kyru</span>
+            <span className="text-[11px] font-semibold tracking-[0.16em]" style={{ color: "#3dbf8a" }}>
               ADVISORY
             </span>
           </div>

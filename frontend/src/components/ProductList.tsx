@@ -1,12 +1,11 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Product, StockReason, Department } from "../types";
-import { productsApi, stockApi } from "../api";
+import { Product, Department } from "../types";
+import { productsApi } from "../api";
 import { getStockStatus, statusStyles, unitLabel, formatCurrency } from "../utils/stock";
 import { StockBadge } from "./shared/Badge";
 import { Modal } from "./shared/Modal";
 import { PageSpinner } from "./shared/Spinner";
 import { EmptyState } from "./shared/EmptyState";
-import { ProductCard } from "./ProductCard";
 import { ProductForm } from "./ProductForm";
 import { StockAdjustForm } from "./StockAdjustForm";
 import { ConfirmDialog } from "./shared/ConfirmDialog";
@@ -23,7 +22,6 @@ export function ProductList() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [view, setView] = useState<"grid" | "table">("grid");
   const [deptView, setDeptView] = useState<"BOH" | "FOH">("BOH");
   const [scannerOpen, setScannerOpen] = useState(false);
 
@@ -100,19 +98,7 @@ export function ProductList() {
     load();
   }
 
-  // Quick +1/-1 directly from the card — optimistic local update.
-  async function handleQuickAdjust(product: Product, change: number, reason: StockReason) {
-    await stockApi.adjust({ productId: product.id, change, reason });
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.id === product.id ? { ...p, currentStock: Math.max(0, p.currentStock + change) } : p
-      )
-    );
-    const sign = change > 0 ? "+" : "";
-    toast.success(`${product.name} ${sign}${change} ${unitLabel[product.unit]}`);
-  }
-
-  async function handleDelete() {
+async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
@@ -135,10 +121,26 @@ export function ProductList() {
   return (
     <div className="p-8 space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold text-white">Products</h1>
-          <p className="text-[13px] text-[#555]">{filtered.length} items</p>
+      <div>
+        <h1 className="text-[22px] font-semibold text-white">Products</h1>
+      </div>
+
+      {/* BOH / FOH switcher + Add Product — same row */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden w-fit">
+          {(["BOH", "FOH"] as const).map((dept) => (
+            <button
+              key={dept}
+              onClick={() => setDeptView(dept)}
+              className={`px-6 py-2 text-[13px] font-semibold transition-colors ${
+                deptView === dept
+                  ? "bg-[#3dbf8a] text-white"
+                  : "bg-[#0a0a0a] text-[#555] hover:text-[#888]"
+              }`}
+            >
+              {dept}
+            </button>
+          ))}
         </div>
 
         {isAdmin && (
@@ -152,23 +154,6 @@ export function ProductList() {
             Add Product
           </button>
         )}
-      </div>
-
-      {/* BOH / FOH section switcher */}
-      <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden w-fit">
-        {(["BOH", "FOH"] as const).map((dept) => (
-          <button
-            key={dept}
-            onClick={() => setDeptView(dept)}
-            className={`px-6 py-2 text-[13px] font-semibold transition-colors ${
-              deptView === dept
-                ? "bg-[#3dbf8a] text-white"
-                : "bg-[#0a0a0a] text-[#555] hover:text-[#888]"
-            }`}
-          >
-            {dept}
-          </button>
-        ))}
       </div>
 
       {/* Filters */}
@@ -207,30 +192,6 @@ export function ProductList() {
           ))}
         </select>
 
-        <div className="flex rounded-xl border border-gray-300 dark:border-gray-600 overflow-hidden self-start">
-          {(["grid", "table"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`flex items-center justify-center min-h-[44px] px-3 text-sm transition-colors ${
-                view === v
-                  ? "bg-brand-500 text-white"
-                  : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-              }`}
-            >
-              {v === "grid" ? (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                </svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                </svg>
-              )}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Content */}
@@ -251,18 +212,6 @@ export function ProductList() {
             )
           }
         />
-      ) : view === "grid" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((p) => (
-            <ProductCard
-              key={p.id}
-              product={p}
-              onAdjust={setAdjustTarget}
-              onEdit={isAdmin ? setEditTarget : undefined}
-              onQuickAdjust={handleQuickAdjust}
-            />
-          ))}
-        </div>
       ) : (
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="overflow-x-auto">
