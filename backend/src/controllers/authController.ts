@@ -36,7 +36,7 @@ type SafeUserResult = {
   id: string;
   name: string | null;
   email: string;
-  role: import("@prisma/client").Role;
+  role: string;
   restaurantId: string | null;
   restaurant: { name: string } | null;
 };
@@ -47,7 +47,7 @@ function toUserResponse(u: SafeUserResult) {
   return { ...rest, restaurantName: restaurant?.name ?? null };
 }
 
-function makeTokenPair(userId: string, role: import("@prisma/client").Role, restaurantId: string | null) {
+function makeTokenPair(userId: string, role: string, restaurantId: string | null) {
   const payload = { userId, role, restaurantId: restaurantId ?? "" };
   return {
     token: signToken(payload),

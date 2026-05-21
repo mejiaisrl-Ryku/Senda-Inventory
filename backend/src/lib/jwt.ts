@@ -1,5 +1,4 @@
 import jwt, { SignOptions } from "jsonwebtoken";
-import { Role } from "@prisma/client";
 
 // Throws at startup if a required env var is absent — fails fast before any request is served.
 function requireEnv(key: string): string {
@@ -16,10 +15,12 @@ const REFRESH_SECRET = requireEnv("JWT_REFRESH_SECRET");
 const EXPIRES_IN = (process.env.JWT_EXPIRES_IN ?? "7d") as SignOptions["expiresIn"];
 const REFRESH_EXPIRES_IN = (process.env.JWT_REFRESH_EXPIRES_IN ?? "30d") as SignOptions["expiresIn"];
 
-// Payload deliberately minimal — no PII beyond what's needed for authz.
+// role is typed as string — not as the Prisma `Role` enum — so the payload stays
+// valid for any role value (including SUPER_ADMIN) regardless of whether prisma
+// generate has been run yet.
 export interface JwtPayload {
   userId: string;
-  role: Role;
+  role: string;
   restaurantId: string;
 }
 

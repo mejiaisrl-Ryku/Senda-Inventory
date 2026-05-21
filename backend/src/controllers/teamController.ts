@@ -199,13 +199,13 @@ export async function registerViaInvite(req: Request, res: Response, next: NextF
     });
 
     const tokens = {
-      token: signToken({ userId: user.id, role: user.role, restaurantId: user.restaurantId }),
-      refreshToken: signRefreshToken({ userId: user.id, role: user.role, restaurantId: user.restaurantId }),
+      token: signToken({ userId: user.id, role: user.role, restaurantId: user.restaurantId ?? "" }),
+      refreshToken: signRefreshToken({ userId: user.id, role: user.role, restaurantId: user.restaurantId ?? "" }),
     };
 
     const { restaurant, ...rest } = user;
     res.status(201).json({
-      user: { ...rest, restaurantName: restaurant.name },
+      user: { ...rest, restaurantName: restaurant?.name ?? null },
       ...tokens,
     });
   } catch (err) {
