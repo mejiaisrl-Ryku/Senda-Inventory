@@ -26,10 +26,10 @@ function StatCard({
   }[color];
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700">
-      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</p>
-      <p className={`mt-1 text-3xl font-bold ${accent}`}>{value}</p>
-      {sub && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{sub}</p>}
+    <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 min-w-0">
+      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider truncate">{label}</p>
+      <p className={`mt-1 text-2xl sm:text-3xl font-bold truncate ${accent}`}>{value}</p>
+      {sub && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500 truncate">{sub}</p>}
     </div>
   );
 }

@@ -64,7 +64,6 @@ function AppRoutes() {
             <Route path="products" element={<ProductList />} />
             <Route path="stock" element={<StockPage />} />
             <Route path="orders" element={<OrderList />} />
-            <Route path="sales" element={<SalesPage />} />
             <Route
               path="reports"
               element={
@@ -74,6 +73,7 @@ function AppRoutes() {
               }
             />
             <Route element={<AdminRoute />}>
+              <Route path="sales" element={<SalesPage />} />
               <Route path="team" element={<TeamPage />} />
             </Route>
           </Route>
