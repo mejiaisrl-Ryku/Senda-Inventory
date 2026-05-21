@@ -6,9 +6,10 @@ import { createSale, listSales, deleteSale, createSaleSchema } from "../controll
 const router = Router();
 
 router.use(authenticate as never);
+router.use(requireAdmin as never);
 
 router.get("/", listSales as never);
 router.post("/", validate(createSaleSchema), createSale as never);
-router.delete("/:id", requireAdmin as never, deleteSale as never);
+router.delete("/:id", deleteSale as never);
 
 export default router;
