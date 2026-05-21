@@ -8,6 +8,7 @@ export interface User {
 }
 
 export type Unit = "KG" | "LITERS" | "PIECES";
+export type Department = "BOH" | "FOH" | "BOTH";
 export type StockReason = "RECEIVED" | "USED" | "ADJUSTED" | "WASTE";
 export type OrderStatus = "PENDING" | "RECEIVED" | "CANCELLED";
 export type SalesCategory = "BEER" | "LIQUOR" | "WINE" | "FOOD" | "NON_ALCOHOLIC";
@@ -28,6 +29,7 @@ export interface Product {
   name: string;
   sku?: string;
   category?: string;
+  department: Department;
   unit: Unit;
   costPerUnit: number;
   currentStock: number;

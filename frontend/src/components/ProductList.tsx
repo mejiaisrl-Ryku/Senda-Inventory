@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Product, StockReason } from "../types";
+import { Product, StockReason, Department } from "../types";
 import { productsApi, stockApi } from "../api";
 import { getStockStatus, statusStyles, unitLabel, formatCurrency } from "../utils/stock";
 import { StockBadge } from "./shared/Badge";
@@ -24,6 +24,7 @@ export function ProductList() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [view, setView] = useState<"grid" | "table">("grid");
+  const [deptView, setDeptView] = useState<"BOH" | "FOH">("BOH");
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const [adjustTarget, setAdjustTarget] = useState<Product | null>(null);
@@ -67,14 +68,18 @@ export function ProductList() {
     load();
   }, [load]);
 
-  const categories = [...new Set(products.map((p) => p.category).filter(Boolean))] as string[];
+  const CATEGORIES = ["Perishable Food", "Dry Food", "Beverages", "Non-Food Supplies"] as const;
 
-  const filtered = products.filter(
-    (p) =>
-      !search ||
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.sku?.toLowerCase().includes(search.toLowerCase())
-  );
+  // Client-side filters: department view → search → category
+  const filtered = products.filter((p) => {
+    // Department: BOH shows BOH + BOTH, FOH shows FOH + BOTH
+    const dept = p.department ?? "BOH";
+    if (deptView === "BOH" && dept === "FOH") return false;
+    if (deptView === "FOH" && dept === "BOH") return false;
+    // Search
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.sku?.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
 
   function onProductSaved(saved: Product) {
     setProducts((prev) => {
@@ -133,19 +138,39 @@ export function ProductList() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-[22px] font-semibold text-white">Products</h1>
-          <p className="text-[13px] text-[#555]">{products.length} items</p>
+          <p className="text-[13px] text-[#555]">{filtered.length} items</p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setAddOpen(true)}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 min-h-[44px] px-4 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-xl transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Product
-          </button>
-        )}
+
+        <div className="flex items-center gap-3">
+          {/* BOH / FOH toggle */}
+          <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden">
+            {(["BOH", "FOH"] as const).map((dept) => (
+              <button
+                key={dept}
+                onClick={() => setDeptView(dept)}
+                className={`px-5 py-2 text-[13px] font-semibold transition-colors ${
+                  deptView === dept
+                    ? "bg-[#3dbf8a] text-white"
+                    : "bg-[#0a0a0a] text-[#555] hover:text-[#888]"
+                }`}
+              >
+                {dept}
+              </button>
+            ))}
+          </div>
+
+          {isAdmin && (
+            <button
+              onClick={() => setAddOpen(true)}
+              className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-xl transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Product
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
@@ -179,10 +204,8 @@ export function ProductList() {
           className="min-h-[44px] px-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-base focus:outline-none focus:ring-2 focus:ring-brand-500"
         >
           <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
+          {CATEGORIES.map((c) => (
+            <option key={c} value={c}>{c}</option>
           ))}
         </select>
 

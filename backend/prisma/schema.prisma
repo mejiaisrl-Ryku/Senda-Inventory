@@ -54,6 +54,13 @@ enum COGSCategory {
   NON_ALCOHOLIC
 }
 
+// Which house a product belongs to for inventory views.
+enum Department {
+  BOH
+  FOH
+  BOTH
+}
+
 // ─────────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────────
@@ -94,6 +101,7 @@ model Product {
   name         String
   sku          String?       @unique
   category     String?
+  department   Department    @default(BOH)
   cogsCategory COGSCategory?
   unit         Unit          @default(PIECES)
   costPerUnit  Float         @default(0)

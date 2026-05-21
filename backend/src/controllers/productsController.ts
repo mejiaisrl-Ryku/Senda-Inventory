@@ -1,6 +1,8 @@
 import { Response, NextFunction } from "express";
 import { z } from "zod";
 import { Unit } from "@prisma/client";
+
+const DepartmentEnum = z.enum(["BOH", "FOH", "BOTH"]);
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 
@@ -15,6 +17,7 @@ export const createProductSchema = z
       .trim(),
     sku: z.string().max(100).trim().optional(),
     category: z.string().max(100).trim().optional(),
+    department: DepartmentEnum.default("BOH"),
     unit: z.nativeEnum(Unit).default("PIECES"),
     costPerUnit: z.number({ invalid_type_error: "Cost must be a number" })
       .positive("Cost must be greater than 0"),
@@ -36,6 +39,7 @@ export const updateProductSchema = z.object({
   name: z.string().min(1).max(255).trim().optional(),
   sku: z.string().max(100).trim().optional(),
   category: z.string().max(100).trim().optional(),
+  department: DepartmentEnum.optional(),
   unit: z.nativeEnum(Unit).optional(),
   costPerUnit: z.number().positive("Cost must be greater than 0").optional(),
   currentStock: z.number().nonnegative("Stock cannot be negative").optional(),

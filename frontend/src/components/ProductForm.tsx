@@ -1,5 +1,5 @@
 import React, { useState, FormEvent, useEffect } from "react";
-import { Product, Unit } from "../types";
+import { Product, Unit, Department } from "../types";
 import { productsApi } from "../api";
 import { Spinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
@@ -13,6 +13,19 @@ interface ProductFormProps {
 
 const UNITS: Unit[] = ["KG", "LITERS", "PIECES"];
 
+const CATEGORIES = [
+  "Perishable Food",
+  "Dry Food",
+  "Beverages",
+  "Non-Food Supplies",
+] as const;
+
+const DEPARTMENTS: { value: Department; label: string }[] = [
+  { value: "BOH", label: "BOH" },
+  { value: "FOH", label: "FOH" },
+  { value: "BOTH", label: "Both" },
+];
+
 type FieldErrors = Partial<Record<
   "name" | "sku" | "category" | "costPerUnit" | "currentStock" | "minimumStock",
   string
@@ -23,6 +36,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
   const [name, setName] = useState(initial?.name ?? "");
   const [sku, setSku] = useState(initial?.sku ?? "");
   const [category, setCategory] = useState(initial?.category ?? "");
+  const [department, setDepartment] = useState<Department>(initial?.department ?? "BOH");
   const [unit, setUnit] = useState<Unit>(initial?.unit ?? "PIECES");
   const [costPerUnit, setCostPerUnit] = useState(String(initial?.costPerUnit ?? ""));
   const [currentStock, setCurrentStock] = useState(String(initial?.currentStock ?? 0));
@@ -35,6 +49,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
       setName(initial.name);
       setSku(initial.sku ?? "");
       setCategory(initial.category ?? "");
+      setDepartment(initial.department ?? "BOH");
       setUnit(initial.unit);
       setCostPerUnit(String(initial.costPerUnit));
       setCurrentStock(String(initial.currentStock));
@@ -71,7 +86,8 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
     const payload = {
       name: name.trim(),
       sku: sku.trim() || undefined,
-      category: category.trim() || undefined,
+      category: category || undefined,
+      department,
       unit,
       costPerUnit: parseFloat(costPerUnit),
       currentStock: parseFloat(currentStock),
@@ -107,6 +123,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       <div className="grid grid-cols-2 gap-3">
+        {/* Name */}
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
             Name <span className="text-red-500">*</span>
@@ -121,24 +138,62 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
           <FieldError msg={fieldErrors.name} />
         </div>
 
+        {/* Department toggle */}
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+            Department <span className="text-red-500">*</span>
+          </label>
+          <div className="flex gap-1.5">
+            {DEPARTMENTS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setDepartment(value)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                  department === value
+                    ? "bg-[#3dbf8a] border-[#3dbf8a] text-white"
+                    : "bg-transparent border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-[#3dbf8a] hover:text-[#3dbf8a]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* SKU */}
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">SKU</label>
           <input className={fieldClass(fieldErrors.sku)} value={sku} onChange={(e) => setSku(e.target.value)} placeholder="PROD-001" />
           <FieldError msg={fieldErrors.sku} />
         </div>
 
+        {/* Category dropdown */}
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Category</label>
-          <input className={fieldClass()} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Proteins" />
+          <select
+            className={fieldClass()}
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="">— Select —</option>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
         </div>
 
+        {/* Unit */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Unit <span className="text-red-500">*</span></label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            Unit <span className="text-red-500">*</span>
+          </label>
           <select className={fieldClass()} value={unit} onChange={(e) => setUnit(e.target.value as Unit)}>
             {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
           </select>
         </div>
 
+        {/* Cost / unit */}
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
             Cost / unit <span className="text-red-500">*</span>
@@ -153,6 +208,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
           <FieldError msg={fieldErrors.costPerUnit} />
         </div>
 
+        {/* Current stock */}
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Current stock</label>
           <input
@@ -164,6 +220,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
           <FieldError msg={fieldErrors.currentStock} />
         </div>
 
+        {/* Minimum stock */}
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Minimum stock</label>
           <input
