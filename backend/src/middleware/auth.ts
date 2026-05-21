@@ -21,3 +21,11 @@ export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction
   }
   next();
 }
+
+export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+  // Cast to string so this compiles before `prisma db push` adds SUPER_ADMIN to the Role enum.
+  if ((req.user.role as string) !== "SUPER_ADMIN") {
+    return res.status(403).json({ error: "Super-admin access required" });
+  }
+  next();
+}

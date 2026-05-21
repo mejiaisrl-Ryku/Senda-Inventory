@@ -1,0 +1,203 @@
+import { Response, NextFunction } from "express";
+import bcrypt from "bcryptjs";
+import { z } from "zod";
+import { prisma } from "../lib/prisma";
+import { signInviteToken } from "../lib/jwt";
+import { sendInviteEmail } from "../lib/mailer";
+import { AuthRequest } from "../types";
+
+// ── Validation schemas ────────────────────────────────────────────────────────
+
+export const createRestaurantSchema = z.object({
+  name: z.string().min(1, "Restaurant name is required").max(255).trim(),
+  adminName: z.string().min(1, "Admin name is required").max(255).trim(),
+  adminEmail: z.string().email("Invalid email address"),
+  adminPassword: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export const inviteAdminSchema = z.object({
+  name: z.string().min(1, "Name is required").max(255).trim(),
+  email: z.string().email("Invalid email address"),
+  restaurantId: z.string().min(1, "Restaurant ID is required"),
+});
+
+// ── Handlers ──────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/super-admin/restaurants
+ * List every restaurant with its owner name/email, user count, and creation date.
+ */
+export async function listRestaurants(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const restaurants = await prisma.restaurant.findMany({
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        createdAt: true,
+        _count: { select: { users: true, products: true } },
+        users: {
+          where: { role: "ADMIN" },
+          select: { name: true, email: true },
+          take: 1,
+          orderBy: { email: "asc" },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const response = restaurants.map((r) => ({
+      id: r.id,
+      name: r.name,
+      address: r.address,
+      phone: r.phone,
+      createdAt: r.createdAt,
+      userCount: r._count.users,
+      productCount: r._count.products,
+      owner: r.users[0] ?? null,
+    }));
+
+    res.json(response);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/super-admin/restaurants
+ * Create a restaurant and its first ADMIN user in a single transaction.
+ */
+export async function createRestaurant(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { name, adminName, adminEmail, adminPassword } = req.body as {
+      name: string;
+      adminName: string;
+      adminEmail: string;
+      adminPassword: string;
+    };
+
+    // Guard duplicate email before the transaction.
+    const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
+    if (existing) {
+      return res.status(409).json({ error: "A user with that email already exists." });
+    }
+
+    const hashed = await bcrypt.hash(adminPassword, 12);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const restaurant = await tx.restaurant.create({ data: { name } });
+      const admin = await tx.user.create({
+        data: {
+          name: adminName,
+          email: adminEmail,
+          password: hashed,
+          role: "ADMIN",
+          restaurantId: restaurant.id,
+        },
+        select: { id: true, name: true, email: true, role: true },
+      });
+      return { restaurant, admin };
+    });
+
+    res.status(201).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * DELETE /api/super-admin/restaurants/:id
+ * Hard-delete a restaurant and all of its data (cascade configured in schema).
+ */
+export async function deleteRestaurant(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+
+    const restaurant = await prisma.restaurant.findUnique({ where: { id } });
+    if (!restaurant) {
+      return res.status(404).json({ error: "Restaurant not found." });
+    }
+
+    await prisma.restaurant.delete({ where: { id } });
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/super-admin/users
+ * List all users across every restaurant, including their restaurant name.
+ */
+export async function listAllUsers(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        restaurantId: true,
+        restaurant: { select: { name: true } },
+      },
+      orderBy: [{ restaurant: { name: "asc" } }, { email: "asc" }],
+    });
+
+    const response = users.map(({ restaurant, ...u }) => ({
+      ...u,
+      restaurantName: restaurant?.name ?? null,
+    }));
+
+    res.json(response);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/super-admin/invite
+ * Send a Resend invite email to a prospective ADMIN for a specific restaurant.
+ * The invite link lands on /register?token=<jwt> — same flow as team invites.
+ */
+export async function inviteAdmin(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { name, email, restaurantId } = req.body as {
+      name: string;
+      email: string;
+      restaurantId: string;
+    };
+
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (!restaurant) {
+      return res.status(404).json({ error: "Restaurant not found." });
+    }
+
+    // Don't invite someone who already has an account in this restaurant.
+    const existing = await prisma.user.findFirst({ where: { email, restaurantId } });
+    if (existing) {
+      return res.status(409).json({ error: "A user with that email already exists in this team." });
+    }
+
+    const token = signInviteToken({
+      restaurantId,
+      restaurantName: restaurant.name,
+      role: "ADMIN",
+      email,
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const inviteUrl = `${frontendUrl}/register?token=${token}`;
+
+    await sendInviteEmail({
+      to: email,
+      toName: name,
+      restaurantName: restaurant.name,
+      inviteUrl,
+    });
+
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}

@@ -13,6 +13,7 @@ import ordersRouter from "./routes/orders";
 import reportsRouter from "./routes/reports";
 import salesRouter from "./routes/sales";
 import teamRouter from "./routes/team";
+import superAdminRouter from "./routes/superAdmin";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -65,6 +66,7 @@ app.use("/api/orders", ordersRouter);
 app.use("/api/reports", reportsRouter);
 app.use("/api/sales", salesRouter);
 app.use("/api/team", teamRouter);
+app.use("/api/super-admin", superAdminRouter);
 
 app.use(errorHandler);
 

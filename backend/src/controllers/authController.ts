@@ -37,18 +37,18 @@ type SafeUserResult = {
   name: string | null;
   email: string;
   role: import("@prisma/client").Role;
-  restaurantId: string;
-  restaurant: { name: string };
+  restaurantId: string | null;
+  restaurant: { name: string } | null;
 };
 
 /** Flatten the nested restaurant relation into a top-level restaurantName field. */
 function toUserResponse(u: SafeUserResult) {
   const { restaurant, ...rest } = u;
-  return { ...rest, restaurantName: restaurant.name };
+  return { ...rest, restaurantName: restaurant?.name ?? null };
 }
 
-function makeTokenPair(userId: string, role: import("@prisma/client").Role, restaurantId: string) {
-  const payload = { userId, role, restaurantId };
+function makeTokenPair(userId: string, role: import("@prisma/client").Role, restaurantId: string | null) {
+  const payload = { userId, role, restaurantId: restaurantId ?? "" };
   return {
     token: signToken(payload),
     refreshToken: signRefreshToken(payload),

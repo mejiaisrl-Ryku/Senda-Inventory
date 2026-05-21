@@ -45,7 +45,7 @@ export interface InvitePayload {
   purpose: "invite";
   restaurantId: string;
   restaurantName: string;
-  role: "STAFF";
+  role: "STAFF" | "ADMIN";
   email: string;
 }
 
