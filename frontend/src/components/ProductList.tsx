@@ -10,6 +10,7 @@ import { ProductForm } from "./ProductForm";
 import { StockAdjustForm } from "./StockAdjustForm";
 import { ConfirmDialog } from "./shared/ConfirmDialog";
 import { BarcodeScanner } from "./shared/BarcodeScanner";
+import { ScanInvoiceModal } from "./ScanInvoiceModal";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
@@ -30,6 +31,7 @@ export function ProductList() {
   const [addOpen, setAddOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
 
   // Stable ref for the socket callback to avoid stale closures.
   const productsRef = useRef<Product[]>([]);
@@ -145,15 +147,28 @@ async function handleDelete() {
         </div>
 
         {isAdmin && (
-          <button
-            onClick={() => setAddOpen(true)}
-            className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-xl transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Invoice
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setScanOpen(true)}
+              className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 border border-[#2a2a2a] bg-[#0a0a0a] hover:bg-[#111] hover:border-[#3dbf8a] text-[#888] hover:text-[#3dbf8a] text-sm font-medium rounded-xl transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Scan Invoice
+            </button>
+            <button
+              onClick={() => setAddOpen(true)}
+              className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-xl transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Invoice
+            </button>
+          </div>
         )}
       </div>
 
@@ -272,6 +287,13 @@ async function handleDelete() {
           </div>
         </div>
       )}
+
+      {/* Scan Invoice modal */}
+      <ScanInvoiceModal
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onSaved={onProductSaved}
+      />
 
       {/* Modals */}
       <Modal open={scannerOpen} onClose={() => setScannerOpen(false)} title="Scan Barcode">

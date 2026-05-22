@@ -14,6 +14,7 @@ import reportsRouter from "./routes/reports";
 import salesRouter from "./routes/sales";
 import teamRouter from "./routes/team";
 import superAdminRouter from "./routes/superAdmin";
+import aiRouter from "./routes/ai";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -40,7 +41,7 @@ if (isProd) {
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 // "combined" includes :response-time ms — used by Railway's log-based alerting.
 app.use(morgan(isProd ? "combined" : "dev"));
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "12mb" }));
 
 // Health check — registered before the rate limiter so Railway uptime pings are never blocked.
 app.get("/health", async (_req, res) => {
@@ -67,6 +68,7 @@ app.use("/api/reports", reportsRouter);
 app.use("/api/sales", salesRouter);
 app.use("/api/team", teamRouter);
 app.use("/api/super-admin", superAdminRouter);
+app.use("/api/ai", aiRouter);
 
 app.use(errorHandler);
 

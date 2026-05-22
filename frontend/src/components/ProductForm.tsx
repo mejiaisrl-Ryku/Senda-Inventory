@@ -100,7 +100,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
     const payload = {
       name: name.trim(),
       purveyor: purveyor.trim() || undefined,
-      invoiceDate: invoiceDate || null,
+      invoiceDate: invoiceDate || undefined,
       sku: sku.trim() || undefined,
       category: category || undefined,
       department,
