@@ -84,11 +84,12 @@ export async function getProduct(req: AuthRequest, res: Response, next: NextFunc
 
 export async function createProduct(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { department, ...rest } = req.body;
+    const { department, invoiceDate, ...rest } = req.body;
     const product = await prisma.product.create({
       data: {
         ...rest,
         restaurantId: req.user.restaurantId,
+        invoiceDate: invoiceDate ? new Date(invoiceDate).toISOString() : undefined,
         // Cast department string so Prisma accepts it before client regenerates
         ...(department !== undefined ? { department: department as never } : {}),
       },
@@ -114,11 +115,12 @@ export async function updateProduct(req: AuthRequest, res: Response, next: NextF
       });
     }
 
-    const { department, ...restBody } = req.body;
+    const { department, invoiceDate, ...restBody } = req.body;
     const product = await prisma.product.update({
       where: { id: req.params.id },
       data: {
         ...restBody,
+        invoiceDate: invoiceDate ? new Date(invoiceDate).toISOString() : undefined,
         ...(department !== undefined ? { department: department as never } : {}),
       },
     });
