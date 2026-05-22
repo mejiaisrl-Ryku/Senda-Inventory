@@ -78,6 +78,8 @@ const CATEGORY_LABELS: Record<SalesCategory, string> = {
   WINE: "Wine",
   FOOD: "Food",
   NON_ALCOHOLIC: "Non-Alcoholic",
+  EVENTS: "Events",
+  DELIVERY: "Delivery",
 };
 
 type CogsTab = "daily" | "weekly" | "monthly";

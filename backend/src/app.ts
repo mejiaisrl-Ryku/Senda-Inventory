@@ -15,6 +15,7 @@ import salesRouter from "./routes/sales";
 import teamRouter from "./routes/team";
 import superAdminRouter from "./routes/superAdmin";
 import aiRouter from "./routes/ai";
+import laborRouter from "./routes/labor";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -69,6 +70,7 @@ app.use("/api/sales", salesRouter);
 app.use("/api/team", teamRouter);
 app.use("/api/super-admin", superAdminRouter);
 app.use("/api/ai", aiRouter);
+app.use("/api/labor", laborRouter);
 
 app.use(errorHandler);
 

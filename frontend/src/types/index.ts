@@ -11,7 +11,7 @@ export type Unit = "KG" | "LITERS" | "PIECES" | "LB" | "OZ" | "G" | "EA" | "DOZ"
 export type Department = "BOH" | "FOH" | "BAR" | "BOTH";
 export type StockReason = "RECEIVED" | "USED" | "ADJUSTED" | "WASTE";
 export type OrderStatus = "PENDING" | "RECEIVED" | "CANCELLED";
-export type SalesCategory = "BEER" | "LIQUOR" | "WINE" | "FOOD" | "NON_ALCOHOLIC";
+export type SalesCategory = "BEER" | "LIQUOR" | "WINE" | "FOOD" | "NON_ALCOHOLIC" | "EVENTS" | "DELIVERY";
 
 export interface SalesEntry {
   id: string;
@@ -21,6 +21,18 @@ export interface SalesEntry {
   category: SalesCategory;
   amount: number;
   notes?: string | null;
+  createdAt: string;
+}
+
+export interface LaborEntry {
+  id: string;
+  restaurantId: string;
+  /** ISO string from @db.Date */
+  date: string;
+  fohLabor: number;
+  bohLabor: number;
+  management: number;
+  total: number;
   createdAt: string;
 }
 

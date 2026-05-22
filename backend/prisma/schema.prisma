@@ -49,6 +49,8 @@ enum SalesCategory {
   WINE
   FOOD
   NON_ALCOHOLIC
+  EVENTS
+  DELIVERY
 }
 
 // Maps a product's COGS to one of the sales categories for cost-vs-revenue reporting.
@@ -84,6 +86,7 @@ model Restaurant {
   products     Product[]
   orders       Order[]
   salesEntries SalesEntry[]
+  laborEntries LaborEntry[]
 
   @@map("restaurants")
 }
@@ -191,4 +194,21 @@ model OrderItem {
   @@unique([orderId, productId])
   @@index([productId])
   @@map("order_items")
+}
+
+// Daily labor costs by role — used for labor-cost-% reporting against sales.
+model LaborEntry {
+  id           String     @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  date         DateTime   @db.Date
+  fohLabor     Float      @default(0)
+  bohLabor     Float      @default(0)
+  management   Float      @default(0)
+  total        Float      @default(0)
+  createdAt    DateTime   @default(now())
+
+  @@index([restaurantId])
+  @@index([restaurantId, date])
+  @@map("labor_entries")
 }

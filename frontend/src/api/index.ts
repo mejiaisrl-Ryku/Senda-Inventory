@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig } from "axios";
-import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, CogsReport, TeamMember } from "../types";
+import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember } from "../types";
 import { cacheGet, cacheSet, cachePurge } from "../utils/offlineCache";
 
 // TODO: remove hardcode — set REACT_APP_API_URL env var in Vercel and revert this line
@@ -235,4 +235,15 @@ export const salesApi = {
     api.get<SalesEntry[]>("/sales", { params }).then((r) => r.data),
 
   delete: (id: string) => api.delete(`/sales/${id}`),
+};
+
+// ── Labor ─────────────────────────────────────────────────────────────────────
+export const laborApi = {
+  create: (data: { date: string; fohLabor: number; bohLabor: number; management: number }) =>
+    api.post<LaborEntry>("/labor", data).then((r) => r.data),
+
+  list: (params?: { startDate?: string; endDate?: string }) =>
+    api.get<LaborEntry[]>("/labor", { params }).then((r) => r.data),
+
+  delete: (id: string) => api.delete(`/labor/${id}`),
 };

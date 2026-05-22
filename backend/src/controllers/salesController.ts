@@ -1,8 +1,11 @@
 import { Response, NextFunction } from "express";
 import { z } from "zod";
-import { SalesCategory } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
+
+// Decoupled from Prisma client so new values work before prisma generate runs.
+const SALES_CATEGORIES = ["BEER", "LIQUOR", "WINE", "FOOD", "NON_ALCOHOLIC", "EVENTS", "DELIVERY"] as const;
+type SalesCategoryLiteral = (typeof SALES_CATEGORIES)[number];
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 
@@ -14,7 +17,7 @@ function toUTCDay(dateStr: string): Date {
 
 export const createSaleSchema = z.object({
   date: dateSchema,
-  category: z.nativeEnum(SalesCategory, { errorMap: () => ({ message: "Invalid category" }) }),
+  category: z.enum(SALES_CATEGORIES, { errorMap: () => ({ message: "Invalid category" }) }),
   // Accept number from JSON; Prisma will coerce to Decimal(10,2)
   amount: z
     .number({ invalid_type_error: "Amount must be a number" })
@@ -33,7 +36,7 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
       data: {
         restaurantId: req.user.restaurantId,
         date: toUTCDay(date),
-        category,
+        category: category as never, // cast: Prisma client lags schema until prisma generate
         amount,
         notes,
       },
@@ -79,9 +82,9 @@ export async function listSales(req: AuthRequest, res: Response, next: NextFunct
     if (endStr && !dateSchema.safeParse(endStr).success) {
       return res.status(400).json({ error: "Invalid endDate — use YYYY-MM-DD" });
     }
-    if (categoryStr && !(categoryStr in SalesCategory)) {
+    if (categoryStr && !(SALES_CATEGORIES as readonly string[]).includes(categoryStr)) {
       return res.status(400).json({
-        error: `Invalid category. Valid values: ${Object.keys(SalesCategory).join(", ")}`,
+        error: `Invalid category. Valid values: ${SALES_CATEGORIES.join(", ")}`,
       });
     }
 
@@ -96,7 +99,7 @@ export async function listSales(req: AuthRequest, res: Response, next: NextFunct
               },
             }
           : {}),
-        ...(categoryStr ? { category: categoryStr as SalesCategory } : {}),
+        ...(categoryStr ? { category: categoryStr as never } : {}),
       },
       orderBy: { date: "desc" },
     });
