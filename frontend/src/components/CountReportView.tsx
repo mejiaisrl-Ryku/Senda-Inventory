@@ -19,16 +19,25 @@ function formatCurrency(n: number, showSign = false): string {
   return n < 0 ? `-${s}` : n > 0 ? `+${s}` : s;
 }
 
+/** Maps raw DB enum → human-readable department label. */
+function deptLabel(raw: string | undefined): string {
+  if (raw === "BOH"  || raw === "KITCHEN") return "Kitchen";
+  if (raw === "BOTH")                      return "Kitchen & FOH";
+  if (raw === "FOH")                       return "FOH";
+  if (raw === "BAR")                       return "Bar";
+  return raw ?? "—";
+}
+
 function varianceColor(v: number): string {
   if (v < 0) return "text-red-400";
-  if (v > 0) return "text-amber-400";
-  return "text-[#3dbf8a]";
+  if (v > 0) return "text-[#3dbf8a]";
+  return "text-[#555]";
 }
 
 function varianceBg(v: number): string {
   if (v < 0) return "bg-red-900/20";
-  if (v > 0) return "bg-amber-900/20";
-  return "bg-[#3dbf8a]/10";
+  if (v > 0) return "bg-[#3dbf8a]/10";
+  return "bg-[#1a1a1a]";
 }
 
 // ── Print sheet generator ─────────────────────────────────────────────────────
@@ -149,12 +158,11 @@ function generatePrintHtml(report: CountReport): string {
 function SummaryCard({
   label, value, sub, accent,
 }: {
-  label: string; value: string; sub?: string; accent?: "red" | "amber" | "green" | "neutral";
+  label: string; value: string; sub?: string; accent?: "red" | "green" | "neutral";
 }) {
   const valColor =
-    accent === "red"     ? "text-red-400"     :
-    accent === "amber"   ? "text-amber-400"   :
-    accent === "green"   ? "text-[#3dbf8a]"   :
+    accent === "red"   ? "text-red-400"   :
+    accent === "green" ? "text-[#3dbf8a]" :
     "text-white";
 
   return (
@@ -234,8 +242,8 @@ export function CountReportView() {
   const { summary, byCategory } = report;
   const varAccent =
     summary.totalVarianceValue < 0 ? "red" :
-    summary.totalVarianceValue > 0 ? "amber" :
-    "green";
+    summary.totalVarianceValue > 0 ? "green" :
+    "neutral";
 
   const varPct = summary.variancePct;
 
@@ -420,7 +428,7 @@ export function CountReportView() {
                       {e.sku && <span className="block text-[10px] text-[#444] font-normal">{e.sku}</span>}
                     </td>
                     <td className="px-4 py-3 text-[#666] whitespace-nowrap">{e.category ?? "—"}</td>
-                    <td className="px-4 py-3 text-[#666]">{e.department ?? "—"}</td>
+                    <td className="px-4 py-3 text-[#666]">{deptLabel(e.department)}</td>
                     <td className="px-4 py-3 text-[#666]">{e.unit ?? "—"}</td>
                     <td className="px-4 py-3 text-right text-[#888] tabular-nums">{e.expectedQuantity}</td>
                     <td className="px-4 py-3 text-right text-[#888] tabular-nums">{e.actualQuantity}</td>

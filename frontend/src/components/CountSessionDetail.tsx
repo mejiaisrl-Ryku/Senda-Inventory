@@ -47,8 +47,8 @@ function VarianceCell({ actual, expected }: { actual: string; expected: number }
   const v = parsed - expected;
   const formatted = v === 0 ? "0" : (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2));
   const cls =
-    v === 0 ? "text-[#3dbf8a]" :
-    v > 0   ? "text-amber-400"  :
+    v === 0 ? "text-[#555]"    :
+    v > 0   ? "text-[#3dbf8a]" :
               "text-red-400";
   return <span className={`text-sm font-semibold tabular-nums ${cls}`}>{formatted}</span>;
 }
@@ -400,8 +400,8 @@ export function CountSessionDetail() {
               <div className="text-center">
                 <p className="text-[10px] text-[#444] uppercase tracking-wider">Variance $</p>
                 <p className={`text-[16px] font-semibold tabular-nums ${
-                  totalVarianceValue === 0 ? "text-[#3dbf8a]"
-                  : totalVarianceValue > 0 ? "text-amber-400"
+                  totalVarianceValue === 0 ? "text-[#555]"
+                  : totalVarianceValue > 0 ? "text-[#3dbf8a]"
                   : "text-red-400"
                 }`}>
                   {totalVarianceValue >= 0 ? "+" : ""}{formatCurrency(totalVarianceValue)}
