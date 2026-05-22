@@ -162,6 +162,71 @@ export interface CogsReport {
   period: CogsPeriodSummary;
 }
 
+// ── Inventory Count ───────────────────────────────────────────────────────────
+
+export type CountDepartment = "KITCHEN" | "BAR" | "FOH" | "ALL";
+export type CountStatus     = "OPEN"    | "CLOSED";
+
+export interface CountSession {
+  id:                 string;
+  restaurantId:       string;
+  date:               string;
+  department:         CountDepartment;
+  status:             CountStatus;
+  createdBy:          string;
+  createdAt:          string;
+  updatedAt:          string;
+  /** Populated by list endpoint */
+  entriesCount?:      number;
+  /** Populated by list endpoint (sum of varianceValue) */
+  totalVarianceValue?: number;
+  /** Populated by get/:id endpoint */
+  entries?:           CountEntry[];
+}
+
+export interface CountEntry {
+  id:               string;
+  sessionId:        string;
+  productId:        string;
+  product?: {
+    id:         string;
+    name:       string;
+    sku?:       string | null;
+    category?:  string | null;
+    purveyor?:  string | null;
+    department: string;
+    unit:       string;
+    costPerUnit: number;
+  };
+  expectedQuantity: number;
+  actualQuantity:   number;
+  variance:         number;
+  unitCost:         number;
+  varianceValue:    number;
+  notes?:           string | null;
+  createdAt:        string;
+}
+
+export interface CountReport {
+  session: Pick<CountSession, "id" | "date" | "department" | "status" | "createdAt">;
+  summary: {
+    totalEntries:       number;
+    totalExpected:      number;
+    totalActual:        number;
+    totalVariance:      number;
+    totalVarianceValue: number;
+    overCount:          number;
+    underCount:         number;
+    exactCount:         number;
+  };
+  byCategory:   { category: string;   entryCount: number; variance: number; varianceValue: number }[];
+  byDepartment: { department: string; entryCount: number; variance: number; varianceValue: number }[];
+  entries:      (Omit<CountEntry, "product"> & {
+    productName?: string; sku?: string | null; category?: string | null;
+    department?: string;  unit?: string;
+  })[];
+}
+
 export interface TeamMember {
   id: string;
   name: string | null;

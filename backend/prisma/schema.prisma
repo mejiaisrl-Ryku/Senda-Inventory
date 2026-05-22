@@ -71,6 +71,20 @@ enum Department {
   BOTH
 }
 
+// Department scope for a physical inventory count session.
+enum CountDepartment {
+  KITCHEN
+  BAR
+  FOH
+  ALL
+}
+
+// Lifecycle of a count session.
+enum CountStatus {
+  OPEN
+  CLOSED
+}
+
 // ─────────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────────
@@ -83,11 +97,12 @@ model Restaurant {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  users        User[]
-  products     Product[]
-  orders       Order[]
-  salesEntries SalesEntry[]
-  laborEntries LaborEntry[]
+  users         User[]
+  products      Product[]
+  orders        Order[]
+  salesEntries  SalesEntry[]
+  laborEntries  LaborEntry[]
+  countSessions CountSession[]
 
   @@map("restaurants")
 }
@@ -125,8 +140,9 @@ model Product {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  stockLogs  StockLog[]
-  orderItems OrderItem[]
+  stockLogs    StockLog[]
+  orderItems   OrderItem[]
+  countEntries CountEntry[]
 
   @@index([restaurantId])
   @@map("products")
@@ -212,4 +228,44 @@ model LaborEntry {
   @@index([restaurantId])
   @@index([restaurantId, date])
   @@map("labor_entries")
+}
+
+// A physical inventory count session (one per department per day).
+model CountSession {
+  id           String          @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  date         DateTime        @db.Date
+  department   CountDepartment @default(ALL)
+  status       CountStatus     @default(OPEN)
+  createdBy    String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  entries CountEntry[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, date])
+  @@map("count_sessions")
+}
+
+// One line per product within a count session.
+model CountEntry {
+  id               String       @id @default(cuid())
+  sessionId        String
+  session          CountSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  expectedQuantity Decimal      @default(0) @db.Decimal(12, 3)
+  actualQuantity   Decimal      @default(0) @db.Decimal(12, 3)
+  variance         Decimal      @default(0) @db.Decimal(12, 3)   // actual − expected
+  unitCost         Decimal      @default(0) @db.Decimal(12, 4)
+  varianceValue    Decimal      @default(0) @db.Decimal(12, 2)   // variance × unitCost
+  notes            String?
+  createdAt        DateTime     @default(now())
+
+  @@unique([sessionId, productId])
+  @@index([sessionId])
+  @@index([productId])
+  @@map("count_entries")
 }

@@ -14,6 +14,8 @@ import { OrderList } from "./components/OrderList";
 import { SalesPage } from "./components/SalesPage";
 import { LaborPage } from "./components/LaborPage";
 import { TeamPage } from "./components/TeamPage";
+import { CountsPage } from "./components/CountsPage";
+import { CountSessionDetail } from "./components/CountSessionDetail";
 import { SuperAdminLogin } from "./components/superadmin/SuperAdminLogin";
 import { SuperAdminLayout } from "./components/superadmin/SuperAdminLayout";
 import { SuperAdminDashboard } from "./components/superadmin/SuperAdminDashboard";
@@ -97,6 +99,10 @@ function AppRoutes() {
                 </Suspense>
               }
             />
+            {/* Inventory — available to all authenticated users (ADMIN + STAFF) */}
+            <Route path="inventory"     element={<CountsPage />} />
+            <Route path="inventory/:id" element={<CountSessionDetail />} />
+
             <Route element={<AdminRoute />}>
               <Route path="sales" element={<SalesPage />} />
               <Route path="labor" element={<LaborPage />} />

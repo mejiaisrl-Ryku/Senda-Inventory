@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig } from "axios";
-import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember } from "../types";
+import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember, CountSession, CountEntry, CountDepartment, CountReport } from "../types";
 import { cacheGet, cacheSet, cachePurge } from "../utils/offlineCache";
 
 // TODO: remove hardcode — set REACT_APP_API_URL env var in Vercel and revert this line
@@ -247,6 +247,30 @@ export const salesApi = {
     api.get<SalesEntry[]>("/sales", { params }).then((r) => r.data),
 
   delete: (id: string) => api.delete(`/sales/${id}`),
+};
+
+// ── Counts ────────────────────────────────────────────────────────────────────
+export const countsApi = {
+  list: (params?: { status?: string; department?: CountDepartment }) =>
+    api.get<CountSession[]>("/counts", { params }).then((r) => r.data),
+
+  create: (data: { date: string; department: CountDepartment }) =>
+    api.post<CountSession>("/counts", data).then((r) => r.data),
+
+  get: (id: string) =>
+    api.get<CountSession>(`/counts/${id}`).then((r) => r.data),
+
+  updateEntries: (
+    id: string,
+    entries: { productId: string; actualQuantity: number; notes?: string }[]
+  ) =>
+    api.put<{ updated: number; entries: CountEntry[] }>(`/counts/${id}/entries`, { entries }).then((r) => r.data),
+
+  close: (id: string) =>
+    api.put<CountSession>(`/counts/${id}/close`).then((r) => r.data),
+
+  report: (id: string) =>
+    api.get<CountReport>(`/counts/${id}/report`).then((r) => r.data),
 };
 
 // ── Labor ─────────────────────────────────────────────────────────────────────
