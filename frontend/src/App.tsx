@@ -12,6 +12,7 @@ import { ProductList } from "./components/ProductList";
 import { StockPage } from "./components/StockPage";
 import { OrderList } from "./components/OrderList";
 import { SalesPage } from "./components/SalesPage";
+import { LaborPage } from "./components/LaborPage";
 import { TeamPage } from "./components/TeamPage";
 import { SuperAdminLogin } from "./components/superadmin/SuperAdminLogin";
 import { SuperAdminLayout } from "./components/superadmin/SuperAdminLayout";
@@ -98,6 +99,7 @@ function AppRoutes() {
             />
             <Route element={<AdminRoute />}>
               <Route path="sales" element={<SalesPage />} />
+              <Route path="labor" element={<LaborPage />} />
               <Route path="team" element={<TeamPage />} />
             </Route>
           </Route>

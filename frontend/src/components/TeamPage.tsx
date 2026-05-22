@@ -21,7 +21,7 @@ function RolePill({ role }: { role: "ADMIN" | "STAFF" }) {
     </span>
   ) : (
     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-      Staff
+      User
     </span>
   );
 }
@@ -200,7 +200,7 @@ function CreateForm({ onSuccess }: { onSuccess: () => void }) {
         <button
           type="submit"
           disabled={loading}
-          className="w-full inline-flex items-center justify-center gap-2 min-h-[40px] px-4 bg-gray-800 dark:bg-gray-200 hover:bg-gray-700 dark:hover:bg-white disabled:opacity-60 text-white dark:text-gray-900 text-sm font-semibold rounded-xl transition-colors"
+          className="w-full inline-flex items-center justify-center gap-2 min-h-[40px] px-4 bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
         >
           {loading ? <><Spinner size="sm" /> Creating…</> : "Create account"}
         </button>

@@ -150,7 +150,7 @@ async function handleDelete() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setScanOpen(true)}
-              className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 border border-[#2a2a2a] bg-[#0a0a0a] hover:bg-[#111] hover:border-[#3dbf8a] text-[#888] hover:text-[#3dbf8a] text-sm font-medium rounded-xl transition-colors"
+              className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 bg-[#3dbf8a] hover:bg-[#35a87a] text-white text-sm font-medium rounded-xl transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
