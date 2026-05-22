@@ -19,8 +19,13 @@ Extract these fields:
 - "unit": the unit of measurement — must be one of: KG, LITERS, PIECES, LB, OZ, G, EA, DOZ (string or null)
 - "costPerUnit": the unit cost as a number (number or null)
 - "category": one of: "Perishable Food", "Dry Food", "Beverages", "Non-Food Supplies" (string or null)
+- "department": classify the item into exactly one of these three values based on what the item is:
+  - "BAR" — liquor, wine, beer, spirits, cocktail ingredients, mixers, bar supplies, glassware for bar
+  - "BOH" — proteins, meat, seafood, produce, dairy, eggs, dry goods, grains, spices, kitchen equipment, food prep items, cooking supplies
+  - "FOH" — office supplies, cleaning supplies, paper goods, napkins, to-go containers, uniforms, front-of-house décor, guest-facing items
+  If the item clearly fits one category, return that value. If genuinely ambiguous, return null.
 
-If you cannot confidently extract a field, set it to null. If there are multiple line items, extract the most prominent or first item.
+If you cannot confidently extract any other field, set it to null. If there are multiple line items, extract the most prominent or first item.
 
 Return ONLY the JSON object, nothing else.`;
 
@@ -73,6 +78,13 @@ export async function extractInvoice(
       });
     }
 
+    // Validate department — only accept the three known enum values
+    const rawDept = extracted.department;
+    const department =
+      rawDept === "BAR" || rawDept === "BOH" || rawDept === "FOH"
+        ? rawDept
+        : null;
+
     res.json({
       name: extracted.name ?? null,
       purveyor: extracted.purveyor ?? null,
@@ -80,6 +92,7 @@ export async function extractInvoice(
       unit: extracted.unit ?? null,
       costPerUnit: extracted.costPerUnit ?? null,
       category: extracted.category ?? null,
+      department,
     });
   } catch (err) {
     next(err);

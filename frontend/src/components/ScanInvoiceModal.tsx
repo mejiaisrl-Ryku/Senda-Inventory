@@ -208,6 +208,7 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
         unit: string | null;
         costPerUnit: number | null;
         category: string | null;
+        department: "BAR" | "BOH" | "FOH" | null;
       }>("/ai/extract-invoice", { imageBase64: base64, mimeType: "image/jpeg" });
 
       if (data.name) setName(data.name);
@@ -219,6 +220,7 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
         setCostPerUnit(String(data.costPerUnit));
       if (data.category && CATEGORIES.includes(data.category as never))
         setCategory(data.category);
+      if (data.department) setDepartment(data.department);
     } catch (err) {
       setExtractError(
         "Could not extract data from the image. Please fill in the fields manually."
