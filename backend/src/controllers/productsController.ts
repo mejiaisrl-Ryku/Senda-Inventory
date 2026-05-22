@@ -1,10 +1,13 @@
 import { Response, NextFunction } from "express";
 import { z } from "zod";
-import { Unit } from "@prisma/client";
-
-const DepartmentEnum = z.enum(["BOH", "FOH", "BOTH"]);
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
+
+// Use z.enum for both Department and Unit so the schemas compile regardless of
+// whether prisma generate has been run yet (the Prisma client enum may lag behind
+// schema.prisma until after db push + generate).
+const DepartmentEnum = z.enum(["BOH", "FOH", "BAR", "BOTH"]);
+const UnitEnum = z.enum(["KG", "LITERS", "PIECES", "LB", "OZ", "G", "EA", "DOZ"]);
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -17,8 +20,10 @@ export const createProductSchema = z
       .trim(),
     sku: z.string().max(100).trim().optional(),
     category: z.string().max(100).trim().optional(),
+    purveyor: z.string().max(255).trim().optional(),
+    invoiceDate: z.string().optional().nullable(),   // ISO date string "YYYY-MM-DD"
     department: DepartmentEnum.default("BOH"),
-    unit: z.nativeEnum(Unit).default("PIECES"),
+    unit: UnitEnum.default("PIECES"),
     costPerUnit: z.number({ invalid_type_error: "Cost must be a number" })
       .positive("Cost must be greater than 0"),
     currentStock: z.number({ invalid_type_error: "Stock must be a number" })
@@ -39,8 +44,10 @@ export const updateProductSchema = z.object({
   name: z.string().min(1).max(255).trim().optional(),
   sku: z.string().max(100).trim().optional(),
   category: z.string().max(100).trim().optional(),
+  purveyor: z.string().max(255).trim().optional(),
+  invoiceDate: z.string().optional().nullable(),
   department: DepartmentEnum.optional(),
-  unit: z.nativeEnum(Unit).optional(),
+  unit: UnitEnum.optional(),
   costPerUnit: z.number().positive("Cost must be greater than 0").optional(),
   currentStock: z.number().nonnegative("Stock cannot be negative").optional(),
   minimumStock: z.number().nonnegative("Minimum stock cannot be negative").optional(),

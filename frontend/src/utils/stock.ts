@@ -44,6 +44,11 @@ export const unitLabel: Record<Unit, string> = {
   KG: "kg",
   LITERS: "L",
   PIECES: "pcs",
+  LB: "lb",
+  OZ: "oz",
+  G: "g",
+  EA: "ea",
+  DOZ: "doz",
 };
 
 export function formatCurrency(n: number) {

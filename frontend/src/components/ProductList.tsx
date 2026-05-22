@@ -22,7 +22,7 @@ export function ProductList() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [deptView, setDeptView] = useState<"BOH" | "FOH">("BOH");
+  const [deptView, setDeptView] = useState<"BOH" | "FOH" | "BAR">("BOH");
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const [adjustTarget, setAdjustTarget] = useState<Product | null>(null);
@@ -70,10 +70,11 @@ export function ProductList() {
 
   // Client-side filters: department view → search → category
   const filtered = products.filter((p) => {
-    // Department: BOH shows BOH + BOTH, FOH shows FOH + BOTH
     const dept = p.department ?? "BOH";
-    if (deptView === "BOH" && dept === "FOH") return false;
-    if (deptView === "FOH" && dept === "BOH") return false;
+    // BAR shows only BAR; BOH shows BOH + BOTH; FOH shows FOH + BOTH
+    if (deptView === "BAR" && dept !== "BAR") return false;
+    if (deptView === "BOH" && (dept === "FOH" || dept === "BAR")) return false;
+    if (deptView === "FOH" && (dept === "BOH" || dept === "BAR")) return false;
     // Search
     if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.sku?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
@@ -122,13 +123,13 @@ async function handleDelete() {
     <div className="p-8 space-y-4">
       {/* Header */}
       <div>
-        <h1 className="text-[22px] font-semibold text-white">Products</h1>
+        <h1 className="text-[22px] font-semibold text-white">Invoices</h1>
       </div>
 
       {/* BOH / FOH switcher + Add Product — same row */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden w-fit">
-          {(["BOH", "FOH"] as const).map((dept) => (
+          {(["BOH", "FOH", "BAR"] as const).map((dept) => (
             <button
               key={dept}
               onClick={() => setDeptView(dept)}
@@ -151,7 +152,7 @@ async function handleDelete() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Add Product
+            Add Invoice
           </button>
         )}
       </div>
@@ -199,15 +200,15 @@ async function handleDelete() {
         <PageSpinner />
       ) : filtered.length === 0 ? (
         <EmptyState
-          title="No products found"
-          description={search ? "Try a different search or scan again." : "Add your first product to get started."}
+          title="No invoices found"
+          description={search ? "Try a different search or scan again." : "Add your first invoice to get started."}
           action={
             !search && isAdmin && (
               <button
                 onClick={() => setAddOpen(true)}
                 className="min-h-[44px] px-4 bg-brand-500 text-white text-sm rounded-xl hover:bg-brand-600 transition-colors"
               >
-                Add Product
+                Add Invoice
               </button>
             )
           }
@@ -218,7 +219,7 @@ async function handleDelete() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700">
-                  {["Name", "SKU", "Category", "Unit", "Stock", "Min", "Cost", "Status", ""].map((h) => (
+                  {["Name", "Purveyor", "Invoice Date", "SKU", "Category", "Unit", "Stock", "Min", "Cost", "Status", ""].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
@@ -232,6 +233,10 @@ async function handleDelete() {
                   return (
                     <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{p.name}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{p.purveyor ?? "—"}</td>
+                      <td className="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        {p.invoiceDate ? new Date(p.invoiceDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                      </td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{p.sku ?? "—"}</td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{p.category ?? "—"}</td>
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{unitLabel[p.unit]}</td>
@@ -273,11 +278,11 @@ async function handleDelete() {
         <BarcodeScanner onScan={handleBarcodeScan} onClose={() => setScannerOpen(false)} />
       </Modal>
 
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Product">
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Invoice">
         <ProductForm onSaved={onProductSaved} onCancel={() => setAddOpen(false)} />
       </Modal>
 
-      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="Edit Product">
+      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="Edit Invoice">
         {editTarget && (
           <ProductForm initial={editTarget} onSaved={onProductSaved} onCancel={() => setEditTarget(null)} />
         )}
@@ -291,7 +296,7 @@ async function handleDelete() {
 
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete product"
+        title="Delete invoice"
         message={`"${deleteTarget?.name}" will be permanently deleted along with all its stock logs. This cannot be undone.`}
         confirmLabel="Delete"
         variant="danger"

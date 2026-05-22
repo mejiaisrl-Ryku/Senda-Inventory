@@ -11,7 +11,16 @@ interface ProductFormProps {
   onCancel: () => void;
 }
 
-const UNITS: Unit[] = ["KG", "LITERS", "PIECES"];
+const UNITS: { value: Unit; label: string }[] = [
+  { value: "KG", label: "KG – Kilograms" },
+  { value: "LITERS", label: "L – Liters" },
+  { value: "PIECES", label: "PCS – Pieces" },
+  { value: "LB", label: "LB – Pounds" },
+  { value: "OZ", label: "OZ – Ounces" },
+  { value: "G", label: "G – Grams" },
+  { value: "EA", label: "EA – Each" },
+  { value: "DOZ", label: "DOZ – Dozen" },
+];
 
 const CATEGORIES = [
   "Perishable Food",
@@ -23,17 +32,20 @@ const CATEGORIES = [
 const DEPARTMENTS: { value: Department; label: string }[] = [
   { value: "BOH", label: "BOH" },
   { value: "FOH", label: "FOH" },
+  { value: "BAR", label: "BAR" },
   { value: "BOTH", label: "Both" },
 ];
 
 type FieldErrors = Partial<Record<
-  "name" | "sku" | "category" | "costPerUnit" | "currentStock" | "minimumStock",
+  "name" | "sku" | "category" | "purveyor" | "invoiceDate" | "costPerUnit" | "currentStock" | "minimumStock",
   string
 >>;
 
 export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
   const toast = useToast();
   const [name, setName] = useState(initial?.name ?? "");
+  const [purveyor, setPurveyor] = useState(initial?.purveyor ?? "");
+  const [invoiceDate, setInvoiceDate] = useState(initial?.invoiceDate ? initial.invoiceDate.slice(0, 10) : "");
   const [sku, setSku] = useState(initial?.sku ?? "");
   const [category, setCategory] = useState(initial?.category ?? "");
   const [department, setDepartment] = useState<Department>(initial?.department ?? "BOH");
@@ -47,6 +59,8 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
   useEffect(() => {
     if (initial) {
       setName(initial.name);
+      setPurveyor(initial.purveyor ?? "");
+      setInvoiceDate(initial.invoiceDate ? initial.invoiceDate.slice(0, 10) : "");
       setSku(initial.sku ?? "");
       setCategory(initial.category ?? "");
       setDepartment(initial.department ?? "BOH");
@@ -85,6 +99,8 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
     setSaving(true);
     const payload = {
       name: name.trim(),
+      purveyor: purveyor.trim() || undefined,
+      invoiceDate: invoiceDate || null,
       sku: sku.trim() || undefined,
       category: category || undefined,
       department,
@@ -138,6 +154,29 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
           <FieldError msg={fieldErrors.name} />
         </div>
 
+        {/* Purveyor */}
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Purveyor</label>
+          <input
+            className={fieldClass()}
+            value={purveyor}
+            onChange={(e) => setPurveyor(e.target.value)}
+            placeholder="Supplier name"
+            maxLength={255}
+          />
+        </div>
+
+        {/* Invoice Date */}
+        <div className="col-span-2">
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Invoice Date</label>
+          <input
+            type="date"
+            className={fieldClass()}
+            value={invoiceDate}
+            onChange={(e) => setInvoiceDate(e.target.value)}
+          />
+        </div>
+
         {/* Department toggle */}
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
@@ -189,7 +228,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
             Unit <span className="text-red-500">*</span>
           </label>
           <select className={fieldClass()} value={unit} onChange={(e) => setUnit(e.target.value as Unit)}>
-            {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+            {UNITS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
           </select>
         </div>
 
@@ -199,8 +238,9 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
             Cost / unit <span className="text-red-500">*</span>
           </label>
           <input
-            className={fieldClass(fieldErrors.costPerUnit)}
-            type="number" min="0.01" step="0.01"
+            className={`${fieldClass(fieldErrors.costPerUnit)} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+            type="text"
+            inputMode="decimal"
             value={costPerUnit}
             onChange={(e) => { setCostPerUnit(e.target.value); setFieldErrors((f) => ({ ...f, costPerUnit: undefined })); }}
             placeholder="0.00"

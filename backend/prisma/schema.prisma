@@ -23,6 +23,11 @@ enum Unit {
   KG
   LITERS
   PIECES
+  LB
+  OZ
+  G
+  EA
+  DOZ
 }
 
 enum StockReason {
@@ -59,6 +64,7 @@ enum COGSCategory {
 enum Department {
   BOH
   FOH
+  BAR
   BOTH
 }
 
@@ -102,6 +108,8 @@ model Product {
   name         String
   sku          String?       @unique
   category     String?
+  purveyor     String?
+  invoiceDate  DateTime?     @db.Date
   department   Department    @default(BOH)
   cogsCategory COGSCategory?
   unit         Unit          @default(PIECES)

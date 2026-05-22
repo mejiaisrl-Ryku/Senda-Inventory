@@ -7,8 +7,8 @@ export interface User {
   restaurantName?: string;
 }
 
-export type Unit = "KG" | "LITERS" | "PIECES";
-export type Department = "BOH" | "FOH" | "BOTH";
+export type Unit = "KG" | "LITERS" | "PIECES" | "LB" | "OZ" | "G" | "EA" | "DOZ";
+export type Department = "BOH" | "FOH" | "BAR" | "BOTH";
 export type StockReason = "RECEIVED" | "USED" | "ADJUSTED" | "WASTE";
 export type OrderStatus = "PENDING" | "RECEIVED" | "CANCELLED";
 export type SalesCategory = "BEER" | "LIQUOR" | "WINE" | "FOOD" | "NON_ALCOHOLIC";
@@ -29,6 +29,8 @@ export interface Product {
   name: string;
   sku?: string;
   category?: string;
+  purveyor?: string;
+  invoiceDate?: string;
   department: Department;
   unit: Unit;
   costPerUnit: number;
