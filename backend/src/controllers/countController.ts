@@ -61,7 +61,7 @@ export async function createSession(
         date:         new Date(body.date).toISOString(),
         department:   body.department,
         status:       "OPEN",
-        createdBy:    req.user.id,
+        createdBy:    req.user.userId,
         updatedAt:    new Date(),
       },
     });
