@@ -131,17 +131,17 @@ async function handleDelete() {
       {/* BOH / FOH switcher + Add Product — same row */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden w-fit">
-          {(["BOH", "FOH", "BAR"] as const).map((dept) => (
+          {([ { value: "BOH", label: "Kitchen" }, { value: "FOH", label: "FOH" }, { value: "BAR", label: "BAR" } ] as const).map(({ value, label }) => (
             <button
-              key={dept}
-              onClick={() => setDeptView(dept)}
+              key={value}
+              onClick={() => setDeptView(value)}
               className={`px-6 py-2 text-[13px] font-semibold transition-colors ${
-                deptView === dept
+                deptView === value
                   ? "bg-[#3dbf8a] text-white"
                   : "bg-[#0a0a0a] text-[#555] hover:text-[#888]"
               }`}
             >
-              {dept}
+              {label}
             </button>
           ))}
         </div>

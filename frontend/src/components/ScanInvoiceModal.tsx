@@ -32,10 +32,9 @@ const CATEGORIES = [
 ] as const;
 
 const DEPARTMENTS: { value: Department; label: string }[] = [
-  { value: "BOH", label: "BOH" },
+  { value: "BOH", label: "Kitchen" },
   { value: "FOH", label: "FOH" },
   { value: "BAR", label: "BAR" },
-  { value: "BOTH", label: "Both" },
 ];
 
 // ── Types ─────────────────────────────────────────────────────────────────────

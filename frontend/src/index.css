@@ -19,6 +19,36 @@
 
 }
 
+/* ── Number input — hide browser spinners everywhere ─────────────────────── */
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  display: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield; /* Firefox */
+}
+
+/* ── Date input — green calendar icon tint ───────────────────────────────── */
+
+input[type="date"] {
+  border-color: #2a2a2a;
+  color-scheme: dark;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(65%) sepia(60%) saturate(400%) hue-rotate(110deg) brightness(1.1);
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 /* ── iOS / mobile fixes ───────────────────────────────────────────────────── */
 
 /* Prevent iOS Safari from auto-zooming into inputs (requires 16px font-size) */

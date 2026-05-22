@@ -11,7 +11,7 @@ export type Unit = "KG" | "LITERS" | "PIECES" | "LB" | "OZ" | "G" | "EA" | "DOZ"
 export type Department = "BOH" | "FOH" | "BAR" | "BOTH";
 export type StockReason = "RECEIVED" | "USED" | "ADJUSTED" | "WASTE";
 export type OrderStatus = "PENDING" | "RECEIVED" | "CANCELLED";
-export type SalesCategory = "BEER" | "LIQUOR" | "WINE" | "FOOD" | "NON_ALCOHOLIC" | "EVENTS" | "DELIVERY";
+export type SalesCategory = "BEER" | "LIQUOR" | "WINE" | "FOOD" | "NON_ALCOHOLIC" | "EVENTS" | "DELIVERY" | "BUYOUTS";
 
 export interface SalesEntry {
   id: string;

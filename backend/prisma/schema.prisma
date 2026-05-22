@@ -51,6 +51,7 @@ enum SalesCategory {
   NON_ALCOHOLIC
   EVENTS
   DELIVERY
+  BUYOUTS
 }
 
 // Maps a product's COGS to one of the sales categories for cost-vs-revenue reporting.

@@ -12,7 +12,7 @@ import { useAuth } from "../context/AuthContext";
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const SALES_CATEGORIES: SalesCategory[] = [
-  "BEER", "LIQUOR", "WINE", "FOOD", "NON_ALCOHOLIC", "EVENTS", "DELIVERY",
+  "BEER", "LIQUOR", "WINE", "FOOD", "NON_ALCOHOLIC", "EVENTS", "DELIVERY", "BUYOUTS",
 ];
 
 const CATEGORY_META: Record<SalesCategory, { label: string; badge: string; dot: string }> = {
@@ -23,6 +23,7 @@ const CATEGORY_META: Record<SalesCategory, { label: string; badge: string; dot: 
   NON_ALCOHOLIC: { label: "Non-Alcoholic", badge: "bg-blue-900/30 text-blue-400",     dot: "bg-blue-400"   },
   EVENTS:        { label: "Events",        badge: "bg-pink-900/30 text-pink-400",     dot: "bg-pink-400"   },
   DELIVERY:      { label: "Delivery",      badge: "bg-orange-900/30 text-orange-400", dot: "bg-orange-400" },
+  BUYOUTS:       { label: "Buyouts",       badge: "bg-cyan-900/30 text-cyan-400",     dot: "bg-cyan-400"   },
 };
 
 const LABOR_FIELDS = [

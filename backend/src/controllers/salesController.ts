@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 
 // Decoupled from Prisma client so new values work before prisma generate runs.
-const SALES_CATEGORIES = ["BEER", "LIQUOR", "WINE", "FOOD", "NON_ALCOHOLIC", "EVENTS", "DELIVERY"] as const;
+const SALES_CATEGORIES = ["BEER", "LIQUOR", "WINE", "FOOD", "NON_ALCOHOLIC", "EVENTS", "DELIVERY", "BUYOUTS"] as const;
 type SalesCategoryLiteral = (typeof SALES_CATEGORIES)[number];
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
