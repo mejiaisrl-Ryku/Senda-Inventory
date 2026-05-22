@@ -6,6 +6,7 @@ import {
   exportReport,
   getCogsToSales,
 } from "../controllers/reportsController";
+import { exportXlsx } from "../controllers/xlsxExportController";
 
 const router = Router();
 
@@ -14,6 +15,7 @@ router.use(authenticate as never);
 router.get("/daily", getDailyReport as never);
 router.get("/weekly", getWeeklyReport as never);
 router.get("/export", exportReport as never);
+router.get("/export-xlsx", exportXlsx as never);
 router.get("/cogs-to-sales", getCogsToSales as never);
 
 export default router;

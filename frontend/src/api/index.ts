@@ -199,6 +199,18 @@ export const reportsApi = {
         URL.revokeObjectURL(url);
       }),
 
+  exportXlsx: (start: string, end: string) =>
+    api
+      .get("/reports/export-xlsx", { params: { start, end }, responseType: "blob" })
+      .then((r) => {
+        const url = URL.createObjectURL(r.data as Blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `kyru-report-${start}-to-${end}.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }),
+
   cogsToSales: (startDate: string, endDate: string) =>
     api
       .get<CogsReport>("/reports/cogs-to-sales", { params: { startDate, endDate } })
