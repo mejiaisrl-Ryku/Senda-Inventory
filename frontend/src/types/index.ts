@@ -211,19 +211,34 @@ export interface CountReport {
   session: Pick<CountSession, "id" | "date" | "department" | "status" | "createdAt">;
   summary: {
     totalEntries:       number;
-    totalExpected:      number;
-    totalActual:        number;
+    totalExpectedQty:   number;
+    totalActualQty:     number;
+    totalExpectedValue: number;
+    totalActualValue:   number;
     totalVariance:      number;
     totalVarianceValue: number;
+    variancePct:        number;
     overCount:          number;
     underCount:         number;
     exactCount:         number;
   };
-  byCategory:   { category: string;   entryCount: number; variance: number; varianceValue: number }[];
+  byCategory: {
+    category:      string;
+    entryCount:    number;
+    expectedValue: number;
+    actualValue:   number;
+    variance:      number;
+    varianceValue: number;
+    variancePct:   number;
+  }[];
   byDepartment: { department: string; entryCount: number; variance: number; varianceValue: number }[];
-  entries:      (Omit<CountEntry, "product"> & {
-    productName?: string; sku?: string | null; category?: string | null;
-    department?: string;  unit?: string;
+  entries: (Omit<CountEntry, "product"> & {
+    productName?: string;
+    sku?:         string | null;
+    category?:    string | null;
+    purveyor?:    string | null;
+    department?:  string;
+    unit?:        string;
   })[];
 }
 

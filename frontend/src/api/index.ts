@@ -271,6 +271,18 @@ export const countsApi = {
 
   report: (id: string) =>
     api.get<CountReport>(`/counts/${id}/report`).then((r) => r.data),
+
+  exportXlsx: (id: string) =>
+    api
+      .get(`/counts/${id}/export-xlsx`, { responseType: "blob" })
+      .then((r) => {
+        const url = URL.createObjectURL(r.data as Blob);
+        const a   = document.createElement("a");
+        a.href     = url;
+        a.download = `count-variance-report.xlsx`;
+        a.click();
+        URL.revokeObjectURL(url);
+      }),
 };
 
 // ── Labor ─────────────────────────────────────────────────────────────────────

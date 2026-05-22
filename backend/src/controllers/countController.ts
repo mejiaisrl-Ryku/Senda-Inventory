@@ -323,8 +323,10 @@ export async function getReport(
     const entries: any[] = session.entries;
 
     // ── Totals ────────────────────────────────────────────────────────────────
-    let totalExpected      = 0;
-    let totalActual        = 0;
+    let totalExpectedQty   = 0;
+    let totalActualQty     = 0;
+    let totalExpectedValue = 0;   // sum of (expectedQty × unitCost)
+    let totalActualValue   = 0;   // sum of (actualQty   × unitCost)
     let totalVariance      = 0;
     let totalVarianceValue = 0;
     let overCount          = 0;
@@ -334,6 +336,8 @@ export async function getReport(
     const byCategory: Record<string, {
       category: string;
       entryCount: number;
+      expectedValue: number;
+      actualValue: number;
       variance: number;
       varianceValue: number;
     }> = {};
@@ -350,9 +354,12 @@ export async function getReport(
       const varianceValue = num(e.varianceValue);
       const expected      = num(e.expectedQuantity);
       const actual        = num(e.actualQuantity);
+      const unitCost      = num(e.unitCost);
 
-      totalExpected      += expected;
-      totalActual        += actual;
+      totalExpectedQty   += expected;
+      totalActualQty     += actual;
+      totalExpectedValue += expected * unitCost;
+      totalActualValue   += actual   * unitCost;
       totalVariance      += variance;
       totalVarianceValue += varianceValue;
 
@@ -362,8 +369,10 @@ export async function getReport(
 
       // By category
       const cat = e.product?.category ?? "Uncategorized";
-      if (!byCategory[cat]) byCategory[cat] = { category: cat, entryCount: 0, variance: 0, varianceValue: 0 };
+      if (!byCategory[cat]) byCategory[cat] = { category: cat, entryCount: 0, expectedValue: 0, actualValue: 0, variance: 0, varianceValue: 0 };
       byCategory[cat].entryCount++;
+      byCategory[cat].expectedValue += expected * unitCost;
+      byCategory[cat].actualValue   += actual   * unitCost;
       byCategory[cat].variance      += variance;
       byCategory[cat].varianceValue += varianceValue;
 
@@ -375,6 +384,10 @@ export async function getReport(
       byDepartment[dept].varianceValue += varianceValue;
     }
 
+    const variancePct = totalExpectedValue > 0
+      ? round2((totalVarianceValue / totalExpectedValue) * 100)
+      : 0;
+
     res.json({
       session: {
         id:         session.id,
@@ -384,19 +397,25 @@ export async function getReport(
         createdAt:  session.createdAt,
       },
       summary: {
-        totalEntries:    entries.length,
-        totalExpected:   round2(totalExpected),
-        totalActual:     round2(totalActual),
-        totalVariance:   round2(totalVariance),
+        totalEntries:       entries.length,
+        totalExpectedQty:   round2(totalExpectedQty),
+        totalActualQty:     round2(totalActualQty),
+        totalExpectedValue: round2(totalExpectedValue),
+        totalActualValue:   round2(totalActualValue),
+        totalVariance:      round2(totalVariance),
         totalVarianceValue: round2(totalVarianceValue),
+        variancePct,
         overCount,
         underCount,
         exactCount,
       },
       byCategory:   Object.values(byCategory).map(r => ({
         ...r,
+        expectedValue: round2(r.expectedValue),
+        actualValue:   round2(r.actualValue),
         variance:      round2(r.variance),
         varianceValue: round2(r.varianceValue),
+        variancePct:   r.expectedValue > 0 ? round2((r.varianceValue / r.expectedValue) * 100) : 0,
       })).sort((a, b) => a.varianceValue - b.varianceValue),
       byDepartment: Object.values(byDepartment).map(r => ({
         ...r,
@@ -409,6 +428,7 @@ export async function getReport(
         productName:      e.product?.name,
         sku:              e.product?.sku,
         category:         e.product?.category,
+        purveyor:         e.product?.purveyor,
         department:       e.product?.department,
         unit:             e.product?.unit,
         expectedQuantity: round3(num(e.expectedQuantity)),

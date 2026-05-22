@@ -11,6 +11,7 @@ import {
   createSessionSchema,
   bulkUpsertEntriesSchema,
 } from "../controllers/countController";
+import { exportCountXlsx } from "../controllers/countXlsxController";
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.get(   "/:id",                                                    getSess
 router.put(   "/:id/entries",       validate(bulkUpsertEntriesSchema),  bulkUpsertEntries  as never);
 router.put(   "/:id/close",                                              closeSession       as never);
 router.get(   "/:id/report",                                             getReport          as never);
+router.get(   "/:id/export-xlsx",                                        exportCountXlsx    as never);
 
 export default router;
