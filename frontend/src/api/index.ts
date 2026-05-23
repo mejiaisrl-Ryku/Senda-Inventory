@@ -2,8 +2,10 @@ import axios, { AxiosRequestConfig } from "axios";
 import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember, CountSession, CountEntry, CountDepartment, CountReport, Recipe, RecipeDepartment } from "../types";
 import { cacheGet, cacheSet, cachePurge } from "../utils/offlineCache";
 
-// TODO: remove hardcode — set REACT_APP_API_URL env var in Vercel and revert this line
-const BASE = "https://senda-inventory-production.up.railway.app/api";
+// Use the env var when set (Vercel / local .env.production); fall back to the
+// Railway production URL so the app keeps working even if the var is missing.
+const BASE =
+  process.env.REACT_APP_API_URL ?? "https://senda-inventory-production.up.railway.app/api";
 
 export const api = axios.create({
   baseURL: BASE,

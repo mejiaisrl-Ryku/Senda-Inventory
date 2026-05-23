@@ -7,7 +7,7 @@ import { AuthRequest } from "../types";
 // whether prisma generate has been run yet (the Prisma client enum may lag behind
 // schema.prisma until after db push + generate).
 const DepartmentEnum = z.enum(["BOH", "FOH", "BAR", "BOTH"]);
-const UnitEnum = z.enum(["KG", "LITERS", "PIECES", "LB", "OZ", "G", "EA", "DOZ"]);
+const UnitEnum = z.enum(["KG", "LITERS", "PIECES", "LB", "OZ", "G", "EA", "DOZ", "CS"]);
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 

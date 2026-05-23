@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate, requireAdmin } from "../middleware/auth";
+import { authenticate } from "../middleware/auth";
 import {
   listRecipes,
   getRecipe,
@@ -10,9 +10,9 @@ import {
 
 const router = Router();
 
-// All recipe endpoints require authentication + admin role
-router.use(authenticate  as never);
-router.use(requireAdmin  as never);
+// All recipe endpoints require authentication; no admin restriction —
+// every logged-in user can view and manage recipes.
+router.use(authenticate as never);
 
 router.get(   "/",    listRecipes  as never);
 router.get(   "/:id", getRecipe    as never);
