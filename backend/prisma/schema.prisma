@@ -305,8 +305,9 @@ model RecipeIngredient {
   recipe    Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  quantity  Decimal @db.Decimal(12, 3)
-  unit      String  // display unit (mirrors product.unit but stored as string for flexibility)
+  quantity         Decimal  @db.Decimal(12, 3)
+  unit             String   // display unit (mirrors product.unit but stored as string for flexibility)
+  conversionFactor Float?   // recipe-units per purchase-unit; null when units are auto-convertible or identical
 
   @@index([recipeId])
   @@index([productId])

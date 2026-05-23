@@ -25,6 +25,17 @@ function costPctBg(pct: number): string {
   return "bg-red-400/10";
 }
 
+// ── OZ quick-select presets (bar measurements) ────────────────────────────────
+
+const OZ_PRESETS = [
+  { value: "0.25", label: "¼" },
+  { value: "0.5",  label: "½" },
+  { value: "0.75", label: "¾" },
+  { value: "1",    label: "1" },
+  { value: "1.5",  label: "1½" },
+  { value: "2",    label: "2" },
+] as const;
+
 // ── Recipe-specific unit options ──────────────────────────────────────────────
 
 const RECIPE_UNITS = [
@@ -41,28 +52,74 @@ const RECIPE_UNITS = [
 
 // Map product Unit values → nearest RECIPE_UNITS value
 function toRecipeUnit(productUnit: string): string {
-  const map: Record<string, string> = {
-    PIECES: "PCS",
-    LITERS: "L",
-  };
+  const map: Record<string, string> = { PIECES: "PCS", LITERS: "L" };
   return map[productUnit] ?? productUnit;
 }
+
+// ── Unit conversion helpers ───────────────────────────────────────────────────
+
+/** Normalize product unit aliases to match recipe unit names. */
+function canonUnit(u: string): string {
+  const aliases: Record<string, string> = { PIECES: "PCS", LITERS: "L" };
+  return aliases[u] ?? u;
+}
+
+/**
+ * Returns "recipe units per 1 purchase unit" for pairs we auto-convert.
+ * Returns null when the user must provide a manual conversionFactor.
+ *
+ * Auto-convertible:  G↔KG (1000)  OZ↔LB (16)  ML↔L (1000)  identical (1)
+ */
+function getAutoFactor(recipeUnit: string, purchaseUnit: string): number | null {
+  const r = canonUnit(recipeUnit);
+  const p = canonUnit(purchaseUnit);
+  if (r === p) return 1;
+  const table: Record<string, Record<string, number>> = {
+    G:  { KG: 1000  },
+    KG: { G: 0.001  },
+    OZ: { LB: 16    },
+    LB: { OZ: 0.0625 },
+    ML: { L: 1000   },
+    L:  { ML: 0.001 },
+  };
+  return table[r]?.[p] ?? null;
+}
+
+/** Returns true when the user must enter a manual conversion factor. */
+function needsConversionInput(recipeUnit: string, purchaseUnit: string): boolean {
+  return getAutoFactor(recipeUnit, purchaseUnit) === null;
+}
+
+/** Human-readable label for a unit (uppercase display). */
+function unitLabel(u: string): string { return canonUnit(u); }
 
 // ── Ingredient row in the modal ───────────────────────────────────────────────
 
 interface IngredientLine {
-  key:       string; // stable local key for React
-  productId: string;
-  productName: string;
-  productUnit: string;
-  costPerUnit: number;
-  quantity:  string; // string so input can be empty / partial
-  unit:      string;
+  key:              string;  // stable local key for React
+  productId:        string;
+  productName:      string;
+  productUnit:      string;
+  costPerUnit:      number;
+  quantity:         string;  // string so input can be empty / partial
+  unit:             string;
+  conversionFactor: string;  // "" when auto-convertible, otherwise user-entered number
 }
 
 function ingCost(ing: IngredientLine): number {
   const q = parseFloat(ing.quantity);
-  return isNaN(q) ? 0 : q * ing.costPerUnit;
+  if (isNaN(q) || q <= 0) return 0;
+
+  const autoFactor = getAutoFactor(ing.unit, ing.productUnit);
+  if (autoFactor !== null) {
+    // Auto-convertible: (quantity / factor) × costPerUnit
+    return (q / autoFactor) * ing.costPerUnit;
+  }
+
+  // Manual conversion: user provides recipe-units per purchase-unit
+  const cf = parseFloat(ing.conversionFactor);
+  if (isNaN(cf) || cf <= 0) return 0;
+  return (q / cf) * ing.costPerUnit;
 }
 
 // ── Blank ingredient form state ───────────────────────────────────────────────
@@ -180,13 +237,14 @@ export function RecipesPage() {
       department:   recipe.department,
       sellingPrice: String(recipe.sellingPrice),
       ingredients:  (recipe.ingredients ?? []).map((ing) => ({
-        key:         ing.id,
-        productId:   ing.productId,
-        productName: ing.product?.name ?? "Unknown",
-        productUnit: ing.product?.unit ?? ing.unit,
-        costPerUnit: ing.product?.costPerUnit ?? 0,
-        quantity:    String(ing.quantity),
-        unit:        ing.unit, // stored unit (already a RECIPE_UNITS value)
+        key:              ing.id,
+        productId:        ing.productId,
+        productName:      ing.product?.name ?? "Unknown",
+        productUnit:      ing.product?.unit ?? ing.unit,
+        costPerUnit:      ing.product?.costPerUnit ?? 0,
+        quantity:         String(ing.quantity),
+        unit:             ing.unit,
+        conversionFactor: ing.conversionFactor != null ? String(ing.conversionFactor) : "",
       })),
     });
     setIngSearch("");
@@ -207,13 +265,14 @@ export function RecipesPage() {
       ingredients: [
         ...f.ingredients,
         {
-          key:         `${p.id}-${Date.now()}`,
-          productId:   p.id,
-          productName: p.name,
-          productUnit: p.unit,
-          costPerUnit: p.costPerUnit,
-          quantity:    "1",
-          unit:        toRecipeUnit(p.unit),
+          key:              `${p.id}-${Date.now()}`,
+          productId:        p.id,
+          productName:      p.name,
+          productUnit:      p.unit,
+          costPerUnit:      p.costPerUnit,
+          quantity:         "1",
+          unit:             toRecipeUnit(p.unit),
+          conversionFactor: "", // filled in by user if cross-family units
         },
       ],
     }));
@@ -235,7 +294,23 @@ export function RecipesPage() {
   function updateIngUnit(key: string, unit: string) {
     setForm((f) => ({
       ...f,
-      ingredients: f.ingredients.map((i) => i.key === key ? { ...i, unit } : i),
+      ingredients: f.ingredients.map((i) =>
+        i.key === key
+          ? {
+              ...i,
+              unit,
+              // Reset conversion factor when switching to a unit that doesn't need one
+              conversionFactor: needsConversionInput(unit, i.productUnit) ? i.conversionFactor : "",
+            }
+          : i
+      ),
+    }));
+  }
+
+  function updateIngConvFactor(key: string, conversionFactor: string) {
+    setForm((f) => ({
+      ...f,
+      ingredients: f.ingredients.map((i) => i.key === key ? { ...i, conversionFactor } : i),
     }));
   }
 
@@ -250,6 +325,18 @@ export function RecipesPage() {
     const badQty = form.ingredients.find((i) => isNaN(parseFloat(i.quantity)) || parseFloat(i.quantity) <= 0);
     if (badQty) { toast.error(`Invalid quantity for "${badQty.productName}".`); return; }
 
+    // Validate that cross-system ingredients have a conversion factor
+    const missingConv = form.ingredients.find(
+      (i) => needsConversionInput(i.unit, i.productUnit) &&
+             (isNaN(parseFloat(i.conversionFactor)) || parseFloat(i.conversionFactor) <= 0)
+    );
+    if (missingConv) {
+      toast.error(
+        `Enter how many ${unitLabel(missingConv.unit)} per ${unitLabel(missingConv.productUnit)} for "${missingConv.productName}".`
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -257,9 +344,12 @@ export function RecipesPage() {
         department:   form.department,
         sellingPrice: sp,
         ingredients:  form.ingredients.map((i) => ({
-          productId: i.productId,
-          quantity:  parseFloat(i.quantity),
-          unit:      i.unit,
+          productId:        i.productId,
+          quantity:         parseFloat(i.quantity),
+          unit:             i.unit,
+          conversionFactor: needsConversionInput(i.unit, i.productUnit)
+            ? parseFloat(i.conversionFactor)
+            : null,
         })),
       };
 
@@ -584,54 +674,128 @@ export function RecipesPage() {
                       <span className="text-[10px] text-[#444] uppercase tracking-wider text-right">Cost</span>
                       <span />
                     </div>
-                    {form.ingredients.map((ing) => (
-                      <div
-                        key={ing.key}
-                        className="grid grid-cols-[1fr_68px_100px_72px_28px] gap-1.5 items-center bg-[#111] border border-[#1a1a1a] rounded-lg px-3 py-2"
-                      >
-                        {/* Product info */}
-                        <div className="min-w-0">
-                          <p className="text-[13px] text-white font-medium truncate">{ing.productName}</p>
-                          <p className="text-[11px] text-[#444]">{formatCurrency(ing.costPerUnit)}/{ing.productUnit}</p>
+                    {form.ingredients.map((ing) => {
+                      const needsConv = needsConversionInput(ing.unit, ing.productUnit);
+                      const autoFactor = getAutoFactor(ing.unit, ing.productUnit);
+                      const cost = ingCost(ing);
+                      return (
+                        <div
+                          key={ing.key}
+                          className={`bg-[#111] border rounded-lg px-3 py-2 space-y-2 ${
+                            needsConv && (!ing.conversionFactor || parseFloat(ing.conversionFactor) <= 0)
+                              ? "border-amber-600/30"
+                              : "border-[#1a1a1a]"
+                          }`}
+                        >
+                          {/* Main row */}
+                          <div className="grid grid-cols-[1fr_68px_100px_72px_28px] gap-1.5 items-center">
+                            {/* Product info */}
+                            <div className="min-w-0">
+                              <p className="text-[13px] text-white font-medium truncate">{ing.productName}</p>
+                              <p className="text-[11px] text-[#444]">
+                                {formatCurrency(ing.costPerUnit)}/{unitLabel(ing.productUnit)}
+                                {autoFactor !== null && autoFactor !== 1 && (
+                                  <span className="ml-1 text-[#3dbf8a]/60">
+                                    · auto {autoFactor > 1 ? `÷${autoFactor}` : `×${1/autoFactor}`}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+
+                            {/* Quantity */}
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={ing.quantity}
+                              onChange={(e) => updateIngQty(ing.key, e.target.value)}
+                              className="w-full text-right px-2 py-1.5 rounded-[6px] bg-[#0a0a0a] border border-[#2a2a2a] text-white text-sm focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                            />
+
+                            {/* Unit dropdown */}
+                            <select
+                              value={ing.unit}
+                              onChange={(e) => updateIngUnit(ing.key, e.target.value)}
+                              className="w-full px-2 py-1.5 rounded-[6px] bg-[#0a0a0a] border border-[#2a2a2a] text-white text-[12px] focus:outline-none focus:border-[#3dbf8a] transition-colors appearance-none cursor-pointer"
+                            >
+                              {RECIPE_UNITS.map(({ value, label }) => (
+                                <option key={value} value={value}>{label}</option>
+                              ))}
+                            </select>
+
+                            {/* Computed cost */}
+                            <span className={`text-right text-[12px] tabular-nums leading-tight ${
+                              needsConv && cost === 0 ? "text-[#444]" : "text-[#888]"
+                            }`}>
+                              {needsConv && cost === 0 ? "—" : formatCurrency(cost)}
+                            </span>
+
+                            {/* Remove */}
+                            <button
+                              type="button"
+                              onClick={() => removeIngredient(ing.key)}
+                              className="w-6 h-6 flex items-center justify-center rounded-md text-[#444] hover:text-red-400 hover:bg-red-400/10 transition-colors mx-auto"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+
+                          {/* OZ quick-select — shown when unit is OZ */}
+                          {ing.unit === "OZ" && (
+                            <div className="flex items-center gap-1.5 pt-1.5 border-t border-[#1d1d1d]">
+                              <span className="text-[10px] text-[#444] uppercase tracking-wider mr-0.5 flex-shrink-0">oz</span>
+                              {OZ_PRESETS.map(({ value, label }) => {
+                                const isActive = parseFloat(ing.quantity) === parseFloat(value);
+                                return (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => updateIngQty(ing.key, value)}
+                                    className={`px-2.5 py-1 rounded-[6px] text-[12px] font-medium tabular-nums transition-colors flex-shrink-0 ${
+                                      isActive
+                                        ? "bg-[#3dbf8a] text-white"
+                                        : "bg-[#0a0a0a] border border-[#2a2a2a] text-[#666] hover:text-white hover:border-[#444]"
+                                    }`}
+                                  >
+                                    {label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Conversion factor row — shown only for cross-system units */}
+                          {needsConv && (
+                            <div className="flex items-center gap-2 pt-1.5 border-t border-[#1d1d1d]">
+                              <svg className="w-3 h-3 text-amber-500/60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                              </svg>
+                              <span className="text-[11px] text-[#555] whitespace-nowrap">
+                                How many <span className="text-amber-400/80 font-medium">{unitLabel(ing.unit)}</span> per{" "}
+                                <span className="text-[#888] font-medium">{unitLabel(ing.productUnit)}</span>?
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={ing.conversionFactor}
+                                onChange={(e) => updateIngConvFactor(ing.key, e.target.value)}
+                                placeholder="e.g. 450"
+                                className="w-24 text-right px-2 py-1 rounded-[6px] bg-[#0a0a0a] border border-amber-500/30 text-amber-300 text-[12px] placeholder-[#444] focus:outline-none focus:border-amber-400 transition-colors"
+                              />
+                              <span className="text-[11px] text-[#444] whitespace-nowrap">
+                                {unitLabel(ing.unit)}/{unitLabel(ing.productUnit)}
+                              </span>
+                              {ing.conversionFactor && parseFloat(ing.conversionFactor) > 0 && (
+                                <span className="ml-auto text-[11px] text-[#3dbf8a]/70 tabular-nums whitespace-nowrap">
+                                  = {formatCurrency(cost)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
-
-                        {/* Quantity */}
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={ing.quantity}
-                          onChange={(e) => updateIngQty(ing.key, e.target.value)}
-                          className="w-full text-right px-2 py-1.5 rounded-[6px] bg-[#0a0a0a] border border-[#2a2a2a] text-white text-sm focus:outline-none focus:border-[#3dbf8a] transition-colors"
-                        />
-
-                        {/* Unit dropdown */}
-                        <select
-                          value={ing.unit}
-                          onChange={(e) => updateIngUnit(ing.key, e.target.value)}
-                          className="w-full px-2 py-1.5 rounded-[6px] bg-[#0a0a0a] border border-[#2a2a2a] text-white text-[12px] focus:outline-none focus:border-[#3dbf8a] transition-colors appearance-none cursor-pointer"
-                        >
-                          {RECIPE_UNITS.map(({ value, label }) => (
-                            <option key={value} value={value}>{label}</option>
-                          ))}
-                        </select>
-
-                        {/* Computed cost */}
-                        <span className="text-right text-[12px] text-[#888] tabular-nums leading-tight">
-                          {formatCurrency(ingCost(ing))}
-                        </span>
-
-                        {/* Remove */}
-                        <button
-                          type="button"
-                          onClick={() => removeIngredient(ing.key)}
-                          className="w-6 h-6 flex items-center justify-center rounded-md text-[#444] hover:text-red-400 hover:bg-red-400/10 transition-colors mx-auto"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

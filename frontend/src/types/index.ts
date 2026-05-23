@@ -248,10 +248,11 @@ export interface CountReport {
 export type RecipeDepartment = "KITCHEN" | "BAR";
 
 export interface RecipeIngredient {
-  id:        string;
-  productId: string;
-  quantity:  number;
-  unit:      string;
+  id:               string;
+  productId:        string;
+  quantity:         number;
+  unit:             string;
+  conversionFactor: number | null;
   product?: {
     id:          string;
     name:        string;
