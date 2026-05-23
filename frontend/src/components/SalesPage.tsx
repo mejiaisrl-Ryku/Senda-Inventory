@@ -165,7 +165,7 @@ function SalesTab({
     <>
       {/* Entry form */}
       <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-5">
-        <h2 className="text-[13px] font-semibold text-[#888] mb-4 uppercase tracking-[0.08em]">New Entry</h2>
+        <h2 className="text-[13px] font-semibold text-[#888] mb-4 uppercase tracking-[0.08em]">Daily Entry</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="max-w-xs">
             <label className="block text-[11px] font-medium text-[#666] mb-1">Date</label>

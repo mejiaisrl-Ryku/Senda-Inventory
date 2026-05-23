@@ -398,14 +398,47 @@ export function RecipesPage() {
 
           <div className="relative w-full max-w-2xl bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
 
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a1a] flex-shrink-0">
-              <h2 className="text-[16px] font-semibold text-white">
-                {editTarget ? "Edit Recipe" : "New Recipe"}
-              </h2>
+            {/* Modal header — name · dept · save all on one row */}
+            <div className="flex items-center gap-3 px-4 sm:px-5 py-3 border-b border-[#1a1a1a] flex-shrink-0 flex-wrap">
+              {/* Recipe name */}
+              <input
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Recipe name…"
+                className="flex-1 min-w-[140px] px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+              />
+
+              {/* Dept toggle */}
+              <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden flex-shrink-0">
+                {(["KITCHEN", "BAR"] as RecipeDepartment[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, department: d }))}
+                    className={`px-4 py-2 text-[12px] font-semibold transition-colors ${
+                      form.department === d ? "bg-[#3dbf8a] text-white" : "bg-transparent text-[#555] hover:text-[#888]"
+                    }`}
+                  >
+                    {d === "KITCHEN" ? "Kitchen" : "Bar"}
+                  </button>
+                ))}
+              </div>
+
+              {/* Save button */}
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-50 text-white text-[13px] font-semibold transition-colors flex-shrink-0"
+              >
+                {saving && <Spinner size="sm" />}
+                {saving ? "Saving…" : editTarget ? "Save" : "Create"}
+              </button>
+
+              {/* Close */}
               <button
                 onClick={closeModal}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors flex-shrink-0"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -414,60 +447,23 @@ export function RecipesPage() {
             </div>
 
             {/* Modal body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+            <div className="flex-1 overflow-y-auto p-5 space-y-5">
 
-              {/* Recipe name + dept + selling price */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Name */}
-                <div className="sm:col-span-2">
-                  <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                    Recipe Name
-                  </label>
+              {/* Selling price — compact single row */}
+              <div className="flex items-center gap-3">
+                <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] whitespace-nowrap flex-shrink-0">
+                  Selling Price
+                </label>
+                <div className="relative w-40">
+                  <span className="absolute inset-y-0 left-3 flex items-center text-[#555] text-sm">$</span>
                   <input
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    placeholder="e.g. Caesar Salad"
-                    className="w-full px-3 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                    type="text"
+                    inputMode="decimal"
+                    value={form.sellingPrice}
+                    onChange={(e) => setForm((f) => ({ ...f, sellingPrice: e.target.value }))}
+                    placeholder="0.00"
+                    className="w-full pl-7 pr-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
                   />
-                </div>
-
-                {/* Department */}
-                <div>
-                  <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                    Department
-                  </label>
-                  <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden">
-                    {(["KITCHEN", "BAR"] as RecipeDepartment[]).map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => setForm((f) => ({ ...f, department: d }))}
-                        className={`flex-1 py-2.5 text-[13px] font-semibold transition-colors ${
-                          form.department === d ? "bg-[#3dbf8a] text-white" : "bg-transparent text-[#555] hover:text-[#888]"
-                        }`}
-                      >
-                        {d === "KITCHEN" ? "Kitchen" : "Bar"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Selling price */}
-                <div>
-                  <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                    Selling Price
-                  </label>
-                  <div className="relative">
-                    <span className="absolute inset-y-0 left-3 flex items-center text-[#555] text-sm">$</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={form.sellingPrice}
-                      onChange={(e) => setForm((f) => ({ ...f, sellingPrice: e.target.value }))}
-                      placeholder="0.00"
-                      className="w-full pl-7 pr-3 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -594,24 +590,15 @@ export function RecipesPage() {
 
             </div>
 
-            {/* Modal footer */}
-            <div className="flex gap-3 px-6 py-4 border-t border-[#1a1a1a] flex-shrink-0">
+            {/* Modal footer — cancel only; save is in the header row */}
+            <div className="flex px-5 py-3 border-t border-[#1a1a1a] flex-shrink-0">
               <button
                 type="button"
                 onClick={closeModal}
                 disabled={saving}
-                className="flex-1 py-2.5 rounded-xl border border-[#2a2a2a] text-[13px] text-[#666] hover:text-white hover:border-[#3a3a3a] disabled:opacity-50 transition-colors"
+                className="px-4 py-2 rounded-[8px] border border-[#2a2a2a] text-[13px] text-[#666] hover:text-white hover:border-[#3a3a3a] disabled:opacity-50 transition-colors"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="flex-1 py-2.5 rounded-xl bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-50 text-white text-[13px] font-semibold transition-colors flex items-center justify-center gap-2"
-              >
-                {saving && <Spinner size="sm" />}
-                {saving ? "Saving…" : editTarget ? "Save Changes" : "Create Recipe"}
               </button>
             </div>
           </div>

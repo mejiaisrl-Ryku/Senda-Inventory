@@ -58,11 +58,12 @@ function ConfirmDelete({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
       <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-[12px] p-6 w-full max-w-sm shadow-2xl">
-        <h3 className="text-[16px] font-semibold text-white mb-2">Delete restaurant</h3>
+        <h3 className="text-[16px] font-semibold text-white mb-2">Delete partner</h3>
         <p className="text-[13px] text-[#888] mb-5">
           <span className="text-white font-medium">"{name}"</span> and all its data —
           users, products, stock logs, orders — will be permanently deleted. This cannot be undone.
         </p>
+
         <div className="flex gap-2">
           <button
             onClick={onCancel}
@@ -119,7 +120,7 @@ function RestaurantsTable({
 
   if (restaurants.length === 0) {
     return (
-      <div className="py-10 text-center text-[13px] text-[#444]">No restaurants yet.</div>
+      <div className="py-10 text-center text-[13px] text-[#444]">No partners yet.</div>
     );
   }
 
@@ -134,7 +135,7 @@ function RestaurantsTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[#1a1a1a]">
-              {["Restaurant", "Owner", "Users", "Products", "Created", ""].map((h) => (
+              {["Partner", "Owner", "Users", "Products", "Created", ""].map((h) => (
                 <th key={h} className="text-left px-4 py-3 text-[11px] font-medium text-[#444] uppercase tracking-[0.08em] whitespace-nowrap">
                   {h}
                 </th>
@@ -165,7 +166,7 @@ function RestaurantsTable({
                   <button
                     onClick={() => setDeleteTarget(r)}
                     className="text-[#555] hover:text-red-400 transition-colors p-1.5 rounded-[6px] hover:bg-red-900/10"
-                    title="Delete restaurant"
+                    title="Delete partner"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -214,7 +215,7 @@ function AddRestaurantForm({ onCreated }: { onCreated: (r: SARestaurant) => void
       setName(""); setAdminName(""); setAdminEmail(""); setAdminPassword("");
       onCreated(restaurant);
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? "Failed to create restaurant.");
+      setError(err?.response?.data?.error ?? "Failed to create partner.");
     } finally {
       setLoading(false);
     }
@@ -229,7 +230,7 @@ function AddRestaurantForm({ onCreated }: { onCreated: (r: SARestaurant) => void
         <div className="px-3 py-2.5 rounded-[8px] bg-[#3dbf8a]/10 border border-[#3dbf8a]/20 text-[#3dbf8a] text-[13px]">{success}</div>
       )}
       <div>
-        <label className={labelCls}>Restaurant name</label>
+        <label className={labelCls}>Partner name</label>
         <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="La Milagrosa" className={inputCls} />
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -281,7 +282,7 @@ function AddRestaurantForm({ onCreated }: { onCreated: (r: SARestaurant) => void
         className="w-full py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-[13px] font-semibold transition-colors flex items-center justify-center gap-2"
       >
         {loading && <Spinner size="sm" />}
-        Create Restaurant
+        Create Partner
       </button>
     </form>
   );
@@ -322,14 +323,14 @@ function InviteAdminForm({ restaurants }: { restaurants: SARestaurant[] }) {
         <div className="px-3 py-2.5 rounded-[8px] bg-[#3dbf8a]/10 border border-[#3dbf8a]/20 text-[#3dbf8a] text-[13px]">{success}</div>
       )}
       <div>
-        <label className={labelCls}>Restaurant</label>
+        <label className={labelCls}>Partner</label>
         <select
           required
           value={restaurantId}
           onChange={(e) => setRestaurantId(e.target.value)}
           className={inputCls}
         >
-          <option value="">— Select restaurant —</option>
+          <option value="">— Select partner —</option>
           {restaurants.map((r) => (
             <option key={r.id} value={r.id}>{r.name}</option>
           ))}
@@ -369,7 +370,7 @@ function UsersTable({ users }: { users: SAUser[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-[#1a1a1a]">
-            {["User", "Email", "Role", "Restaurant"].map((h) => (
+            {["User", "Email", "Role", "Partner"].map((h) => (
               <th key={h} className="text-left px-4 py-3 text-[11px] font-medium text-[#444] uppercase tracking-[0.08em] whitespace-nowrap">
                 {h}
               </th>
@@ -439,7 +440,7 @@ export function SuperAdminDashboard() {
       <div>
         <h1 className="text-[22px] font-semibold text-white">Platform Overview</h1>
         <p className="text-[13px] text-[#555] mt-1">
-          {restaurants.length} restaurant{restaurants.length !== 1 ? "s" : ""} ·{" "}
+          {restaurants.length} partner{restaurants.length !== 1 ? "s" : ""} ·{" "}
           {users.length} user{users.length !== 1 ? "s" : ""}
         </p>
       </div>
@@ -447,7 +448,7 @@ export function SuperAdminDashboard() {
       {/* ── Restaurants ────────────────────────────────────────────────────── */}
       <div>
         <SectionHeader
-          title="Restaurants"
+          title="Partners"
           sub="All accounts on the platform"
         />
         <Card>
@@ -463,7 +464,7 @@ export function SuperAdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div>
           <SectionHeader
-            title="Create Restaurant"
+            title="Create Partner"
             sub="Set up a new account with an admin"
           />
           <Card className="p-5">
@@ -474,7 +475,7 @@ export function SuperAdminDashboard() {
         <div>
           <SectionHeader
             title="Invite Admin"
-            sub="Send a registration link to an existing restaurant"
+            sub="Send a registration link to an existing partner"
           />
           <Card className="p-5">
             <InviteAdminForm restaurants={restaurants} />
@@ -486,7 +487,7 @@ export function SuperAdminDashboard() {
       <div>
         <SectionHeader
           title="All Users"
-          sub="Every account across all restaurants"
+          sub="Every account across all partners"
         />
         <Card>
           {loadingU ? (

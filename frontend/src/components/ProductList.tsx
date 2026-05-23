@@ -23,7 +23,7 @@ export function ProductList() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [deptView, setDeptView] = useState<"BOH" | "FOH" | "BAR">("BOH");
+  const [deptView, setDeptView] = useState<"ALL" | "BOH" | "FOH" | "BAR">("ALL");
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const [adjustTarget, setAdjustTarget] = useState<Product | null>(null);
@@ -73,10 +73,12 @@ export function ProductList() {
   // Client-side filters: department view → search → category
   const filtered = products.filter((p) => {
     const dept = p.department ?? "BOH";
-    // BAR shows only BAR; BOH shows BOH + BOTH; FOH shows FOH + BOTH
-    if (deptView === "BAR" && dept !== "BAR") return false;
-    if (deptView === "BOH" && (dept === "FOH" || dept === "BAR")) return false;
-    if (deptView === "FOH" && (dept === "BOH" || dept === "BAR")) return false;
+    // ALL shows everything; BAR shows only BAR; BOH shows BOH + BOTH; FOH shows FOH + BOTH
+    if (deptView !== "ALL") {
+      if (deptView === "BAR" && dept !== "BAR") return false;
+      if (deptView === "BOH" && (dept === "FOH" || dept === "BAR")) return false;
+      if (deptView === "FOH" && (dept === "BOH" || dept === "BAR")) return false;
+    }
     // Search
     if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.sku?.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
@@ -131,7 +133,7 @@ async function handleDelete() {
       {/* BOH / FOH switcher + Add Product — same row */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden w-fit">
-          {([ { value: "BOH", label: "Kitchen" }, { value: "FOH", label: "FOH" }, { value: "BAR", label: "BAR" } ] as const).map(({ value, label }) => (
+          {([ { value: "ALL", label: "All" }, { value: "BOH", label: "Kitchen" }, { value: "FOH", label: "FOH" }, { value: "BAR", label: "BAR" } ] as const).map(({ value, label }) => (
             <button
               key={value}
               onClick={() => setDeptView(value)}

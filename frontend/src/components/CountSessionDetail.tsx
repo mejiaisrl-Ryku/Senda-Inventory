@@ -457,21 +457,8 @@ export function CountSessionDetail() {
         <div className="fixed bottom-0 left-0 right-0 lg:left-[220px] z-20
                         bg-[#0a0a0a] border-t border-[#1a1a1a]
                         px-4 sm:px-8 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-[13px] text-[#555]">
-              Session closed
-            </span>
-            <button
-              onClick={() => navigate(`/inventory/${id}/report`)}
-              className="inline-flex items-center gap-1.5 min-h-[40px] px-4 bg-[#3dbf8a] hover:bg-[#35a87a]
-                         text-white text-sm font-semibold rounded-xl transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              View Report
-            </button>
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] text-[#555]">Session closed</span>
             <button
               onClick={() => navigate("/inventory")}
               className="ml-auto text-[13px] text-[#555] hover:text-white transition-colors"
