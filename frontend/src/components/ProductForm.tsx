@@ -20,6 +20,7 @@ const UNITS: { value: Unit; label: string }[] = [
   { value: "G", label: "G – Grams" },
   { value: "EA", label: "EA – Each" },
   { value: "DOZ", label: "DOZ – Dozen" },
+  { value: "CS",  label: "CS – Case"   },
 ];
 
 const CATEGORIES = [

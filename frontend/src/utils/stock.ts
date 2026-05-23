@@ -49,6 +49,7 @@ export const unitLabel: Record<Unit, string> = {
   G: "g",
   EA: "ea",
   DOZ: "doz",
+  CS: "cs",
 };
 
 export function formatCurrency(n: number) {

@@ -52,7 +52,7 @@ const RECIPE_UNITS = [
 
 // Map product Unit values → nearest RECIPE_UNITS value
 function toRecipeUnit(productUnit: string): string {
-  const map: Record<string, string> = { PIECES: "PCS", LITERS: "L" };
+  const map: Record<string, string> = { PIECES: "PCS", LITERS: "L", CS: "OZ", DOZ: "OZ" };
   return map[productUnit] ?? productUnit;
 }
 
@@ -93,6 +93,37 @@ function needsConversionInput(recipeUnit: string, purchaseUnit: string): boolean
 /** Human-readable label for a unit (uppercase display). */
 function unitLabel(u: string): string { return canonUnit(u); }
 
+// ── Beverage case helpers ─────────────────────────────────────────────────────
+
+/** True when this ingredient should use the beverage split-input UI. */
+function isBeverageCase(ing: { category: string; productUnit: string; unit: string }): boolean {
+  const pu = canonUnit(ing.productUnit);
+  return ing.category === "Beverages" && (pu === "DOZ" || pu === "CS") && ing.unit === "OZ";
+}
+
+/**
+ * Compute the effective conversionFactor (total oz per purchase unit) from the
+ * two beverage split fields.  Returns 0 if either field is invalid.
+ */
+function beverageConvFactor(ozPerUnit: string, unitsPerCase: string): number {
+  const oz  = parseFloat(ozPerUnit);
+  const cnt = parseFloat(unitsPerCase);
+  return isNaN(oz) || oz <= 0 || isNaN(cnt) || cnt <= 0 ? 0 : oz * cnt;
+}
+
+/**
+ * Try to decompose a stored conversionFactor back into (ozPerUnit, unitsPerCase).
+ * Prefers 12 oz, then 16 oz.  Falls back to ("", "") so the user re-enters.
+ */
+function decomposeBeverageFactor(cf: number): { ozPerUnit: string; unitsPerCase: string } {
+  for (const oz of [12, 16, 8]) {
+    if (cf > 0 && Number.isInteger(cf / oz)) {
+      return { ozPerUnit: String(oz), unitsPerCase: String(cf / oz) };
+    }
+  }
+  return { ozPerUnit: "", unitsPerCase: "" };
+}
+
 // ── Ingredient row in the modal ───────────────────────────────────────────────
 
 interface IngredientLine {
@@ -100,23 +131,33 @@ interface IngredientLine {
   productId:        string;
   productName:      string;
   productUnit:      string;
+  category:         string;  // product category — drives beverage split-input UI
   costPerUnit:      number;
   quantity:         string;  // string so input can be empty / partial
   unit:             string;
   conversionFactor: string;  // "" when auto-convertible, otherwise user-entered number
+  // Beverage split fields (DOZ/CS + OZ recipe unit + Beverages category)
+  ozPerUnit:        string;  // oz per individual can/bottle  (e.g. "12" or "16")
+  unitsPerCase:     string;  // cans/bottles per DOZ or CS   (e.g. "12" or "24")
 }
 
 function ingCost(ing: IngredientLine): number {
   const q = parseFloat(ing.quantity);
   if (isNaN(q) || q <= 0) return 0;
 
+  // Beverage split-input path
+  if (isBeverageCase(ing)) {
+    const cf = beverageConvFactor(ing.ozPerUnit, ing.unitsPerCase);
+    if (cf <= 0) return 0;
+    return (q / cf) * ing.costPerUnit;
+  }
+
   const autoFactor = getAutoFactor(ing.unit, ing.productUnit);
   if (autoFactor !== null) {
-    // Auto-convertible: (quantity / factor) × costPerUnit
     return (q / autoFactor) * ing.costPerUnit;
   }
 
-  // Manual conversion: user provides recipe-units per purchase-unit
+  // Generic manual conversion
   const cf = parseFloat(ing.conversionFactor);
   if (isNaN(cf) || cf <= 0) return 0;
   return (q / cf) * ing.costPerUnit;
@@ -236,16 +277,30 @@ export function RecipesPage() {
       name:         recipe.name,
       department:   recipe.department,
       sellingPrice: String(recipe.sellingPrice),
-      ingredients:  (recipe.ingredients ?? []).map((ing) => ({
-        key:              ing.id,
-        productId:        ing.productId,
-        productName:      ing.product?.name ?? "Unknown",
-        productUnit:      ing.product?.unit ?? ing.unit,
-        costPerUnit:      ing.product?.costPerUnit ?? 0,
-        quantity:         String(ing.quantity),
-        unit:             ing.unit,
-        conversionFactor: ing.conversionFactor != null ? String(ing.conversionFactor) : "",
-      })),
+      ingredients:  (recipe.ingredients ?? []).map((ing) => {
+        const productUnit = ing.product?.unit ?? ing.unit;
+        const category    = ing.product?.category ?? "";
+        const cf          = ing.conversionFactor;
+        const isBev       = category === "Beverages" &&
+                            (canonUnit(productUnit) === "DOZ" || canonUnit(productUnit) === "CS") &&
+                            ing.unit === "OZ";
+        const { ozPerUnit, unitsPerCase } = isBev && cf != null
+          ? decomposeBeverageFactor(cf)
+          : { ozPerUnit: "", unitsPerCase: "" };
+        return {
+          key:              ing.id,
+          productId:        ing.productId,
+          productName:      ing.product?.name ?? "Unknown",
+          productUnit,
+          category,
+          costPerUnit:      ing.product?.costPerUnit ?? 0,
+          quantity:         String(ing.quantity),
+          unit:             ing.unit,
+          conversionFactor: !isBev && cf != null ? String(cf) : "",
+          ozPerUnit,
+          unitsPerCase,
+        };
+      }),
     });
     setIngSearch("");
     setModalOpen(true);
@@ -260,6 +315,10 @@ export function RecipesPage() {
   }
 
   function addIngredient(p: Product) {
+    const recipeUnit = toRecipeUnit(p.unit);
+    // Default beverage split fields when adding a DOZ/CS Beverages product
+    const isBev = p.category === "Beverages" && (canonUnit(p.unit) === "DOZ" || canonUnit(p.unit) === "CS");
+    const defaultUnitsPerCase = canonUnit(p.unit) === "CS" ? "24" : "12";
     setForm((f) => ({
       ...f,
       ingredients: [
@@ -269,10 +328,13 @@ export function RecipesPage() {
           productId:        p.id,
           productName:      p.name,
           productUnit:      p.unit,
+          category:         p.category ?? "",
           costPerUnit:      p.costPerUnit,
           quantity:         "1",
-          unit:             toRecipeUnit(p.unit),
-          conversionFactor: "", // filled in by user if cross-family units
+          unit:             recipeUnit,
+          conversionFactor: "",
+          ozPerUnit:        isBev ? "12" : "",
+          unitsPerCase:     isBev ? defaultUnitsPerCase : "",
         },
       ],
     }));
@@ -314,6 +376,20 @@ export function RecipesPage() {
     }));
   }
 
+  function updateIngOzPerUnit(key: string, ozPerUnit: string) {
+    setForm((f) => ({
+      ...f,
+      ingredients: f.ingredients.map((i) => i.key === key ? { ...i, ozPerUnit } : i),
+    }));
+  }
+
+  function updateIngUnitsPerCase(key: string, unitsPerCase: string) {
+    setForm((f) => ({
+      ...f,
+      ingredients: f.ingredients.map((i) => i.key === key ? { ...i, unitsPerCase } : i),
+    }));
+  }
+
   // ── Submit ────────────────────────────────────────────────────────────────
 
   async function handleSave() {
@@ -325,16 +401,26 @@ export function RecipesPage() {
     const badQty = form.ingredients.find((i) => isNaN(parseFloat(i.quantity)) || parseFloat(i.quantity) <= 0);
     if (badQty) { toast.error(`Invalid quantity for "${badQty.productName}".`); return; }
 
-    // Validate that cross-system ingredients have a conversion factor
-    const missingConv = form.ingredients.find(
-      (i) => needsConversionInput(i.unit, i.productUnit) &&
-             (isNaN(parseFloat(i.conversionFactor)) || parseFloat(i.conversionFactor) <= 0)
-    );
-    if (missingConv) {
-      toast.error(
-        `Enter how many ${unitLabel(missingConv.unit)} per ${unitLabel(missingConv.productUnit)} for "${missingConv.productName}".`
-      );
-      return;
+    // Validate conversion inputs for cross-system ingredients
+    for (const i of form.ingredients) {
+      if (!needsConversionInput(i.unit, i.productUnit)) continue;
+      if (isBeverageCase(i)) {
+        const oz  = parseFloat(i.ozPerUnit);
+        const cnt = parseFloat(i.unitsPerCase);
+        if (isNaN(oz) || oz <= 0) {
+          toast.error(`Enter oz per can/bottle for "${i.productName}".`); return;
+        }
+        if (isNaN(cnt) || cnt <= 0) {
+          toast.error(`Enter cans per ${unitLabel(i.productUnit)} for "${i.productName}".`); return;
+        }
+      } else {
+        if (isNaN(parseFloat(i.conversionFactor)) || parseFloat(i.conversionFactor) <= 0) {
+          toast.error(
+            `Enter how many ${unitLabel(i.unit)} per ${unitLabel(i.productUnit)} for "${i.productName}".`
+          );
+          return;
+        }
+      }
     }
 
     setSaving(true);
@@ -343,14 +429,20 @@ export function RecipesPage() {
         name:         form.name.trim(),
         department:   form.department,
         sellingPrice: sp,
-        ingredients:  form.ingredients.map((i) => ({
-          productId:        i.productId,
-          quantity:         parseFloat(i.quantity),
-          unit:             i.unit,
-          conversionFactor: needsConversionInput(i.unit, i.productUnit)
-            ? parseFloat(i.conversionFactor)
-            : null,
-        })),
+        ingredients:  form.ingredients.map((i) => {
+          let conversionFactor: number | null = null;
+          if (needsConversionInput(i.unit, i.productUnit)) {
+            conversionFactor = isBeverageCase(i)
+              ? beverageConvFactor(i.ozPerUnit, i.unitsPerCase)
+              : parseFloat(i.conversionFactor);
+          }
+          return {
+            productId: i.productId,
+            quantity:  parseFloat(i.quantity),
+            unit:      i.unit,
+            conversionFactor,
+          };
+        }),
       };
 
       let saved: Recipe;
@@ -765,8 +857,68 @@ export function RecipesPage() {
                             </div>
                           )}
 
-                          {/* Conversion factor row — shown only for cross-system units */}
-                          {needsConv && (
+                          {/* Beverage split inputs — DOZ/CS + OZ + Beverages category */}
+                          {needsConv && isBeverageCase(ing) && (
+                            <div className="space-y-2 pt-1.5 border-t border-[#1d1d1d]">
+                              {/* Row 1: oz per can/bottle */}
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] text-[#555] whitespace-nowrap w-36 flex-shrink-0">
+                                  OZ per can/bottle?
+                                </span>
+                                {/* Quick-select: 12 and 16 */}
+                                {[12, 16].map((v) => (
+                                  <button
+                                    key={v}
+                                    type="button"
+                                    onClick={() => updateIngOzPerUnit(ing.key, String(v))}
+                                    className={`px-2.5 py-1 rounded-[6px] text-[12px] font-medium tabular-nums transition-colors flex-shrink-0 ${
+                                      parseFloat(ing.ozPerUnit) === v
+                                        ? "bg-[#3dbf8a] text-white"
+                                        : "bg-[#0a0a0a] border border-[#2a2a2a] text-[#666] hover:text-white hover:border-[#444]"
+                                    }`}
+                                  >
+                                    {v}
+                                  </button>
+                                ))}
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={ing.ozPerUnit}
+                                  onChange={(e) => updateIngOzPerUnit(ing.key, e.target.value)}
+                                  placeholder="oz"
+                                  className="w-16 text-right px-2 py-1 rounded-[6px] bg-[#0a0a0a] border border-amber-500/30 text-amber-300 text-[12px] placeholder-[#444] focus:outline-none focus:border-amber-400 transition-colors"
+                                />
+                                <span className="text-[11px] text-[#444]">oz / unit</span>
+                              </div>
+                              {/* Row 2: units per case/dozen */}
+                              <div className="flex items-center gap-2">
+                                <span className="text-[11px] text-[#555] whitespace-nowrap w-36 flex-shrink-0">
+                                  Units per {unitLabel(ing.productUnit)}?
+                                </span>
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={ing.unitsPerCase}
+                                  onChange={(e) => updateIngUnitsPerCase(ing.key, e.target.value)}
+                                  placeholder="12"
+                                  className="w-16 text-right px-2 py-1 rounded-[6px] bg-[#0a0a0a] border border-amber-500/30 text-amber-300 text-[12px] placeholder-[#444] focus:outline-none focus:border-amber-400 transition-colors"
+                                />
+                                <span className="text-[11px] text-[#444]">cans / {unitLabel(ing.productUnit)}</span>
+                                {/* Live total + cost */}
+                                {beverageConvFactor(ing.ozPerUnit, ing.unitsPerCase) > 0 && (
+                                  <span className="ml-auto text-[11px] text-[#555] tabular-nums whitespace-nowrap">
+                                    {beverageConvFactor(ing.ozPerUnit, ing.unitsPerCase)} oz/{unitLabel(ing.productUnit)}
+                                    {cost > 0 && (
+                                      <span className="ml-2 text-[#3dbf8a]/70">= {formatCurrency(cost)}</span>
+                                    )}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Generic conversion factor row — all other cross-system pairs */}
+                          {needsConv && !isBeverageCase(ing) && (
                             <div className="flex items-center gap-2 pt-1.5 border-t border-[#1d1d1d]">
                               <svg className="w-3 h-3 text-amber-500/60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />

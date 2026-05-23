@@ -28,6 +28,7 @@ enum Unit {
   G
   EA
   DOZ
+  CS
 }
 
 enum StockReason {

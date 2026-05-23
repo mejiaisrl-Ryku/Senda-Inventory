@@ -8,7 +8,7 @@ export interface User {
   restaurantLogo?: string | null;
 }
 
-export type Unit = "KG" | "LITERS" | "PIECES" | "LB" | "OZ" | "G" | "EA" | "DOZ";
+export type Unit = "KG" | "LITERS" | "PIECES" | "LB" | "OZ" | "G" | "EA" | "DOZ" | "CS";
 export type Department = "BOH" | "FOH" | "BAR" | "BOTH";
 export type StockReason = "RECEIVED" | "USED" | "ADJUSTED" | "WASTE";
 export type OrderStatus = "PENDING" | "RECEIVED" | "CANCELLED";
