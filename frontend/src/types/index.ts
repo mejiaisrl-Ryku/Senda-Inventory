@@ -242,6 +242,38 @@ export interface CountReport {
   })[];
 }
 
+// ── Recipe Costing ────────────────────────────────────────────────────────────
+
+export type RecipeDepartment = "KITCHEN" | "BAR";
+
+export interface RecipeIngredient {
+  id:        string;
+  productId: string;
+  quantity:  number;
+  unit:      string;
+  product?: {
+    id:          string;
+    name:        string;
+    unit:        string;
+    costPerUnit: number;
+    category?:   string | null;
+  };
+}
+
+export interface Recipe {
+  id:           string;
+  restaurantId: string;
+  name:         string;
+  department:   RecipeDepartment;
+  sellingPrice: number;
+  createdAt:    string;
+  updatedAt:    string;
+  /** Computed by backend from live product prices */
+  recipeCost?:  number;
+  costPct?:     number;
+  ingredients?: RecipeIngredient[];
+}
+
 export interface TeamMember {
   id: string;
   name: string | null;

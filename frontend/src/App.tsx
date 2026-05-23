@@ -17,6 +17,7 @@ import { TeamPage } from "./components/TeamPage";
 import { CountsPage } from "./components/CountsPage";
 import { CountSessionDetail } from "./components/CountSessionDetail";
 import { CountReportView } from "./components/CountReportView";
+import { RecipesPage } from "./components/RecipesPage";
 import { SuperAdminLogin } from "./components/superadmin/SuperAdminLogin";
 import { SuperAdminLayout } from "./components/superadmin/SuperAdminLayout";
 import { SuperAdminDashboard } from "./components/superadmin/SuperAdminDashboard";
@@ -106,6 +107,7 @@ function AppRoutes() {
             <Route path="inventory/:id/report"  element={<CountReportView />} />
 
             <Route element={<AdminRoute />}>
+              <Route path="recipes" element={<RecipesPage />} />
               <Route path="sales" element={<SalesPage />} />
               <Route path="labor" element={<LaborPage />} />
               <Route path="team" element={<TeamPage />} />

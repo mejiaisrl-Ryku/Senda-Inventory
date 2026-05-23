@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig } from "axios";
-import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember, CountSession, CountEntry, CountDepartment, CountReport } from "../types";
+import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember, CountSession, CountEntry, CountDepartment, CountReport, Recipe, RecipeDepartment } from "../types";
 import { cacheGet, cacheSet, cachePurge } from "../utils/offlineCache";
 
 // TODO: remove hardcode — set REACT_APP_API_URL env var in Vercel and revert this line
@@ -283,6 +283,33 @@ export const countsApi = {
         a.click();
         URL.revokeObjectURL(url);
       }),
+};
+
+// ── Recipes ───────────────────────────────────────────────────────────────────
+export const recipesApi = {
+  list: (department?: RecipeDepartment) =>
+    api.get<Recipe[]>("/recipes", { params: department ? { department } : {} }).then((r) => r.data),
+
+  get: (id: string) => api.get<Recipe>(`/recipes/${id}`).then((r) => r.data),
+
+  create: (data: {
+    name: string;
+    department: RecipeDepartment;
+    sellingPrice: number;
+    ingredients: { productId: string; quantity: number; unit: string }[];
+  }) => api.post<Recipe>("/recipes", data).then((r) => r.data),
+
+  update: (
+    id: string,
+    data: {
+      name: string;
+      department: RecipeDepartment;
+      sellingPrice: number;
+      ingredients: { productId: string; quantity: number; unit: string }[];
+    }
+  ) => api.put<Recipe>(`/recipes/${id}`, data).then((r) => r.data),
+
+  delete: (id: string) => api.delete(`/recipes/${id}`),
 };
 
 // ── Labor ─────────────────────────────────────────────────────────────────────

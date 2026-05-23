@@ -85,6 +85,12 @@ enum CountStatus {
   CLOSED
 }
 
+// Department scope for a recipe.
+enum RecipeDepartment {
+  KITCHEN
+  BAR
+}
+
 // ─────────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────────
@@ -103,6 +109,7 @@ model Restaurant {
   salesEntries  SalesEntry[]
   laborEntries  LaborEntry[]
   countSessions CountSession[]
+  recipes       Recipe[]
 
   @@map("restaurants")
 }
@@ -140,9 +147,10 @@ model Product {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  stockLogs    StockLog[]
-  orderItems   OrderItem[]
-  countEntries CountEntry[]
+  stockLogs         StockLog[]
+  orderItems        OrderItem[]
+  countEntries      CountEntry[]
+  recipeIngredients RecipeIngredient[]
 
   @@index([restaurantId])
   @@map("products")
@@ -268,4 +276,36 @@ model CountEntry {
   @@index([sessionId])
   @@index([productId])
   @@map("count_entries")
+}
+
+// A costed recipe, belonging to a restaurant.
+model Recipe {
+  id           String           @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  name         String
+  department   RecipeDepartment
+  sellingPrice Decimal          @db.Decimal(10, 2)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  ingredients RecipeIngredient[]
+
+  @@index([restaurantId])
+  @@map("recipes")
+}
+
+// One ingredient line within a recipe.
+model RecipeIngredient {
+  id        String  @id @default(cuid())
+  recipeId  String
+  recipe    Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  quantity  Decimal @db.Decimal(12, 3)
+  unit      String  // display unit (mirrors product.unit but stored as string for flexibility)
+
+  @@index([recipeId])
+  @@index([productId])
+  @@map("recipe_ingredients")
 }
