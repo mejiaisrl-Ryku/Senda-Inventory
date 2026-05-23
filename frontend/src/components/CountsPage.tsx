@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CountDepartment, CountSession } from "../types";
+import { useLanguage } from "../context/LanguageContext";
 import { countsApi } from "../api";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
@@ -10,13 +11,7 @@ import { EmptyState } from "./shared/EmptyState";
 import { Modal } from "./shared/Modal";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const DEPARTMENTS: { value: CountDepartment; label: string }[] = [
-  { value: "ALL",     label: "All"     },
-  { value: "KITCHEN", label: "Kitchen" },
-  { value: "BAR",     label: "Bar"     },
-  { value: "FOH",     label: "FOH"     },
-];
+// (DEPARTMENTS is now built inside NewCountModal using translations)
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -65,9 +60,17 @@ function NewCountModal({
   onCreated: (session: CountSession) => void;
 }) {
   const toast = useToast();
+  const { t } = useLanguage();
   const [date, setDate]               = useState(todayLocal());
   const [department, setDepartment]   = useState<CountDepartment>("ALL");
   const [submitting, setSubmitting]   = useState(false);
+
+  const DEPARTMENTS: { value: CountDepartment; label: string }[] = [
+    { value: "ALL",     label: t.counts.allDepts },
+    { value: "KITCHEN", label: t.counts.kitchen  },
+    { value: "BAR",     label: t.counts.bar      },
+    { value: "FOH",     label: t.counts.foh      },
+  ];
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -84,10 +87,10 @@ function NewCountModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="New Count Session">
+    <Modal open={open} onClose={onClose} title={t.counts.newCount}>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-[11px] font-medium text-[#666] mb-1">Date</label>
+          <label className="block text-[11px] font-medium text-[#666] mb-1">{t.common.date}</label>
           <input
             type="date" required value={date} max={todayLocal()}
             onChange={(e) => setDate(e.target.value)}
@@ -96,7 +99,7 @@ function NewCountModal({
         </div>
 
         <div>
-          <label className="block text-[11px] font-medium text-[#666] mb-1">Department</label>
+          <label className="block text-[11px] font-medium text-[#666] mb-1">{t.counts.department}</label>
           <div className="grid grid-cols-2 gap-2">
             {DEPARTMENTS.map(({ value, label }) => (
               <button
@@ -125,14 +128,14 @@ function NewCountModal({
             className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
           >
             {submitting && <Spinner size="sm" />}
-            {submitting ? "Creating…" : "Start Count"}
+            {submitting ? t.common.saving : t.counts.createSession}
           </button>
           <button
             type="button"
             onClick={onClose}
             className="px-4 py-2.5 rounded-xl border border-[#2a2a2a] text-[#555] hover:text-[#888] text-sm transition-colors"
           >
-            Cancel
+            {t.common.cancel}
           </button>
         </div>
       </form>
@@ -145,6 +148,13 @@ function NewCountModal({
 export function CountsPage() {
   const navigate               = useNavigate();
   const toast                  = useToast();
+  const { t }                  = useLanguage();
+  const DEPARTMENTS: { value: CountDepartment; label: string }[] = [
+    { value: "ALL",     label: t.counts.allDepts },
+    { value: "KITCHEN", label: t.counts.kitchen  },
+    { value: "BAR",     label: t.counts.bar      },
+    { value: "FOH",     label: t.counts.foh      },
+  ];
   const [sessions, setSessions] = useState<CountSession[]>([]);
   const [loading, setLoading]  = useState(true);
   const [newOpen, setNewOpen]  = useState(false);
@@ -169,8 +179,8 @@ export function CountsPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-[22px] font-semibold text-white">Inventory</h1>
-          <p className="text-[13px] text-[#555] mt-1">Physical inventory count sessions</p>
+          <h1 className="text-[22px] font-semibold text-white">{t.counts.title}</h1>
+          <p className="text-[13px] text-[#555] mt-1">{t.counts.subtitle}</p>
         </div>
         <button
           onClick={() => setNewOpen(true)}
@@ -179,7 +189,7 @@ export function CountsPage() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          New Count
+          {t.counts.newCount}
         </button>
       </div>
 
@@ -188,14 +198,14 @@ export function CountsPage() {
         <PageSpinner />
       ) : sessions.length === 0 ? (
         <EmptyState
-          title="No count sessions yet"
-          description="Start your first physical inventory count."
+          title={t.counts.noSessions}
+          description=""
           action={
             <button
               onClick={() => setNewOpen(true)}
               className="min-h-[44px] px-4 bg-[#3dbf8a] text-white text-sm rounded-xl hover:bg-[#35a87a] transition-colors"
             >
-              New Count
+              {t.counts.newCount}
             </button>
           }
         />
@@ -205,7 +215,7 @@ export function CountsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#1a1a1a]">
-                  {["Date", "Department", "Status", "Items", "Total Variance", ""].map((h) => (
+                  {[t.counts.sessionDate, t.counts.department, t.common.status, t.counts.entries, t.counts.totalVariance, ""].map((h) => (
                     <th
                       key={h}
                       className={`text-[11px] font-medium text-[#555] uppercase tracking-wider px-5 py-3 whitespace-nowrap ${

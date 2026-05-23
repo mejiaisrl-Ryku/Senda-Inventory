@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { TeamMember } from "../types";
+import { useLanguage } from "../context/LanguageContext";
 import { teamApi } from "../api";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
@@ -30,6 +31,7 @@ function RolePill({ role }: { role: "ADMIN" | "STAFF" }) {
 
 function InviteForm({ onSuccess }: { onSuccess: () => void }) {
   const toast = useToast();
+  const { t } = useLanguage();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -60,8 +62,8 @@ function InviteForm({ onSuccess }: { onSuccess: () => void }) {
           </svg>
         </div>
         <div>
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Invite by email</h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">They'll receive a link to create their account</p>
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">{t.team.inviteByEmail}</h2>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t.team.inviteDesc}</p>
         </div>
       </div>
 
@@ -93,7 +95,7 @@ function InviteForm({ onSuccess }: { onSuccess: () => void }) {
           disabled={loading}
           className="w-full inline-flex items-center justify-center gap-2 min-h-[40px] px-4 bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
         >
-          {loading ? <><Spinner size="sm" /> Sending…</> : "Send invite"}
+          {loading ? <><Spinner size="sm" /> {t.team.sending}</> : t.team.sendInvite}
         </button>
       </form>
     </div>
@@ -214,6 +216,7 @@ function CreateForm({ onSuccess }: { onSuccess: () => void }) {
 export function TeamPage() {
   const { user } = useAuth();
   const toast = useToast();
+  const { t } = useLanguage();
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
@@ -266,10 +269,8 @@ export function TeamPage() {
     <div className="p-8 space-y-4">
       {/* Page header */}
       <div>
-        <h1 className="text-[22px] font-semibold text-white">Team</h1>
-        <p className="text-[13px] text-[#555] mt-1">
-          Manage who has access to {user?.restaurantName ?? "your restaurant"}
-        </p>
+        <h1 className="text-[22px] font-semibold text-white">{t.team.title}</h1>
+        <p className="text-[13px] text-[#555] mt-1">{t.team.subtitle}</p>
       </div>
 
       {/* Two-column forms */}
@@ -282,7 +283,7 @@ export function TeamPage() {
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-            Current team
+            {t.team.title}
           </h2>
           {!loadingMembers && (
             <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -304,7 +305,7 @@ export function TeamPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-700">
-                  {["Name", "Email", "Role", ""].map((h) => (
+                  {[t.common.name, t.common.email, t.common.role, ""].map((h) => (
                     <th
                       key={h}
                       className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider px-5 py-3"

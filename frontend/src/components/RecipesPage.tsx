@@ -6,6 +6,7 @@ import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
 import { PageSpinner, Spinner } from "./shared/Spinner";
 import { ConfirmDialog } from "./shared/ConfirmDialog";
+import { useLanguage } from "../context/LanguageContext";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -179,6 +180,7 @@ function blankForm() {
 export function RecipesPage() {
   const { isAdmin } = useAuth();
   const toast = useToast();
+  const { t } = useLanguage();
 
   const [recipes,  setRecipes]  = useState<Recipe[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -393,10 +395,10 @@ export function RecipesPage() {
   // ── Submit ────────────────────────────────────────────────────────────────
 
   async function handleSave() {
-    if (!form.name.trim()) { toast.error("Recipe name is required."); return; }
+    if (!form.name.trim()) { toast.error(t.recipes.recipeName + " is required."); return; }
     const sp = parseFloat(form.sellingPrice);
-    if (!form.sellingPrice || isNaN(sp) || sp <= 0) { toast.error("Selling price must be greater than 0."); return; }
-    if (form.ingredients.length === 0) { toast.error("Add at least one ingredient."); return; }
+    if (!form.sellingPrice || isNaN(sp) || sp <= 0) { toast.error(t.recipes.sellingPrice + " must be > 0."); return; }
+    if (form.ingredients.length === 0) { toast.error(t.recipes.addIngredient + "."); return; }
 
     const badQty = form.ingredients.find((i) => isNaN(parseFloat(i.quantity)) || parseFloat(i.quantity) <= 0);
     if (badQty) { toast.error(`Invalid quantity for "${badQty.productName}".`); return; }
@@ -449,11 +451,11 @@ export function RecipesPage() {
       if (editTarget) {
         saved = await recipesApi.update(editTarget.id, payload);
         setRecipes((prev) => prev.map((r) => r.id === saved.id ? saved : r));
-        toast.success("Recipe updated.");
+        toast.success(t.recipes.editRecipe + " ✓");
       } else {
         saved = await recipesApi.create(payload);
         setRecipes((prev) => [saved, ...prev]);
-        toast.success("Recipe created.");
+        toast.success(t.recipes.newRecipe + " ✓");
       }
       closeModal();
     } catch (err) {
@@ -486,8 +488,8 @@ export function RecipesPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-semibold text-white">Recipes</h1>
-          <p className="text-[13px] text-[#555] mt-0.5">Recipe costing and margin analysis</p>
+          <h1 className="text-[22px] font-semibold text-white">{t.recipes.title}</h1>
+          <p className="text-[13px] text-[#555] mt-0.5">{t.recipes.subtitle}</p>
         </div>
         {isAdmin && (
           <button
@@ -497,8 +499,8 @@ export function RecipesPage() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            <span className="hidden sm:inline">Add Recipe</span>
-            <span className="sm:hidden">Add</span>
+            <span className="hidden sm:inline">{t.recipes.newRecipe}</span>
+            <span className="sm:hidden">+</span>
           </button>
         )}
       </div>
@@ -513,7 +515,7 @@ export function RecipesPage() {
               tab === d ? "bg-[#3dbf8a] text-white" : "bg-[#0a0a0a] text-[#555] hover:text-[#888]"
             }`}
           >
-            {d === "KITCHEN" ? "Kitchen" : "Bar"}
+            {d === "KITCHEN" ? t.recipes.kitchen : t.recipes.bar}
           </button>
         ))}
       </div>
@@ -529,13 +531,13 @@ export function RecipesPage() {
                 d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
           </div>
-          <p className="text-[#555] text-[14px]">No {tab === "KITCHEN" ? "Kitchen" : "Bar"} recipes yet.</p>
+          <p className="text-[#555] text-[14px]">{tab === "KITCHEN" ? t.recipes.kitchen : t.recipes.bar} — {t.recipes.noRecipes}</p>
           {isAdmin && (
             <button
               onClick={openAdd}
               className="mt-4 text-[#3dbf8a] text-[13px] hover:underline"
             >
-              + Add your first recipe
+              + {t.recipes.newRecipe}
             </button>
           )}
         </div>
@@ -546,12 +548,12 @@ export function RecipesPage() {
               <thead>
                 <tr className="border-b border-[#1a1a1a]">
                   {[
-                    { label: "Recipe",       right: false },
-                    { label: "Ingredients",  right: false },
-                    { label: "Selling Price",right: true  },
-                    { label: "Recipe Cost",  right: true  },
-                    { label: "Cost %",       right: true  },
-                    { label: "",             right: false },
+                    { label: t.recipes.title,        right: false },
+                    { label: t.recipes.ingredients,  right: false },
+                    { label: t.recipes.sellingPrice, right: true  },
+                    { label: t.recipes.recipeCost,   right: true  },
+                    { label: t.recipes.costPct,      right: true  },
+                    { label: "",                     right: false },
                   ].map(({ label, right }, i) => (
                     <th
                       key={i}
@@ -571,7 +573,7 @@ export function RecipesPage() {
                     <tr key={r.id} className="hover:bg-[#111] transition-colors group">
                       <td className="px-5 py-4 font-medium text-white">{r.name}</td>
                       <td className="px-5 py-4 text-[#666] text-[12px]">
-                        {ingCount} ingredient{ingCount !== 1 ? "s" : ""}
+                        {ingCount} {t.recipes.ingredients.toLowerCase()}
                       </td>
                       <td className="px-5 py-4 text-right text-[#888] tabular-nums">
                         {formatCurrency(r.sellingPrice)}
@@ -591,13 +593,13 @@ export function RecipesPage() {
                               onClick={() => openEdit(r)}
                               className="text-[12px] px-2.5 py-1 rounded-lg text-[#888] hover:text-white hover:bg-[#1a1a1a] transition-colors"
                             >
-                              Edit
+                              {t.common.edit}
                             </button>
                             <button
                               onClick={() => setDeleteTarget(r)}
                               className="text-[12px] px-2.5 py-1 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
                             >
-                              Delete
+                              {t.common.delete}
                             </button>
                           </div>
                         )}
@@ -624,7 +626,7 @@ export function RecipesPage() {
               <input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Recipe name…"
+                placeholder={t.recipes.recipeName + "…"}
                 className="flex-1 min-w-[140px] px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
               />
 
@@ -639,7 +641,7 @@ export function RecipesPage() {
                       form.department === d ? "bg-[#3dbf8a] text-white" : "bg-transparent text-[#555] hover:text-[#888]"
                     }`}
                   >
-                    {d === "KITCHEN" ? "Kitchen" : "Bar"}
+                    {d === "KITCHEN" ? t.recipes.kitchen : t.recipes.bar}
                   </button>
                 ))}
               </div>
@@ -652,7 +654,7 @@ export function RecipesPage() {
                 className="flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-50 text-white text-[13px] font-semibold transition-colors flex-shrink-0"
               >
                 {saving && <Spinner size="sm" />}
-                {saving ? "Saving…" : editTarget ? "Save" : "Create"}
+                {saving ? t.common.saving : editTarget ? t.common.save : t.recipes.newRecipe}
               </button>
 
               {/* Close */}
@@ -672,7 +674,7 @@ export function RecipesPage() {
               {/* Selling price — compact single row */}
               <div className="flex items-center gap-3">
                 <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] whitespace-nowrap flex-shrink-0">
-                  Selling Price
+                  {t.recipes.sellingPrice}
                 </label>
                 <div className="relative w-40">
                   <span className="absolute inset-y-0 left-3 flex items-center text-[#555] text-sm">$</span>
@@ -691,9 +693,9 @@ export function RecipesPage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em]">
-                    Ingredients
+                    {t.recipes.ingredients}
                   </label>
-                  <span className="text-[11px] text-[#444]">{form.ingredients.length} added</span>
+                  <span className="text-[11px] text-[#444]">{form.ingredients.length} {t.recipes.ingredients.toLowerCase()}</span>
                 </div>
 
                 {/* Ingredient search */}
@@ -706,7 +708,7 @@ export function RecipesPage() {
                       value={ingSearch}
                       onChange={(e) => { setIngSearch(e.target.value); setSearchOpen(true); }}
                       onFocus={() => setSearchOpen(true)}
-                      placeholder="Search products by name or SKU…"
+                      placeholder={t.recipes.selectProduct + "…"}
                       className="w-full pl-8 pr-8 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
                     />
                     {ingSearch && (
@@ -760,10 +762,10 @@ export function RecipesPage() {
                   <div className="mt-3 space-y-2">
                     {/* Column headers */}
                     <div className="grid grid-cols-[1fr_68px_100px_72px_28px] gap-1.5 px-1">
-                      <span className="text-[10px] text-[#444] uppercase tracking-wider">Product</span>
-                      <span className="text-[10px] text-[#444] uppercase tracking-wider text-right">Qty</span>
-                      <span className="text-[10px] text-[#444] uppercase tracking-wider">Unit</span>
-                      <span className="text-[10px] text-[#444] uppercase tracking-wider text-right">Cost</span>
+                      <span className="text-[10px] text-[#444] uppercase tracking-wider">{t.productForm.nameLabel}</span>
+                      <span className="text-[10px] text-[#444] uppercase tracking-wider text-right">{t.recipes.quantityLabel}</span>
+                      <span className="text-[10px] text-[#444] uppercase tracking-wider">{t.recipes.unitLabel}</span>
+                      <span className="text-[10px] text-[#444] uppercase tracking-wider text-right">{t.productForm.costUnitLabel}</span>
                       <span />
                     </div>
                     {form.ingredients.map((ing) => {
@@ -863,7 +865,7 @@ export function RecipesPage() {
                               {/* Row 1: oz per can/bottle */}
                               <div className="flex items-center gap-2">
                                 <span className="text-[11px] text-[#555] whitespace-nowrap w-36 flex-shrink-0">
-                                  OZ per can/bottle?
+                                  {t.recipes.ozPerUnit}
                                 </span>
                                 {/* Quick-select: 12 and 16 */}
                                 {[12, 16].map((v) => (
@@ -893,7 +895,7 @@ export function RecipesPage() {
                               {/* Row 2: units per case/dozen */}
                               <div className="flex items-center gap-2">
                                 <span className="text-[11px] text-[#555] whitespace-nowrap w-36 flex-shrink-0">
-                                  Units per {unitLabel(ing.productUnit)}?
+                                  {t.recipes.unitsPerCase} {unitLabel(ing.productUnit)}?
                                 </span>
                                 <input
                                   type="text"
@@ -956,17 +958,17 @@ export function RecipesPage() {
               {form.ingredients.length > 0 && (
                 <div className="bg-[#111] border border-[#1a1a1a] rounded-xl px-5 py-4 grid grid-cols-3 gap-4">
                   <div className="text-center">
-                    <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Recipe Cost</p>
+                    <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">{t.recipes.recipeCost}</p>
                     <p className="text-[18px] font-semibold text-white tabular-nums">{formatCurrency(recipeCost)}</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Selling Price</p>
+                    <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">{t.recipes.sellingPrice}</p>
                     <p className="text-[18px] font-semibold text-white tabular-nums">
                       {parseFloat(form.sellingPrice) > 0 ? formatCurrency(parseFloat(form.sellingPrice)) : "—"}
                     </p>
                   </div>
                   <div className="text-center">
-                    <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">Cost %</p>
+                    <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">{t.recipes.costPct}</p>
                     <p className={`text-[18px] font-bold tabular-nums ${costPctColor(costPct)}`}>
                       {parseFloat(form.sellingPrice) > 0 ? `${costPct.toFixed(1)}%` : "—"}
                     </p>
@@ -984,7 +986,7 @@ export function RecipesPage() {
                 disabled={saving}
                 className="px-4 py-2 rounded-[8px] border border-[#2a2a2a] text-[13px] text-[#666] hover:text-white hover:border-[#3a3a3a] disabled:opacity-50 transition-colors"
               >
-                Cancel
+                {t.common.cancel}
               </button>
             </div>
           </div>
@@ -994,9 +996,9 @@ export function RecipesPage() {
       {/* Delete confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete recipe"
-        message={`"${deleteTarget?.name}" and all its ingredients will be permanently deleted.`}
-        confirmLabel="Delete"
+        title={t.recipes.deleteRecipe}
+        message={`"${deleteTarget?.name}" — ${t.recipes.deleteConfirm}`}
+        confirmLabel={t.common.delete}
         variant="danger"
         loading={deleting}
         onConfirm={handleDelete}

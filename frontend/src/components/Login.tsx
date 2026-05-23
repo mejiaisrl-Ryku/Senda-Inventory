@@ -3,21 +3,21 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { authApi } from "../api";
 import { Spinner } from "./shared/Spinner";
+import { useLanguage } from "../context/LanguageContext";
 
-// ── Shared input class (matches SuperAdminLogin) ──────────────────────────────
 const inputCls =
   "w-full px-3 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#0a0a0a] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors";
 
 export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Forgot-password inline form state
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotLoading, setForgotLoading] = useState(false);
@@ -78,7 +78,7 @@ export function Login() {
           {showForgot ? (
             <>
               <div className="mb-5">
-                <h1 className="text-[18px] font-semibold text-white">Reset password</h1>
+                <h1 className="text-[18px] font-semibold text-white">{t.auth.resetPassword}</h1>
                 <p className="text-[13px] text-[#555] mt-1">Enter your email and we'll send a reset link</p>
               </div>
 
@@ -91,7 +91,7 @@ export function Login() {
                     onClick={() => { setShowForgot(false); setForgotSent(false); setForgotEmail(""); }}
                     className="w-full py-2.5 rounded-[8px] border border-[#2a2a2a] text-[#888] hover:text-white hover:border-[#444] text-sm transition-colors"
                   >
-                    ← Back to sign in
+                    ← {t.auth.backToLogin}
                   </button>
                 </div>
               ) : (
@@ -103,7 +103,7 @@ export function Login() {
                   )}
                   <div>
                     <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                      Email
+                      {t.auth.emailAddress}
                     </label>
                     <input
                       type="email"
@@ -121,14 +121,14 @@ export function Login() {
                     className="w-full py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
                   >
                     {forgotLoading && <Spinner size="sm" />}
-                    {forgotLoading ? "Sending…" : "Send reset link"}
+                    {forgotLoading ? "Sending…" : t.auth.sendResetLink}
                   </button>
                   <button
                     type="button"
                     onClick={() => { setShowForgot(false); setForgotError(""); }}
                     className="w-full py-2 text-[13px] text-[#555] hover:text-[#888] transition-colors"
                   >
-                    ← Back to sign in
+                    ← {t.auth.backToLogin}
                   </button>
                 </form>
               )}
@@ -137,8 +137,8 @@ export function Login() {
             /* ── Sign in view ── */
             <>
               <div className="mb-5">
-                <h1 className="text-[18px] font-semibold text-white">Sign in</h1>
-                <p className="text-[13px] text-[#555] mt-1">Access your restaurant dashboard</p>
+                <h1 className="text-[18px] font-semibold text-white">{t.auth.signIn}</h1>
+                <p className="text-[13px] text-[#555] mt-1">{t.auth.signInTo}</p>
               </div>
 
               {error && (
@@ -150,7 +150,7 @@ export function Login() {
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
                   <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                    Email
+                    {t.auth.emailAddress}
                   </label>
                   <input
                     type="email"
@@ -166,14 +166,14 @@ export function Login() {
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em]">
-                      Password
+                      {t.auth.password}
                     </label>
                     <button
                       type="button"
                       onClick={() => { setShowForgot(true); setForgotEmail(email); setForgotError(""); setForgotSent(false); }}
                       className="text-[11px] text-[#555] hover:text-[#3dbf8a] transition-colors"
                     >
-                      Forgot password?
+                      {t.auth.forgotPassword}
                     </button>
                   </div>
                   <div className="relative">
@@ -214,13 +214,13 @@ export function Login() {
                   className="w-full mt-1 py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
                 >
                   {loading && <Spinner size="sm" />}
-                  {loading ? "Signing in…" : "Sign in"}
+                  {loading ? t.auth.signingIn : t.auth.signIn}
                 </button>
 
                 <p className="text-center text-[13px] text-[#555] pt-1">
-                  Don't have an account?{" "}
+                  {t.auth.noAccount}{" "}
                   <Link to="/register" className="text-[#3dbf8a] hover:text-[#35a87a] font-medium transition-colors">
-                    Create account
+                    {t.auth.createAccount}
                   </Link>
                 </p>
               </form>

@@ -4,6 +4,7 @@ import { stockApi } from "../api";
 import { formatDate } from "../utils/stock";
 import { PageSpinner } from "./shared/Spinner";
 import { EmptyState } from "./shared/EmptyState";
+import { useLanguage } from "../context/LanguageContext";
 
 const reasonStyles: Record<StockReason, string> = {
   RECEIVED: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400",
@@ -12,19 +13,19 @@ const reasonStyles: Record<StockReason, string> = {
   WASTE: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400",
 };
 
-const reasonLabels: Record<StockReason, string> = {
-  RECEIVED: "Received",
-  USED: "Used",
-  ADJUSTED: "Adjusted",
-  WASTE: "Waste",
-};
-
 interface StockHistoryProps {
   productId: string;
   productName?: string;
 }
 
 export function StockHistory({ productId, productName }: StockHistoryProps) {
+  const { t } = useLanguage();
+  const reasonLabels: Record<StockReason, string> = {
+    RECEIVED: t.history.reasons.RECEIVED,
+    USED:     t.history.reasons.USED,
+    ADJUSTED: t.history.reasons.ADJUSTED,
+    WASTE:    t.history.reasons.WASTE,
+  };
   const [logs, setLogs] = useState<StockLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<StockReason | "">("");
@@ -43,7 +44,7 @@ export function StockHistory({ productId, productName }: StockHistoryProps) {
   return (
     <div className="space-y-4">
       {productName && (
-        <h2 className="text-base font-semibold text-gray-800 dark:text-white">{productName} — History</h2>
+        <h2 className="text-base font-semibold text-gray-800 dark:text-white">{productName} — {t.history.title}</h2>
       )}
 
       {/* Filter pills */}
@@ -56,7 +57,7 @@ export function StockHistory({ productId, productName }: StockHistoryProps) {
               : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
           }`}
         >
-          All
+          {t.common.all}
         </button>
         {(["RECEIVED", "USED", "ADJUSTED", "WASTE"] as StockReason[]).map((r) => (
           <button
@@ -74,7 +75,7 @@ export function StockHistory({ productId, productName }: StockHistoryProps) {
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState title="No stock movements" description="Adjustments will appear here." />
+        <EmptyState title={t.history.noHistory} description="" />
       ) : (
         <div className="space-y-2">
           {filtered.map((log) => {

@@ -4,6 +4,7 @@ import { productsApi } from "../api";
 import { Spinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
 import { getApiError, getFieldErrors } from "../utils/errorUtils";
+import { useLanguage } from "../context/LanguageContext";
 
 interface ProductFormProps {
   initial?: Product;
@@ -46,6 +47,7 @@ type FieldErrors = Partial<Record<
 
 export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
   const toast = useToast();
+  const { t } = useLanguage();
   const [name, setName] = useState(initial?.name ?? "");
   const [purveyor, setPurveyor] = useState(initial?.purveyor ?? "");
   const [invoiceDate, setInvoiceDate] = useState(initial?.invoiceDate ? initial.invoiceDate.slice(0, 10) : "");
@@ -77,16 +79,16 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
 
   function validateLocal(): FieldErrors {
     const errs: FieldErrors = {};
-    if (!name.trim()) errs.name = "Name is required";
-    else if (name.length > 255) errs.name = "Name must be 255 characters or less";
+    if (!name.trim()) errs.name = t.productForm.nameRequired;
+    else if (name.length > 255) errs.name = t.productForm.nameTooLong;
     const cost = parseFloat(costPerUnit);
-    if (!costPerUnit || isNaN(cost) || cost <= 0) errs.costPerUnit = "Cost must be greater than 0";
+    if (!costPerUnit || isNaN(cost) || cost <= 0) errs.costPerUnit = t.productForm.costInvalid;
     const stock = parseFloat(currentStock);
-    if (isNaN(stock) || stock < 0) errs.currentStock = "Stock cannot be negative";
+    if (isNaN(stock) || stock < 0) errs.currentStock = t.productForm.stockNegative;
     const minStock = parseFloat(minimumStock);
-    if (isNaN(minStock) || minStock < 0) errs.minimumStock = "Minimum stock cannot be negative";
+    if (isNaN(minStock) || minStock < 0) errs.minimumStock = t.productForm.minStockNegative;
     if (!isNaN(minStock) && !isNaN(stock) && minStock > stock) {
-      errs.minimumStock = "Minimum stock cannot exceed current stock";
+      errs.minimumStock = t.productForm.minExceedsCurrent;
     }
     return errs;
   }
@@ -116,7 +118,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
       const saved = initial
         ? await productsApi.update(initial.id, payload)
         : await productsApi.create(payload);
-      toast.success(initial ? "Product updated successfully" : "Product added successfully");
+      toast.success(initial ? t.productForm.editProduct : t.productForm.addProduct);
       onSaved(saved);
     } catch (err) {
       const serverFields = getFieldErrors(err);
@@ -145,13 +147,13 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
         {/* Name */}
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-            Name <span className="text-red-500">*</span>
+            {t.productForm.nameLabel} <span className="text-red-500">*</span>
           </label>
           <input
             className={fieldClass(fieldErrors.name)}
             value={name}
             onChange={(e) => { setName(e.target.value); setFieldErrors((f) => ({ ...f, name: undefined })); }}
-            placeholder="Chicken breast"
+            placeholder={t.productForm.namePlaceholder}
             maxLength={255}
           />
           <FieldError msg={fieldErrors.name} />
@@ -159,19 +161,19 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
 
         {/* Purveyor */}
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Purveyor</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t.productForm.purveyorLabel}</label>
           <input
             className={fieldClass()}
             value={purveyor}
             onChange={(e) => setPurveyor(e.target.value)}
-            placeholder="Supplier name"
+            placeholder={t.productForm.purveyorPlaceholder}
             maxLength={255}
           />
         </div>
 
         {/* Invoice Date */}
         <div className="col-span-2">
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Invoice Date</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t.productForm.invoiceDateLabel}</label>
           <input
             type="date"
             className={fieldClass()}
@@ -183,7 +185,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
         {/* Department toggle */}
         <div className="col-span-2">
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5">
-            Department <span className="text-red-500">*</span>
+            {t.productForm.departmentLabel} <span className="text-red-500">*</span>
           </label>
           <div className="flex gap-1.5">
             {DEPARTMENTS.map(({ value, label }) => (
@@ -205,22 +207,22 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
 
         {/* SKU */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">SKU</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t.productForm.skuLabel}</label>
           <input className={fieldClass(fieldErrors.sku)} value={sku} onChange={(e) => setSku(e.target.value)} placeholder="PROD-001" />
           <FieldError msg={fieldErrors.sku} />
         </div>
 
         {/* Category dropdown */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Category</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t.productForm.categoryLabel}</label>
           <select
             className={fieldClass()}
             value={category}
             onChange={(e) => setCategory(e.target.value)}
           >
-            <option value="">— Select —</option>
+            <option value="">{t.productForm.categoryPlaceholder}</option>
             {CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>{t.categories[c] ?? c}</option>
             ))}
           </select>
         </div>
@@ -228,7 +230,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
         {/* Unit */}
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-            Unit <span className="text-red-500">*</span>
+            {t.productForm.unitLabel} <span className="text-red-500">*</span>
           </label>
           <select className={fieldClass()} value={unit} onChange={(e) => setUnit(e.target.value as Unit)}>
             {UNITS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
@@ -238,7 +240,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
         {/* Cost / unit */}
         <div>
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-            Cost / unit <span className="text-red-500">*</span>
+            {t.productForm.costUnitLabel} <span className="text-red-500">*</span>
           </label>
           <input
             className={`${fieldClass(fieldErrors.costPerUnit)} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
@@ -253,7 +255,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
 
         {/* Current stock */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Current stock</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t.productForm.currentStockLabel}</label>
           <input
             className={fieldClass(fieldErrors.currentStock)}
             type="number" min="0" step="0.001"
@@ -265,7 +267,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
 
         {/* Minimum stock */}
         <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Minimum stock</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t.productForm.minimumStockLabel}</label>
           <input
             className={fieldClass(fieldErrors.minimumStock)}
             type="number" min="0" step="0.001"
@@ -279,12 +281,12 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
       <div className="flex gap-2 pt-2">
         <button type="button" onClick={onCancel} disabled={saving}
           className="flex-1 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors">
-          Cancel
+          {t.common.cancel}
         </button>
         <button type="submit" disabled={saving}
           className="flex-1 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2">
           {saving && <Spinner size="sm" />}
-          {initial ? "Save changes" : "Add product"}
+          {initial ? t.common.save : t.productForm.addProduct}
         </button>
       </div>
     </form>

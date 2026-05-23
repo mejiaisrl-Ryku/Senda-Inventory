@@ -3,6 +3,7 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { teamApi } from "../api";
 import { Spinner } from "./shared/Spinner";
+import { useLanguage } from "../context/LanguageContext";
 
 // Decode a JWT payload without verifying the signature — used only for display.
 function decodeInviteToken(token: string): { restaurantName?: string; email?: string } | null {
@@ -23,6 +24,7 @@ export function Register() {
   const { register, login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useLanguage();
 
   // Invite-mode detection
   const inviteToken = searchParams.get("token") ?? "";
@@ -46,11 +48,11 @@ export function Register() {
     setError("");
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError(t.auth.passwordsNoMatch);
       return;
     }
     if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      setError(t.auth.passwordTooShort);
       return;
     }
 
@@ -69,7 +71,7 @@ export function Register() {
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? "Registration failed. Please try again.");
+      setError(msg ?? t.auth.registrationFailed);
     } finally {
       setLoading(false);
     }
@@ -98,23 +100,22 @@ export function Register() {
           <div className="mb-5">
             {isInviteMode ? (
               <>
-                <h1 className="text-[18px] font-semibold text-white">Accept invitation</h1>
+                <h1 className="text-[18px] font-semibold text-white">{t.auth.acceptInvitation}</h1>
                 {inviteData?.restaurantName ? (
                   <p className="text-[13px] text-[#555] mt-1">
-                    Joining{" "}
+                    {t.auth.joiningAs.replace("{name}", "")}{" "}
                     <span className="font-semibold" style={{ color: "#3dbf8a" }}>
                       {inviteData.restaurantName}
-                    </span>{" "}
-                    as Staff
+                    </span>
                   </p>
                 ) : (
-                  <p className="text-[13px] text-[#555] mt-1">Complete your account setup</p>
+                  <p className="text-[13px] text-[#555] mt-1">{t.auth.completeSetup}</p>
                 )}
               </>
             ) : (
               <>
-                <h1 className="text-[18px] font-semibold text-white">Create your account</h1>
-                <p className="text-[13px] text-[#555] mt-1">Set up kyru for your restaurant</p>
+                <h1 className="text-[18px] font-semibold text-white">{t.auth.createAccount}</h1>
+                <p className="text-[13px] text-[#555] mt-1">{t.auth.setupRestaurant}</p>
               </>
             )}
           </div>
@@ -129,7 +130,7 @@ export function Register() {
             {/* Your name */}
             <div>
               <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                Your name
+                {t.auth.yourName}
               </label>
               <input
                 type="text"
@@ -146,7 +147,7 @@ export function Register() {
             {!isInviteMode && (
               <div>
                 <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                  Restaurant name
+                  {t.auth.restaurantName}
                 </label>
                 <input
                   type="text"
@@ -163,7 +164,7 @@ export function Register() {
             {/* Email */}
             <div>
               <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                Email
+                {t.auth.emailAddress}
               </label>
               <input
                 type="email"
@@ -176,14 +177,14 @@ export function Register() {
                 className={inputCls + (isInviteMode && inviteData?.email ? " opacity-60 cursor-not-allowed" : "")}
               />
               {isInviteMode && inviteData?.email && (
-                <p className="mt-1 text-[11px] text-[#444]">This invite was sent to {inviteData.email}</p>
+                <p className="mt-1 text-[11px] text-[#444]">{t.auth.inviteSentTo} {inviteData.email}</p>
               )}
             </div>
 
             {/* Password */}
             <div>
               <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                Password
+                {t.auth.password}
               </label>
               <div className="relative">
                 <input
@@ -192,7 +193,7 @@ export function Register() {
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
+                  placeholder={t.auth.minChars}
                   className={inputCls + " pr-10"}
                 />
                 <button
@@ -220,7 +221,7 @@ export function Register() {
             {/* Confirm password */}
             <div>
               <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                Confirm password
+                {t.auth.confirmPassword}
               </label>
               <input
                 type={showPassword ? "text" : "password"}
@@ -240,15 +241,15 @@ export function Register() {
             >
               {loading && <Spinner size="sm" />}
               {loading
-                ? isInviteMode ? "Joining…" : "Creating account…"
-                : isInviteMode ? "Join team" : "Create account"}
+                ? isInviteMode ? t.auth.joining : t.auth.creating
+                : isInviteMode ? t.auth.joinTeam : t.auth.createAccount}
             </button>
 
             {!isInviteMode && (
               <p className="text-center text-[13px] text-[#555] pt-1">
-                Already have an account?{" "}
+                {t.auth.haveAccount}{" "}
                 <Link to="/login" className="text-[#3dbf8a] hover:text-[#35a87a] font-medium transition-colors">
-                  Sign in
+                  {t.auth.signIn}
                 </Link>
               </p>
             )}

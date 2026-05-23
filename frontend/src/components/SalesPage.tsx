@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useLanguage } from "../context/LanguageContext";
 import { SalesCategory, SalesEntry } from "../types";
 import { salesApi } from "../api";
 import { useToast } from "../context/ToastContext";
@@ -62,6 +63,7 @@ const inputCls =
 export function SalesPage() {
   const { isAdmin } = useAuth();
   const toast = useToast();
+  const { t } = useLanguage();
 
   const [filterStart, setFilterStart] = useState(firstOfMonth());
   const [filterEnd, setFilterEnd]     = useState(todayLocal());
@@ -70,8 +72,8 @@ export function SalesPage() {
     <div className="p-8 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-[22px] font-semibold text-white">Sales</h1>
-        <p className="text-[13px] text-[#555] mt-1">Record daily sales</p>
+        <h1 className="text-[22px] font-semibold text-white">{t.sales.title}</h1>
+        <p className="text-[13px] text-[#555] mt-1">{t.sales.subtitle}</p>
       </div>
 
       <SalesTab

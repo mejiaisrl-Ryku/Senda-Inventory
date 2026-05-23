@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Order, OrderStatus } from "../types";
+import { useLanguage } from "../context/LanguageContext";
 import { ordersApi } from "../api";
 import { formatCurrency, formatDate } from "../utils/stock";
 import { Modal } from "./shared/Modal";
@@ -17,14 +18,15 @@ const statusStyles: Record<OrderStatus, string> = {
   CANCELLED: "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400",
 };
 
-const statusLabels: Record<OrderStatus, string> = {
-  PENDING: "Pending",
-  RECEIVED: "Received",
-  CANCELLED: "Cancelled",
-};
-
 export function OrderList() {
   const { isAdmin } = useAuth();
+  const { t } = useLanguage();
+
+  const statusLabels: Record<OrderStatus, string> = {
+    PENDING:   t.orders.pending,
+    RECEIVED:  t.orders.received,
+    CANCELLED: t.orders.cancelled,
+  };
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "">("");
@@ -76,8 +78,8 @@ export function OrderList() {
     <div className="p-8 space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-semibold text-white">Orders</h1>
-          <p className="text-[13px] text-[#555]">{orders.length} orders</p>
+          <h1 className="text-[22px] font-semibold text-white">{t.orders.title}</h1>
+          <p className="text-[13px] text-[#555]">{orders.length} {t.orders.title.toLowerCase()}</p>
         </div>
         <button
           onClick={() => setCreateOpen(true)}
@@ -86,7 +88,7 @@ export function OrderList() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Create Order
+          {t.orders.createOrder}
         </button>
       </div>
 
@@ -100,7 +102,7 @@ export function OrderList() {
               : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
           }`}
         >
-          All
+          {t.common.all}
         </button>
         {(["PENDING", "RECEIVED", "CANCELLED"] as OrderStatus[]).map((s) => (
           <button
@@ -121,12 +123,12 @@ export function OrderList() {
         <PageSpinner />
       ) : orders.length === 0 ? (
         <EmptyState
-          title="No orders found"
-          description="Create a purchase order to restock your inventory."
+          title={t.orders.noOrders}
+          description={t.orders.noOrdersDesc}
           action={
             <button onClick={() => setCreateOpen(true)}
               className="px-4 py-2 bg-brand-500 text-white text-sm rounded-xl hover:bg-brand-600 transition-colors">
-              Create Order
+              {t.orders.createOrder}
             </button>
           }
         />

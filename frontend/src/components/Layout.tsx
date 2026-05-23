@@ -1,19 +1,20 @@
 import React, { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage, LangToggle } from "../context/LanguageContext";
 
 // ── Nav structure ─────────────────────────────────────────────────────────────
 
 interface NavItem {
   to: string;
-  label: string;
+  labelKey: string;
   adminOnly?: boolean;
   icon: React.ReactNode;
 }
 
 interface NavGroup {
-  header?: string;       // 10px uppercase section label — omit for unlabelled groups
-  adminOnly?: boolean;   // hide entire group if not admin
+  headerKey?: string;    // translation key for the section header
+  adminOnly?: boolean;
   items: NavItem[];
 }
 
@@ -23,7 +24,7 @@ const navGroups: NavGroup[] = [
     items: [
       {
         to: "/",
-        label: "Dashboard",
+        labelKey: "dashboard",
         icon: (
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -33,7 +34,7 @@ const navGroups: NavGroup[] = [
       },
       {
         to: "/products",
-        label: "Invoices",
+        labelKey: "invoices",
         icon: (
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -43,7 +44,7 @@ const navGroups: NavGroup[] = [
       },
       {
         to: "/stock",
-        label: "Stock",
+        labelKey: "stock",
         icon: (
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -53,7 +54,7 @@ const navGroups: NavGroup[] = [
       },
       {
         to: "/orders",
-        label: "Orders",
+        labelKey: "orders",
         icon: (
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -63,7 +64,7 @@ const navGroups: NavGroup[] = [
       },
       {
         to: "/inventory",
-        label: "Inventory",
+        labelKey: "inventory",
         icon: (
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -73,7 +74,7 @@ const navGroups: NavGroup[] = [
       },
       {
         to: "/recipes",
-        label: "Recipes",
+        labelKey: "recipes",
         icon: (
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -84,11 +85,11 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    header: "Admin",
+    headerKey: "adminSection",
     items: [
       {
         to: "/sales",
-        label: "Sales",
+        labelKey: "sales",
         adminOnly: true,
         icon: (
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,7 +100,7 @@ const navGroups: NavGroup[] = [
       },
       {
         to: "/labor",
-        label: "Labor",
+        labelKey: "labor",
         adminOnly: true,
         icon: (
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -110,7 +111,7 @@ const navGroups: NavGroup[] = [
       },
       {
         to: "/reports",
-        label: "Reports",
+        labelKey: "reports",
         icon: (
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -120,7 +121,7 @@ const navGroups: NavGroup[] = [
       },
       {
         to: "/team",
-        label: "Team",
+        labelKey: "team",
         adminOnly: true,
         icon: (
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,6 +148,7 @@ function navItemClass(isActive: boolean) {
 
 function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const { user, logout, isAdmin } = useAuth();
+  const { t } = useLanguage();
   const restaurantLogo = user?.restaurantLogo ?? null;
   const navigate = useNavigate();
 
@@ -155,10 +157,11 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
     navigate("/login");
   }
 
-  // Filter items that the current user can see
   function filterItems(items: NavItem[]) {
     return items.filter(({ adminOnly }) => !adminOnly || isAdmin);
   }
+
+  const navT = t.nav as Record<string, string>;
 
   return (
     <div className="flex flex-col h-full">
@@ -194,13 +197,13 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
           if (visible.length === 0) return null;
           return (
             <div key={gi}>
-              {group.header && (
+              {group.headerKey && (
                 <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#444]">
-                  {group.header}
+                  {navT[group.headerKey] ?? group.headerKey}
                 </p>
               )}
               <div className="space-y-0.5">
-                {visible.map(({ to, label, icon }) => (
+                {visible.map(({ to, labelKey, icon }) => (
                   <NavLink
                     key={to}
                     to={to}
@@ -209,7 +212,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
                     className={({ isActive }) => navItemClass(isActive)}
                   >
                     {icon}
-                    {label}
+                    {navT[labelKey] ?? labelKey}
                   </NavLink>
                 ))}
               </div>
@@ -218,7 +221,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
         })}
       </nav>
 
-      {/* Bottom: user + logout */}
+      {/* Bottom: logout + user + lang toggle */}
       <div className="px-3 py-3 border-t border-[#1a1a1a] space-y-0.5">
         {/* Log out */}
         <button onClick={handleLogout} className={navItemClass(false)}>
@@ -226,10 +229,10 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
-          Log Out
+          {t.nav.logOut}
         </button>
 
-        {/* User row */}
+        {/* User row + language toggle */}
         <div className="flex items-center gap-2.5 px-3 py-2 mt-1">
           <div className="w-6 h-6 rounded-full bg-[#3dbf8a] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
             {(user?.name ?? user?.email ?? "?")[0].toUpperCase()}
@@ -239,6 +242,8 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
               {user?.name ? user.name.split(" ")[0] : user?.email}
             </p>
           </div>
+          {/* Language toggle — bottom-left near user */}
+          <LangToggle />
         </div>
       </div>
     </div>
@@ -250,6 +255,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   return (
     <div className="min-h-screen bg-black flex">
@@ -273,25 +279,36 @@ export function Layout() {
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Mobile topbar */}
-        <header className="lg:hidden flex items-center gap-3 px-4 h-14 bg-[#0a0a0a] border-b border-[#1a1a1a] flex-shrink-0">
+        {/* Topbar — always visible (desktop + mobile) */}
+        <header className="flex items-center gap-3 px-4 h-12 bg-[#0a0a0a] border-b border-[#1a1a1a] flex-shrink-0">
+          {/* Mobile: hamburger */}
           <button
             onClick={() => setSidebarOpen(true)}
             aria-label="Open navigation menu"
-            className="flex items-center justify-center w-8 h-8 text-[#888] hover:text-white transition-colors"
+            className="lg:hidden flex items-center justify-center w-8 h-8 text-[#888] hover:text-white transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="text-[14px] font-semibold text-white truncate">
+
+          {/* Mobile: restaurant name */}
+          <span className="lg:hidden text-[14px] font-semibold text-white truncate">
             {user?.restaurantName ?? "Inventory"}
           </span>
+
+          {/* Role pill — mobile only */}
           {user && (
-            <span className="ml-auto text-[11px] px-2 py-0.5 rounded-full bg-[#1a1a1a] text-[#888]">
-              {user.role === "ADMIN" ? "Admin" : "User"}
+            <span className="lg:hidden ml-auto mr-2 text-[11px] px-2 py-0.5 rounded-full bg-[#1a1a1a] text-[#888]">
+              {user.role === "ADMIN" ? t.ui.adminRole : t.ui.userRole}
             </span>
           )}
+
+          {/* Spacer for desktop */}
+          <div className="hidden lg:block flex-1" />
+
+          {/* Language toggle — top-right (always visible) */}
+          <LangToggle className="ml-auto lg:ml-0" />
         </header>
 
         <main className="flex-1 overflow-auto bg-black">

@@ -6,37 +6,9 @@ import { Spinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 import { getApiError } from "../utils/errorUtils";
+import { useLanguage } from "../context/LanguageContext";
 
 type Mode = "add" | "remove" | "adjust";
-
-const modeConfig: Record<Mode, { label: string; reason: StockReason; sign: 1 | -1; color: string; adminOnly: boolean }> = {
-  add: {
-    label: "Add Stock",
-    reason: "RECEIVED",
-    sign: 1,
-    color: "bg-green-500 hover:bg-green-600 text-white",
-    adminOnly: false,
-  },
-  remove: {
-    label: "Remove Stock",
-    reason: "USED",
-    sign: -1,
-    color: "bg-red-500 hover:bg-red-600 text-white",
-    adminOnly: false,
-  },
-  adjust: {
-    label: "Adjust Stock",
-    reason: "ADJUSTED",
-    sign: 1,
-    color: "bg-yellow-500 hover:bg-yellow-600 text-white",
-    adminOnly: true,
-  },
-};
-
-const removeReasons: { value: StockReason; label: string }[] = [
-  { value: "USED", label: "Used in production" },
-  { value: "WASTE", label: "Waste / spoilage" },
-];
 
 interface StockAdjustFormProps {
   product: Product;
@@ -47,6 +19,19 @@ interface StockAdjustFormProps {
 export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormProps) {
   const toast = useToast();
   const { isAdmin } = useAuth();
+  const { t } = useLanguage();
+
+  const modeConfig: Record<Mode, { label: string; reason: StockReason; sign: 1 | -1; color: string; adminOnly: boolean }> = {
+    add:    { label: t.stockAdjust.addStock,    reason: "RECEIVED", sign:  1, color: "bg-green-500 hover:bg-green-600 text-white",  adminOnly: false },
+    remove: { label: t.stockAdjust.removeStock,  reason: "USED",     sign: -1, color: "bg-red-500 hover:bg-red-600 text-white",     adminOnly: false },
+    adjust: { label: t.stockAdjust.adjustStock,  reason: "ADJUSTED", sign:  1, color: "bg-yellow-500 hover:bg-yellow-600 text-white", adminOnly: true },
+  };
+
+  const removeReasons: { value: StockReason; label: string }[] = [
+    { value: "USED",  label: t.stockAdjust.usedInProduction },
+    { value: "WASTE", label: t.stockAdjust.waste },
+  ];
+
   const [mode, setMode] = useState<Mode>("add");
   const [quantity, setQuantity] = useState("");
   const [reason, setReason] = useState<StockReason>("RECEIVED");
@@ -66,7 +51,7 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
     setQuantityError("");
     const qty = parseFloat(quantity);
     if (isNaN(qty) || qty <= 0) {
-      setQuantityError("Enter a positive quantity");
+      setQuantityError(t.stockAdjust.enterPositive);
       return;
     }
 
@@ -74,7 +59,7 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
     if (mode === "adjust") {
       change = qty - product.currentStock;
       if (change === 0) {
-        setQuantityError("New quantity is the same as current stock");
+        setQuantityError(t.stockAdjust.sameAsCurrent);
         return;
       }
     } else {
@@ -111,12 +96,12 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
       <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700">
         <p className="font-semibold text-gray-900 dark:text-white text-sm">{product.name}</p>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-          Current stock:{" "}
+          {t.stockAdjust.currentStock}:{" "}
           <span className="font-medium text-gray-700 dark:text-gray-200">
             {product.currentStock} {unit}
           </span>
           <span className="mx-2">·</span>
-          Minimum: {product.minimumStock} {unit}
+          {t.stockAdjust.minimum}: {product.minimumStock} {unit}
         </p>
       </div>
 
@@ -145,14 +130,14 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
       </div>
       {modeConfig[mode].adminOnly && !isAdmin && (
         <p className="text-xs text-yellow-600 dark:text-yellow-400">
-          Balance adjustments are restricted to admins.
+          {t.stockAdjust.adminOnly}
         </p>
       )}
 
       {/* Quantity */}
       <div>
         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-          {mode === "adjust" ? `New quantity (${unit})` : `Quantity (${unit})`}
+          {mode === "adjust" ? `${t.stockAdjust.newQuantity} (${unit})` : `${t.stockAdjust.quantity} (${unit})`}
         </label>
         <input
           className={quantityError ? inputErrorClass : inputClass}
@@ -172,7 +157,7 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
       {/* Reason — only for remove mode */}
       {mode === "remove" && (
         <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Reason</label>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t.stockAdjust.reason}</label>
           <select className={inputClass} value={reason} onChange={(e) => setReason(e.target.value as StockReason)}>
             {removeReasons.map((r) => (
               <option key={r.value} value={r.value}>{r.label}</option>
@@ -184,7 +169,7 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
       {/* Notes */}
       <div>
         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-          Notes <span className="text-gray-400">(optional)</span>
+          {t.common.notes} <span className="text-gray-400">({t.common.optional})</span>
         </label>
         <input
           className={inputClass}
@@ -198,7 +183,7 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
       {/* Preview */}
       {quantity && !quantityError && (
         <div className="p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 text-sm">
-          <span className="text-gray-500 dark:text-gray-400">New stock will be: </span>
+          <span className="text-gray-500 dark:text-gray-400">{t.stockAdjust.newStockWillBe} </span>
           <span
             className={`font-bold ${
               newStock < 0
@@ -211,7 +196,7 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
             {Math.max(0, newStock).toFixed(3)} {unit}
           </span>
           {newStock < 0 && (
-            <p className="text-xs text-red-500 mt-0.5">This would result in negative stock.</p>
+            <p className="text-xs text-red-500 mt-0.5">{t.stockAdjust.negativeStock}</p>
           )}
         </div>
       )}
@@ -223,7 +208,7 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
           disabled={saving}
           className="flex-1 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
         >
-          Cancel
+          {t.common.cancel}
         </button>
         <button
           type="submit"
@@ -231,7 +216,7 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
           className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2 ${modeConfig[mode].color} disabled:opacity-60`}
         >
           {saving && <Spinner size="sm" />}
-          {saving ? "Saving…" : modeConfig[mode].label}
+          {saving ? t.common.saving : modeConfig[mode].label}
         </button>
       </div>
     </form>

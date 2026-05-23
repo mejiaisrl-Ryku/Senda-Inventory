@@ -5,10 +5,12 @@ import { LowStockAlerts } from "./LowStockAlerts";
 import { StockHistory } from "./StockHistory";
 import { StockAdjustForm } from "./StockAdjustForm";
 import { Modal } from "./shared/Modal";
+import { useLanguage } from "../context/LanguageContext";
 
 type Tab = "alerts" | "adjust" | "history";
 
 export function StockPage() {
+  const { t } = useLanguage();
   const [tab, setTab] = useState<Tab>("alerts");
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -19,9 +21,9 @@ export function StockPage() {
   }, []);
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "alerts", label: "Alerts" },
-    { id: "adjust", label: "Quick Adjust" },
-    { id: "history", label: "History" },
+    { id: "alerts", label: t.stock.alerts },
+    { id: "adjust", label: t.stock.quickAdjust },
+    { id: "history", label: t.stock.history },
   ];
 
   const inputClass = "w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-500";
@@ -30,14 +32,14 @@ export function StockPage() {
     <div className="p-8 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[22px] font-semibold text-white">Stock</h1>
-          <p className="text-[13px] text-[#555]">Manage inventory movements</p>
+          <h1 className="text-[22px] font-semibold text-white">{t.stock.title}</h1>
+          <p className="text-[13px] text-[#555]">{t.stock.subtitle}</p>
         </div>
         <button
           onClick={() => { setSelectedProduct(null); setAdjustModal(true); }}
           className="inline-flex items-center gap-2 px-4 py-2 bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium rounded-xl transition-colors"
         >
-          Adjust Stock
+          {t.stock.adjustStock}
         </button>
       </div>
 
@@ -63,7 +65,7 @@ export function StockPage() {
       {tab === "adjust" && (
         <div className="max-w-md space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select product</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t.stock.selectProduct}</label>
             <select
               className={inputClass}
               value={selectedProduct?.id ?? ""}
@@ -72,7 +74,7 @@ export function StockPage() {
                 setSelectedProduct(p);
               }}
             >
-              <option value="">— choose a product —</option>
+              <option value="">{t.stock.chooseProduct}</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -93,7 +95,7 @@ export function StockPage() {
       {tab === "history" && (
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select product</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t.stock.selectProduct}</label>
             <select
               className={inputClass + " max-w-md"}
               value={selectedProduct?.id ?? ""}
@@ -102,7 +104,7 @@ export function StockPage() {
                 setSelectedProduct(p);
               }}
             >
-              <option value="">— choose a product —</option>
+              <option value="">{t.stock.chooseProduct}</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -114,10 +116,10 @@ export function StockPage() {
         </div>
       )}
 
-      <Modal open={adjustModal} onClose={() => setAdjustModal(false)} title="Adjust Stock">
+      <Modal open={adjustModal} onClose={() => setAdjustModal(false)} title={t.stock.adjustStock}>
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Select product</label>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{t.stock.selectProduct}</label>
             <select
               className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500"
               value={selectedProduct?.id ?? ""}
@@ -126,7 +128,7 @@ export function StockPage() {
                 setSelectedProduct(p);
               }}
             >
-              <option value="">— choose a product —</option>
+              <option value="">{t.stock.chooseProduct}</option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}

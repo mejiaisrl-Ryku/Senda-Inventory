@@ -8,6 +8,7 @@ import { StockAdjustForm } from "./StockAdjustForm";
 import { PageSpinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
+import { useLanguage } from "../context/LanguageContext";
 
 interface LowStockAlertsProps {
   compact?: boolean;
@@ -15,6 +16,7 @@ interface LowStockAlertsProps {
 
 export function LowStockAlerts({ compact = false }: LowStockAlertsProps) {
   const toast = useToast();
+  const { t } = useLanguage();
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [adjustTarget, setAdjustTarget] = useState<Product | null>(null);
@@ -40,9 +42,9 @@ export function LowStockAlerts({ compact = false }: LowStockAlertsProps) {
     <div className={compact ? "" : "p-6 space-y-5"}>
       {!compact && (
         <div>
-          <h1 className="text-[24px] font-bold text-white">Low Stock Alerts</h1>
+          <h1 className="text-[24px] font-bold text-white">{t.lowStock.title}</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {critical.length} critical · {low.length} low
+            {critical.length} {t.lowStock.critical} · {low.length} {t.lowStock.low}
           </p>
         </div>
       )}
@@ -50,8 +52,8 @@ export function LowStockAlerts({ compact = false }: LowStockAlertsProps) {
       {compact && items.length > 0 && (
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          Low Stock Alerts
-          <span className="ml-auto text-xs font-normal text-gray-400">{items.length} items</span>
+          {t.lowStock.title}
+          <span className="ml-auto text-xs font-normal text-gray-400">{items.length} {t.common.items}</span>
         </h2>
       )}
 
@@ -60,7 +62,7 @@ export function LowStockAlerts({ compact = false }: LowStockAlertsProps) {
           <svg className="w-5 h-5 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <p className="text-sm text-green-700 dark:text-green-400 font-medium">All items are adequately stocked</p>
+          <p className="text-sm text-green-700 dark:text-green-400 font-medium">{t.lowStock.allAdequate}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -86,7 +88,7 @@ export function LowStockAlerts({ compact = false }: LowStockAlertsProps) {
                     <StockBadge status={status} />
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {product.currentStock} {unit} / {product.minimumStock} {unit} min
+                    {product.currentStock} {unit} / {product.minimumStock} {unit} {t.lowStock.min}
                     {product.minimumStock > 0 && ` · ${pct}%`}
                   </p>
                 </div>
@@ -94,7 +96,7 @@ export function LowStockAlerts({ compact = false }: LowStockAlertsProps) {
                   onClick={() => setAdjustTarget(product)}
                   className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-50 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400 hover:bg-brand-100 transition-colors"
                 >
-                  Add Stock
+                  {t.stockAdjust.addStock}
                 </button>
               </div>
             );
@@ -102,13 +104,13 @@ export function LowStockAlerts({ compact = false }: LowStockAlertsProps) {
 
           {compact && items.length > 5 && (
             <p className="text-xs text-center text-gray-400 pt-1">
-              +{items.length - 5} more items below minimum
+              +{items.length - 5} {t.lowStock.moreBelow}
             </p>
           )}
         </div>
       )}
 
-      <Modal open={!!adjustTarget} onClose={() => setAdjustTarget(null)} title="Add Stock">
+      <Modal open={!!adjustTarget} onClose={() => setAdjustTarget(null)} title={t.stockAdjust.addStock}>
         {adjustTarget && (
           <StockAdjustForm
             product={adjustTarget}

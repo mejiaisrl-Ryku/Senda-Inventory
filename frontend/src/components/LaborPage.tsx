@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useLanguage } from "../context/LanguageContext";
 import { LaborEntry } from "../types";
 import { laborApi, salesApi } from "../api";
 import { useToast } from "../context/ToastContext";
@@ -94,6 +95,7 @@ function StatCard({
 export function LaborPage() {
   const { isAdmin } = useAuth();
   const toast = useToast();
+  const { t } = useLanguage();
 
   const [filterStart, setFilterStart] = useState(firstOfMonth());
   const [filterEnd, setFilterEnd]     = useState(todayLocal());
@@ -164,16 +166,16 @@ export function LaborPage() {
     <div className="p-8 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-[22px] font-semibold text-white">Labor</h1>
-        <p className="text-[13px] text-[#555] mt-1">Record daily labor costs</p>
+        <h1 className="text-[22px] font-semibold text-white">{t.labor.title}</h1>
+        <p className="text-[13px] text-[#555] mt-1">{t.labor.subtitle}</p>
       </div>
 
       {/* Entry form */}
       <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-5">
-        <h2 className="text-[13px] font-semibold text-[#888] mb-4 uppercase tracking-[0.08em]">New Labor Entry</h2>
+        <h2 className="text-[13px] font-semibold text-[#888] mb-4 uppercase tracking-[0.08em]">{t.labor.addEntry}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="max-w-xs">
-            <label className="block text-[11px] font-medium text-[#666] mb-1">Date</label>
+            <label className="block text-[11px] font-medium text-[#666] mb-1">{t.common.date}</label>
             <input type="date" required value={date} max={todayLocal()}
               onChange={(e) => setDate(e.target.value)} className={inputCls} />
           </div>
@@ -197,7 +199,7 @@ export function LaborPage() {
 
           {/* Auto-calculated total */}
           <div className="flex items-center gap-3 px-4 py-3 bg-[#111] border border-[#2a2a2a] rounded-xl w-fit">
-            <span className="text-[12px] text-[#555]">Total</span>
+            <span className="text-[12px] text-[#555]">{t.common.total}</span>
             <span className="text-[18px] font-semibold text-white tabular-nums">{formatMXN(formTotal)}</span>
           </div>
 
@@ -205,7 +207,7 @@ export function LaborPage() {
             <button type="submit" disabled={submitting}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors">
               {submitting && <Spinner size="sm" />}
-              {submitting ? "Saving…" : "Save Labor"}
+              {submitting ? t.common.saving : t.labor.logLabor}
             </button>
             <button type="button" onClick={() => setAmounts(emptyLabor())}
               className="text-sm text-[#555] hover:text-[#888] transition-colors">
@@ -218,10 +220,10 @@ export function LaborPage() {
       {/* Labor cost % summary */}
       {!loading && (totalLabor > 0 || salesTotal !== null) && (
         <div className="grid grid-cols-3 gap-4">
-          <StatCard label="Total Labor" value={formatMXN(totalLabor)} />
-          <StatCard label="Total Sales" value={salesTotal !== null ? formatMXN(salesTotal) : "—"} />
+          <StatCard label={t.labor.totalLabor} value={formatMXN(totalLabor)} />
+          <StatCard label={t.labor.totalSales} value={salesTotal !== null ? formatMXN(salesTotal) : "—"} />
           <StatCard
-            label="Labor Cost %"
+            label={t.labor.laborPct}
             value={laborPct !== null ? `${laborPct.toFixed(1)}%` : "—"}
             accent={laborPct !== null ? (laborPct > 35 ? "red" : laborPct > 28 ? "amber" : "green") : undefined}
           />
@@ -232,7 +234,7 @@ export function LaborPage() {
       <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl">
         <div className="px-5 py-4 border-b border-[#1a1a1a] flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex-1">
-            <h2 className="text-[13px] font-semibold text-[#888] uppercase tracking-[0.08em]">Labor Entries</h2>
+            <h2 className="text-[13px] font-semibold text-[#888] uppercase tracking-[0.08em]">{t.labor.laborHistory}</h2>
             {!loading && (
               <p className="text-[12px] text-[#444] mt-0.5">
                 {entries.length} {entries.length === 1 ? "entry" : "entries"} ·{" "}
@@ -249,13 +251,13 @@ export function LaborPage() {
         {loading ? (
           <div className="py-12"><PageSpinner /></div>
         ) : entries.length === 0 ? (
-          <EmptyState title="No labor entries" description="Add your first entry using the form above." />
+          <EmptyState title={t.labor.noEntries} description="" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#1a1a1a]">
-                  {["Date", "FOH Labor", "BOH Labor", "Management", "Total", ""].map((h) => (
+                  {[t.common.date, t.labor.fohLabor, t.labor.bohLabor, t.labor.management, t.common.total, ""].map((h) => (
                     <th key={h} className={`text-[11px] font-medium text-[#555] uppercase tracking-wider px-5 py-3 ${h && h !== "Date" ? "text-right" : "text-left"}`}>
                       {h}
                     </th>

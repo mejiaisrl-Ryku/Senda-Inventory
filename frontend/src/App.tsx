@@ -26,6 +26,7 @@ import { SuperAdminPartnerDetail } from "./components/superadmin/SuperAdminPartn
 import { Spinner } from "./components/shared/Spinner";
 import { ToastProvider } from "./context/ToastContext";
 import { ToastContainer } from "./components/shared/Toast";
+import { LanguageProvider } from "./context/LanguageContext";
 
 const Reports = React.lazy(() =>
   import("./components/Reports").then((m) => ({ default: m.Reports }))
@@ -141,20 +142,22 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <SuperAdminProvider>
-          <SocketProvider>
-            <ToastProvider>
-              <BrowserRouter>
-                <AppRoutes />
-              </BrowserRouter>
-              <ToastContainer />
-            </ToastProvider>
-          </SocketProvider>
-        </SuperAdminProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <LanguageProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <SuperAdminProvider>
+            <SocketProvider>
+              <ToastProvider>
+                <BrowserRouter>
+                  <AppRoutes />
+                </BrowserRouter>
+                <ToastContainer />
+              </ToastProvider>
+            </SocketProvider>
+          </SuperAdminProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </LanguageProvider>
   );
 }
 // Force redeploy

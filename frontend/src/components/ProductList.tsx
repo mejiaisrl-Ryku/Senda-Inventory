@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Product, Department } from "../types";
 import { productsApi } from "../api";
+import { useLanguage } from "../context/LanguageContext";
 import { unitLabel, formatCurrency } from "../utils/stock";
 import { Modal } from "./shared/Modal";
 import { PageSpinner } from "./shared/Spinner";
@@ -17,12 +18,8 @@ import { useStockSocket } from "../hooks/useStockSocket";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const DEPT_TABS = [
-  { value: "ALL",  label: "All"     },
-  { value: "BOH",  label: "Kitchen" },
-  { value: "FOH",  label: "FOH"     },
-  { value: "BAR",  label: "BAR"     },
-] as const;
+// DEPT_TABS labels are set inside the component after getting translations
+const DEPT_TAB_KEYS = ["ALL", "BOH", "FOH", "BAR"] as const;
 
 type DeptView = "ALL" | "BOH" | "FOH" | "BAR";
 
@@ -124,12 +121,8 @@ function buildSearchMatches(groups: InvoiceGroup[], query: string): Map<string, 
   return result;
 }
 
-const FIELD_LABELS: Record<MatchField, string> = {
-  name:     "product name",
-  purveyor: "purveyor",
-  sku:      "SKU",
-  date:     "date",
-};
+// Field labels — computed at component level using translations
+type FieldLabels = Record<MatchField, string>;
 
 // ── Invoice detail modal ──────────────────────────────────────────────────────
 
@@ -148,6 +141,7 @@ function InvoiceDetailModal({
   onDelete?: (p: Product) => void;
   isAdmin: boolean;
 }) {
+  const { t } = useLanguage();
   if (!group) return null;
   const totalQty = group.products.reduce((s, p) => s + p.currentStock, 0);
 
@@ -159,12 +153,12 @@ function InvoiceDetailModal({
           <div>
             <h2 className="text-[18px] font-semibold text-white leading-tight">{group.purveyor}</h2>
             <p className="text-[13px] text-[#555] mt-0.5">
-              {group.invoiceDate ? fmtDate(group.invoiceDate) : "No date"} ·{" "}
-              {group.products.length} {group.products.length === 1 ? "product" : "products"}
+              {group.invoiceDate ? fmtDate(group.invoiceDate) : t.common.noDate} ·{" "}
+              {group.products.length} {t.common.products.toLowerCase()}
             </p>
           </div>
           <div className="text-right flex-shrink-0">
-            <p className="text-[11px] text-[#444] uppercase tracking-wider mb-0.5">Invoice Total</p>
+            <p className="text-[11px] text-[#444] uppercase tracking-wider mb-0.5">{t.invoices.invoiceTotal}</p>
             <p className="text-[20px] font-bold text-[#3dbf8a]">{formatCurrency(group.totalValue)}</p>
           </div>
         </div>
@@ -174,7 +168,7 @@ function InvoiceDetailModal({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[#1a1a1a] bg-[#0d0d0d]">
-                {["Product", "Unit", "Qty", "Cost/Unit", "Total", "Category", "SKU"].map((h) => (
+                {[t.invoices.product, t.common.unit, t.common.qty, t.common.costUnit, t.common.total, t.common.category, t.common.sku].map((h) => (
                   <th key={h} className="text-left px-4 py-2.5 text-[10px] font-semibold text-[#444] uppercase tracking-wider whitespace-nowrap">
                     {h}
                   </th>
@@ -215,7 +209,7 @@ function InvoiceDetailModal({
             </tbody>
             <tfoot>
               <tr className="border-t border-[#1a1a1a] bg-[#0d0d0d]">
-                <td colSpan={2} className="px-4 py-2.5 text-[11px] font-semibold text-[#555] uppercase tracking-wider">Total</td>
+                <td colSpan={2} className="px-4 py-2.5 text-[11px] font-semibold text-[#555] uppercase tracking-wider">{t.common.total}</td>
                 <td className="px-4 py-2.5 font-bold text-white tabular-nums">{totalQty}</td>
                 <td className="px-4 py-2.5" />
                 <td className="px-4 py-2.5 font-bold text-[#3dbf8a] tabular-nums">{formatCurrency(group.totalValue)}</td>
@@ -252,6 +246,10 @@ function PurveyorRow({
   isAdmin: boolean;
   matchInfo?: SearchMatch;
 }) {
+  const { t } = useLanguage();
+  const fieldLabels: FieldLabels = {
+    name: t.invoices.productName, purveyor: t.common.purveyor, sku: t.common.sku, date: t.common.date,
+  };
   const matchBadges = matchInfo ? [...matchInfo.matchFields] : [];
   const visibleProducts = matchInfo
     ? group.products.filter((p) => matchInfo.productIds.has(p.id))
@@ -278,19 +276,19 @@ function PurveyorRow({
             <span className="text-[14px] font-semibold text-white truncate">{group.purveyor}</span>
             {matchBadges.map((f) => (
               <span key={f} className="text-[10px] px-1.5 py-0.5 rounded bg-[#3dbf8a]/10 text-[#3dbf8a] border border-[#3dbf8a]/20 font-medium">
-                {FIELD_LABELS[f]}
+                {fieldLabels[f]}
               </span>
             ))}
           </div>
           <p className="text-[12px] text-[#444] mt-0.5">
-            {group.invoiceDate ? fmtDate(group.invoiceDate) : "No date"}
+            {group.invoiceDate ? fmtDate(group.invoiceDate) : t.common.noDate}
           </p>
         </div>
 
         {/* Meta chips */}
         <div className="flex items-center gap-4 flex-shrink-0 text-right">
           <div>
-            <p className="text-[11px] text-[#444]">Products</p>
+            <p className="text-[11px] text-[#444]">{t.common.products}</p>
             <p className="text-[13px] font-semibold text-white">{group.products.length}</p>
           </div>
           <div>
@@ -307,7 +305,7 @@ function PurveyorRow({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[#111] bg-[#060606]">
-                  {["Product", "Unit", "Stock", "Category", "SKU", ""].map((h) => (
+                  {[t.invoices.product, t.common.unit, t.common.stock, t.common.category, t.common.sku, ""].map((h) => (
                     <th key={h} className="text-left px-5 py-2.5 text-[10px] font-semibold text-[#444] uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
@@ -328,7 +326,7 @@ function PurveyorRow({
                           onClick={() => onAdjust(p)}
                           className="text-[11px] px-2 py-1 rounded text-[#3dbf8a] hover:bg-[#3dbf8a]/10 transition-colors"
                         >
-                          Adjust
+                          {t.invoices.adjust}
                         </button>
                         {isAdmin && (
                           <>
@@ -336,13 +334,13 @@ function PurveyorRow({
                               onClick={() => onEdit(p)}
                               className="text-[11px] px-2 py-1 rounded text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors"
                             >
-                              Edit
+                              {t.common.edit}
                             </button>
                             <button
                               onClick={() => onDelete(p)}
                               className="text-[11px] px-2 py-1 rounded text-[#555] hover:text-red-400 hover:bg-red-900/20 transition-colors"
                             >
-                              Delete
+                              {t.common.delete}
                             </button>
                           </>
                         )}
@@ -357,8 +355,8 @@ function PurveyorRow({
           {/* View Invoice CTA */}
           <div className="px-5 py-3 border-t border-[#111] flex items-center justify-between bg-[#060606]">
             <p className="text-[12px] text-[#444]">
-              {visibleProducts.length} of {group.products.length} products shown
-              {matchInfo && matchInfo.productIds.size < group.products.length ? " (filtered)" : ""}
+              {visibleProducts.length} {t.invoices.of} {group.products.length} {t.invoices.productsShown}
+              {matchInfo && matchInfo.productIds.size < group.products.length ? ` (${t.invoices.filtered})` : ""}
             </p>
             <button
               onClick={onViewInvoice}
@@ -368,7 +366,7 @@ function PurveyorRow({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              View Invoice
+              {t.invoices.viewInvoice}
             </button>
           </div>
         </div>
@@ -382,6 +380,21 @@ function PurveyorRow({
 export function ProductList() {
   const { isAdmin } = useAuth();
   const toast = useToast();
+  const { t } = useLanguage();
+
+  const DEPT_TABS = [
+    { value: "ALL",  label: t.common.all },
+    { value: "BOH",  label: t.ui.kitchen },
+    { value: "FOH",  label: t.ui.foh },
+    { value: "BAR",  label: t.ui.bar },
+  ] as const;
+
+  const FIELD_LABELS: FieldLabels = {
+    name:     t.invoices.productName,
+    purveyor: t.common.purveyor,
+    sku:      t.common.sku,
+    date:     t.common.date,
+  };
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -489,7 +502,8 @@ export function ProductList() {
     if (!searchMatches || !search) return null;
     const allFields = new Set<MatchField>();
     searchMatches.forEach((m) => m.matchFields.forEach((f) => allFields.add(f)));
-    return [...allFields].map((f) => FIELD_LABELS[f]).join(", ");
+    const fl: FieldLabels = { name: t.invoices.productName, purveyor: t.common.purveyor, sku: t.common.sku, date: t.common.date };
+    return [...allFields].map((f) => fl[f]).join(", ");
   }, [searchMatches, search]);
 
   return (
@@ -497,10 +511,10 @@ export function ProductList() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-semibold text-white">Invoices</h1>
+          <h1 className="text-[22px] font-semibold text-white">{t.invoices.title}</h1>
           {!loading && (
             <p className="text-[13px] text-[#555] mt-0.5">
-              {groups.length} {groups.length === 1 ? "invoice" : "invoices"} · {products.length} products
+              {groups.length} {t.common.invoices} · {products.length} {t.common.products.toLowerCase()}
             </p>
           )}
         </div>
@@ -514,7 +528,7 @@ export function ProductList() {
                 d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <span className="hidden sm:inline">Scan Invoice</span>
+            <span className="hidden sm:inline">{t.invoices.scanInvoice}</span>
           </button>
           <button
             onClick={() => setAddOpen(true)}
@@ -523,7 +537,7 @@ export function ProductList() {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            <span className="hidden sm:inline">Add Invoice</span>
+            <span className="hidden sm:inline">{t.invoices.addInvoice}</span>
           </button>
         </div>
       </div>
@@ -555,7 +569,7 @@ export function ProductList() {
             </svg>
             <input
               type="search"
-              placeholder="Search by product, purveyor, date, or SKU…"
+              placeholder={t.invoices.searchPlaceholder}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full h-9 pl-9 pr-3 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
@@ -589,13 +603,13 @@ export function ProductList() {
       {search && searchMatches && (
         <div className="flex items-center gap-2 text-[12px] text-[#444]">
           <span className="text-[#3dbf8a] font-medium">{visibleGroups.length}</span>
-          <span>{visibleGroups.length === 1 ? "invoice" : "invoices"} matching</span>
+          <span>{visibleGroups.length === 1 ? t.invoices.searchHint_one : t.invoices.searchHint_many}</span>
           <span className="italic">"{search}"</span>
-          {matchedFieldSummary && <span>· matched by {matchedFieldSummary}</span>}
+          {matchedFieldSummary && <span>· {t.invoices.matchedBy} {matchedFieldSummary}</span>}
         </div>
       )}
       {search && searchMatches?.size === 0 && (
-        <div className="text-[12px] text-[#444]">No invoices match "{search}"</div>
+        <div className="text-[12px] text-[#444]">{t.invoices.noMatch} "{search}"</div>
       )}
 
       {/* Grouped invoice list */}
@@ -603,24 +617,24 @@ export function ProductList() {
         <PageSpinner />
       ) : groups.length === 0 ? (
         <EmptyState
-          title="No invoices found"
-          description="Add your first invoice to get started."
+          title={t.invoices.noInvoicesFound}
+          description={t.invoices.noInvoicesDesc}
           action={
             <button
               onClick={() => setAddOpen(true)}
               className="h-9 px-4 bg-[#3dbf8a] text-white text-sm rounded-xl hover:bg-[#35a87a] transition-colors"
             >
-              Add Invoice
+              {t.invoices.addInvoice}
             </button>
           }
         />
       ) : visibleGroups.length === 0 && search ? (
         <EmptyState
-          title="No results"
-          description={`Nothing matched "${search}". Try searching by product name, purveyor, date (MM/DD/YYYY), or SKU.`}
+          title={t.common.noResults}
+          description={`${t.invoices.noMatch} "${search}".`}
           action={
             <button onClick={() => setSearch("")} className="h-9 px-4 bg-[#1a1a1a] border border-[#2a2a2a] text-[#888] text-sm rounded-xl hover:text-white transition-colors">
-              Clear search
+              {t.common.clearSearch}
             </button>
           }
         />
@@ -659,24 +673,24 @@ export function ProductList() {
       <ScanInvoiceModal open={scanOpen} onClose={() => setScanOpen(false)} onSaved={onProductSaved} />
 
       {/* Barcode scanner for search */}
-      <Modal open={scannerOpen} onClose={() => setScannerOpen(false)} title="Scan Barcode">
+      <Modal open={scannerOpen} onClose={() => setScannerOpen(false)} title={t.invoices.scanInvoice}>
         <BarcodeScanner onScan={(code) => { setScannerOpen(false); setSearch(code); }} onClose={() => setScannerOpen(false)} />
       </Modal>
 
       {/* Add invoice */}
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Invoice">
+      <Modal open={addOpen} onClose={() => setAddOpen(false)} title={t.invoices.addInvoice}>
         <ProductForm onSaved={onProductSaved} onCancel={() => setAddOpen(false)} />
       </Modal>
 
       {/* Edit invoice */}
-      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title="Edit Invoice">
+      <Modal open={!!editTarget} onClose={() => setEditTarget(null)} title={t.invoices.editInvoice}>
         {editTarget && (
           <ProductForm initial={editTarget} onSaved={onProductSaved} onCancel={() => setEditTarget(null)} />
         )}
       </Modal>
 
       {/* Adjust stock */}
-      <Modal open={!!adjustTarget} onClose={() => setAdjustTarget(null)} title="Adjust Stock">
+      <Modal open={!!adjustTarget} onClose={() => setAdjustTarget(null)} title={t.stock.adjustStock}>
         {adjustTarget && (
           <StockAdjustForm product={adjustTarget} onDone={() => { setAdjustTarget(null); load(); }} onCancel={() => setAdjustTarget(null)} />
         )}
@@ -685,9 +699,9 @@ export function ProductList() {
       {/* Delete confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
-        title="Delete product"
-        message={`"${deleteTarget?.name}" will be permanently deleted along with all its stock logs. This cannot be undone.`}
-        confirmLabel="Delete"
+        title={t.common.delete}
+        message={`"${deleteTarget?.name}" ${t.common.delete.toLowerCase()}`}
+        confirmLabel={t.common.delete}
         variant="danger"
         loading={deleting}
         onConfirm={handleDelete}

@@ -2,6 +2,7 @@ import React, { useState, FormEvent } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { authApi } from "../api";
 import { Spinner } from "./shared/Spinner";
+import { useLanguage } from "../context/LanguageContext";
 
 const inputCls =
   "w-full px-3 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#0a0a0a] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors";
@@ -9,6 +10,7 @@ const inputCls =
 export function ResetPassword() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const token = params.get("token") ?? "";
 
   const [password, setPassword]       = useState("");
@@ -23,12 +25,12 @@ export function ResetPassword() {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="w-full max-w-sm text-center">
-          <p className="text-[#555] text-[13px]">Invalid or missing reset link.</p>
+          <p className="text-[#555] text-[13px]">{t.auth.invalidResetLink}</p>
           <button
             onClick={() => navigate("/login")}
             className="mt-4 text-[#3dbf8a] text-[13px] hover:underline"
           >
-            ← Back to sign in
+            {t.auth.backToSignIn}
           </button>
         </div>
       </div>
@@ -38,14 +40,14 @@ export function ResetPassword() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
-    if (password !== confirm) { setError("Passwords do not match."); return; }
+    if (password !== confirm) { setError(t.auth.passwordsNoMatch); return; }
     setLoading(true);
     try {
       await authApi.resetPassword(token, password);
       setDone(true);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? "Reset failed. The link may have expired.");
+      setError(msg ?? t.auth.resetFailed);
     } finally {
       setLoading(false);
     }
@@ -80,21 +82,21 @@ export function ResetPassword() {
                 </svg>
               </div>
               <div>
-                <h1 className="text-[18px] font-semibold text-white">Password updated</h1>
-                <p className="text-[13px] text-[#555] mt-1">You can now sign in with your new password.</p>
+                <h1 className="text-[18px] font-semibold text-white">{t.auth.passwordUpdated}</h1>
+                <p className="text-[13px] text-[#555] mt-1">{t.auth.signInNewPassword}</p>
               </div>
               <button
                 onClick={() => navigate("/login")}
                 className="w-full py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] text-white text-sm font-semibold transition-colors"
               >
-                Sign in
+                {t.auth.signIn}
               </button>
             </div>
           ) : (
             <>
               <div className="mb-5">
-                <h1 className="text-[18px] font-semibold text-white">Choose a new password</h1>
-                <p className="text-[13px] text-[#555] mt-1">Must be at least 8 characters</p>
+                <h1 className="text-[18px] font-semibold text-white">{t.auth.chooseNewPassword}</h1>
+                <p className="text-[13px] text-[#555] mt-1">{t.auth.mustBeChars}</p>
               </div>
 
               {error && (
@@ -107,7 +109,7 @@ export function ResetPassword() {
                 {/* New password */}
                 <div>
                   <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                    New password
+                    {t.auth.newPassword}
                   </label>
                   <div className="relative">
                     <input
@@ -117,7 +119,7 @@ export function ResetPassword() {
                       autoComplete="new-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Min. 8 characters"
+                      placeholder={t.auth.minChars}
                       className={inputCls + " pr-10"}
                     />
                     <button
@@ -145,7 +147,7 @@ export function ResetPassword() {
                 {/* Confirm password */}
                 <div>
                   <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
-                    Confirm password
+                    {t.auth.confirmPassword}
                   </label>
                   <div className="relative">
                     <input
@@ -155,7 +157,7 @@ export function ResetPassword() {
                       autoComplete="new-password"
                       value={confirm}
                       onChange={(e) => setConfirm(e.target.value)}
-                      placeholder="Repeat password"
+                      placeholder={t.auth.repeatPassword}
                       className={inputCls + " pr-10"}
                     />
                     <button
@@ -186,7 +188,7 @@ export function ResetPassword() {
                   className="w-full mt-1 py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
                 >
                   {loading && <Spinner size="sm" />}
-                  {loading ? "Saving…" : "Set new password"}
+                  {loading ? t.common.saving : t.auth.setNewPassword}
                 </button>
 
                 <p className="text-center pt-1">
@@ -195,7 +197,7 @@ export function ResetPassword() {
                     onClick={() => navigate("/login")}
                     className="text-[13px] text-[#555] hover:text-[#888] transition-colors"
                   >
-                    ← Back to sign in
+                    {t.auth.backToSignIn}
                   </button>
                 </p>
               </form>

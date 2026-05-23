@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { useLanguage } from "../context/LanguageContext";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -108,11 +109,12 @@ function PeriodSelector({
   period: Period;
   onChange: (p: Period) => void;
 }) {
+  const { t } = useLanguage();
   const options: { id: Period; label: string }[] = [
-    { id: "day",   label: "Day"   },
-    { id: "week",  label: "Week"  },
-    { id: "month", label: "Month" },
-    { id: "year",  label: "Year"  },
+    { id: "day",   label: t.reports.day   },
+    { id: "week",  label: t.reports.week  },
+    { id: "month", label: t.reports.month },
+    { id: "year",  label: t.reports.year  },
   ];
   return (
     <div className="flex rounded-xl overflow-hidden border border-[#2a2a2a] bg-[#0a0a0a]">
@@ -529,6 +531,7 @@ function CogsReportSection() {
 
 export function Reports() {
   const toast = useToast();
+  const { t } = useLanguage();
 
   const [period, setPeriod]   = useState<Period>("week");
   const [anchor, setAnchor]   = useState(todayISO());
@@ -634,7 +637,7 @@ export function Reports() {
       {/* Header ───────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-semibold text-white">Reports</h1>
+          <h1 className="text-[22px] font-semibold text-white">{t.reports.title}</h1>
           <p className="text-[13px] text-[#555] mt-1">{label}</p>
         </div>
 
@@ -663,7 +666,7 @@ export function Reports() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            {exporting ? "Exporting…" : "Export Excel"}
+            {exporting ? t.common.loading : t.reports.exportXlsx}
           </button>
         </div>
       </div>
@@ -675,25 +678,25 @@ export function Reports() {
           {/* Summary cards */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <SummaryCard
-              label="Inventory Value"
+              label={t.reports.invValue}
               value={formatCurrency(report.inventoryValue)}
               sub="current at cost"
               accent="text-green-600 dark:text-green-400"
             />
             <SummaryCard
-              label="Items Low"
+              label={t.reports.lowItems}
               value={report.lowItemsCount}
               sub="below minimum"
               accent={report.lowItemsCount > 0 ? "text-red-500" : "text-green-600 dark:text-green-400"}
             />
             <SummaryCard
-              label="Total Waste"
+              label={t.reports.totalWaste}
               value={report.totalWaste}
               sub="units this period"
               accent={report.totalWaste > 0 ? "text-yellow-500" : "text-gray-400 dark:text-gray-500"}
             />
             <SummaryCard
-              label="Total Received"
+              label={t.reports.totalReceived}
               value={report.totalReceived}
               sub="units this period"
               accent="text-brand-500"
@@ -719,7 +722,7 @@ export function Reports() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100 dark:border-gray-700">
-                    {["Date", "Received", "Used", "Waste"].map((h) => (
+                    {[t.common.date, t.reports.received, t.reports.used, t.reports.waste].map((h) => (
                       <th key={h} className="text-left px-5 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         {h}
                       </th>

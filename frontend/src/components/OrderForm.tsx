@@ -5,6 +5,7 @@ import { unitLabel, formatCurrency } from "../utils/stock";
 import { Spinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
+import { useLanguage } from "../context/LanguageContext";
 
 interface LineItem {
   productId: string;
@@ -21,6 +22,7 @@ type LineErrors = Partial<Record<"productId" | "quantity" | "unitCost", string>>
 
 export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
   const toast = useToast();
+  const { t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [lines, setLines] = useState<LineItem[]>([{ productId: "", quantity: "", unitCost: "" }]);
   const [lineErrors, setLineErrors] = useState<LineErrors[]>([{}]);
@@ -120,9 +122,9 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
       {/* Line items */}
       <div className="space-y-3">
         <div className="grid grid-cols-12 gap-2 text-xs font-medium text-gray-500 dark:text-gray-400 px-1">
-          <span className="col-span-5">Product</span>
-          <span className="col-span-3 text-right">Qty</span>
-          <span className="col-span-3 text-right">Unit cost</span>
+          <span className="col-span-5">{t.productForm.nameLabel}</span>
+          <span className="col-span-3 text-right">{t.orders.quantity}</span>
+          <span className="col-span-3 text-right">{t.orders.unitCost}</span>
           <span className="col-span-1" />
         </div>
 
@@ -191,24 +193,24 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
         </svg>
-        Add item
+        {t.orders.addItem}
       </button>
 
       {/* Total */}
       <div className="flex justify-between items-center p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700">
-        <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Total</span>
+        <span className="text-sm font-medium text-gray-600 dark:text-gray-300">{t.common.total}</span>
         <span className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(total)}</span>
       </div>
 
       <div className="flex gap-2 pt-1">
         <button type="button" onClick={onCancel}
           className="flex-1 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-          Cancel
+          {t.common.cancel}
         </button>
         <button type="submit" disabled={saving}
           className="flex-1 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
           {saving && <Spinner size="sm" />}
-          Create Order
+          {t.orders.createOrder}
         </button>
       </div>
     </form>
