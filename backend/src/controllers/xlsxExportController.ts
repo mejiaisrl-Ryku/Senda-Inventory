@@ -372,11 +372,28 @@ function buildQBSheet(
 
 // ── Inventory Sheet ───────────────────────────────────────────────────────────
 
+/** Canonical product category order for inventory exports. */
+const PRODUCT_CATEGORIES = [
+  "Perishable Food",
+  "Dry Food",
+  "Beverages",
+  "Paper Goods",
+  "Chemicals",
+  "Office Supplies",
+  "Miscellaneous",
+] as const;
+
+/** Dark teal fill for category group headers (distinct from column header). */
+const FILL_CAT: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2A4A38" } };
+/** Light teal tint for every other data row. */
+const ALT_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8F8F8" } };
+
 function buildInventorySheet(
   wb: ExcelJS.Workbook,
   sheetName: string,
   products: Array<{
     name: string;
+    category?: string | null;
     purveyor?: string | null;
     invoiceDate?: Date | null;
     unit: string;
@@ -396,11 +413,12 @@ function buildInventorySheet(
 
   // Title
   cell(ws, 1, 1, sheetName.toUpperCase(), { bold: true, size: 13 });
-  cell(ws, 2, 1, `${products.length} items`, { italic: true, color: "FF555555", size: 10 });
+  cell(ws, 2, 1, `${products.length} item${products.length !== 1 ? "s" : ""}`,
+    { italic: true, color: "FF555555", size: 10 });
 
   // Column headers (row 4)
-  const headers = ["Date", "Product Name", "Purveyor", "Unit", "Cost / Unit", "Quantity", "Total Cost"];
-  headers.forEach((h, i) => {
+  const COL_HEADERS = ["Date", "Product Name", "Purveyor", "Unit", "Cost / Unit", "Quantity", "Total Cost"];
+  COL_HEADERS.forEach((h, i) => {
     const c = ws.getCell(4, i + 1);
     c.value = h;
     c.font  = { name: FONT, bold: true, size: 11, color: { argb: "FFFFFFFF" } };
@@ -414,40 +432,82 @@ function buildInventorySheet(
     return;
   }
 
-  // Data rows
-  const dataStart = 5;
-  products.forEach((p, i) => {
-    const r = dataStart + i;
-    const isAlt = i % 2 === 1;
-    const altFill: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8F8F8" } };
+  // ── Group + sort ────────────────────────────────────────────────────────────
+  // Bucket products into canonical categories; unknown categories → "Other"
+  const grouped = new Map<string, typeof products>();
+  const orderedKeys = [...PRODUCT_CATEGORIES, "Other"] as string[];
 
-    cell(ws, r, 1, fmtMMDDYYYY(p.invoiceDate), { color: "FF555555", ...(isAlt ? { fill: altFill } : {}) });
-    cell(ws, r, 2, p.name,         { color: "FF1F1F1F", ...(isAlt ? { fill: altFill } : {}) });
-    cell(ws, r, 3, p.purveyor ?? "—", { color: "FF555555", ...(isAlt ? { fill: altFill } : {}) });
-    cell(ws, r, 4, p.unit,         { color: "FF555555", ...(isAlt ? { fill: altFill } : {}) });
-    cell(ws, r, 5, p.costPerUnit,  { numFmt: MONEY, align: "right", color: "FF0000FF", ...(isAlt ? { fill: altFill } : {}) });
-    cell(ws, r, 6, p.currentStock, { numFmt: "#,##0.##", align: "right", color: "FF0000FF", ...(isAlt ? { fill: altFill } : {}) });
-    // Total Cost = Cost/Unit × Quantity — use an Excel formula
-    const totalCell = ws.getCell(r, 7);
-    totalCell.value = { formula: `E${r}*F${r}` };
-    totalCell.numFmt = MONEY;
-    totalCell.font   = { name: FONT, color: { argb: "FF000000" }, size: 11 };
-    totalCell.alignment = { horizontal: "right" };
-    if (isAlt) totalCell.fill = altFill;
-  });
+  for (const p of products) {
+    const cat = (p.category && (PRODUCT_CATEGORIES as readonly string[]).includes(p.category))
+      ? p.category
+      : "Other";
+    if (!grouped.has(cat)) grouped.set(cat, []);
+    grouped.get(cat)!.push(p);
+  }
+  // Sort alphabetically within each group
+  for (const grp of grouped.values()) {
+    grp.sort((a, b) => a.name.localeCompare(b.name));
+  }
 
-  const dataEnd = dataStart + products.length - 1;
+  // ── Render rows ─────────────────────────────────────────────────────────────
+  let row = 5;
+  const allStart = row; // for grand-total SUM range
 
-  // Totals row
-  const totR = dataEnd + 1;
+  for (const cat of orderedKeys) {
+    const grp = grouped.get(cat);
+    if (!grp || grp.length === 0) continue;
+
+    // Category header row ─────────────────────────────────────────────────────
+    for (let c = 1; c <= 7; c++) {
+      ws.getCell(row, c).fill = FILL_CAT;
+      ws.getCell(row, c).font = { name: FONT, bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+    }
+    ws.getCell(row, 1).value = cat.toUpperCase();
+    ws.getCell(row, 6).value = `${grp.length} item${grp.length !== 1 ? "s" : ""}`;
+    ws.getCell(row, 6).alignment = { horizontal: "right" };
+    ws.getCell(row, 6).font = { name: FONT, italic: true, color: { argb: "FFAADDBB" }, size: 10 };
+    ws.getRow(row).height = 16;
+    row++;
+
+    // Product rows ─────────────────────────────────────────────────────────────
+    grp.forEach((p, i) => {
+      const isAlt = i % 2 === 1;
+      const fill  = isAlt ? ALT_FILL : undefined;
+
+      cell(ws, row, 1, fmtMMDDYYYY(p.invoiceDate), { color: "FF555555", ...(fill ? { fill } : {}) });
+      cell(ws, row, 2, p.name,            { color: "FF1F1F1F", ...(fill ? { fill } : {}) });
+      cell(ws, row, 3, p.purveyor ?? "—", { color: "FF555555", ...(fill ? { fill } : {}) });
+      cell(ws, row, 4, p.unit,            { color: "FF555555", ...(fill ? { fill } : {}) });
+      cell(ws, row, 5, p.costPerUnit,
+        { numFmt: MONEY, align: "right", color: "FF0000FF", ...(fill ? { fill } : {}) });
+      cell(ws, row, 6, p.currentStock,
+        { numFmt: "#,##0.##", align: "right", color: "FF0000FF", ...(fill ? { fill } : {}) });
+
+      // Total Cost formula — SUM naturally skips text in category header rows
+      const tc = ws.getCell(row, 7);
+      tc.value = { formula: `E${row}*F${row}` };
+      tc.numFmt = MONEY;
+      tc.font   = { name: FONT, color: { argb: "FF000000" }, size: 11 };
+      tc.alignment = { horizontal: "right" };
+      if (fill) tc.fill = fill;
+
+      row++;
+    });
+  }
+
+  const allEnd = row - 1;
+
+  // Grand-total row ────────────────────────────────────────────────────────────
+  // SUM over the full range — category header rows have no numbers so they're
+  // safely skipped by Excel's SUM function.
   [1, 2, 3, 4, 5, 6, 7].forEach((c) => {
-    ws.getCell(totR, c).fill = FILL_TOTAL;
-    ws.getCell(totR, c).font = { name: FONT, bold: true, color: { argb: "FF000000" }, size: 11 };
+    ws.getCell(row, c).fill = FILL_TOTAL;
+    ws.getCell(row, c).font = { name: FONT, bold: true, color: { argb: "FF000000" }, size: 11 };
   });
-  cell(ws, totR, 1, "TOTAL", { bold: true, fill: FILL_TOTAL });
-  cell(ws, totR, 6, { formula: `SUM(F${dataStart}:F${dataEnd})` },
+  cell(ws, row, 1, "TOTAL", { bold: true, fill: FILL_TOTAL });
+  cell(ws, row, 6, { formula: `SUM(F${allStart}:F${allEnd})` },
     { bold: true, numFmt: "#,##0.##", align: "right", fill: FILL_TOTAL });
-  cell(ws, totR, 7, { formula: `SUM(G${dataStart}:G${dataEnd})` },
+  cell(ws, row, 7, { formula: `SUM(G${allStart}:G${allEnd})` },
     { bold: true, numFmt: MONEY, align: "right", fill: FILL_TOTAL });
 
   ws.views = [{ state: "frozen", ySplit: 4 }];
