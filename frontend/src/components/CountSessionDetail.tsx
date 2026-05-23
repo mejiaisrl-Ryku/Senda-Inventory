@@ -253,6 +253,22 @@ export function CountSessionDetail() {
             {entries.length} products · {itemsCounted} counted
           </p>
         </div>
+
+        {/* View Report — shown in topbar when session is closed */}
+        {isClosed && (
+          <button
+            onClick={() => navigate(`/inventory/${id}/report`)}
+            className="inline-flex items-center gap-1.5 min-h-[36px] px-3 bg-[#3dbf8a] hover:bg-[#35a87a]
+                       text-white text-[12px] font-semibold rounded-xl transition-colors flex-shrink-0"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span className="hidden sm:inline">View Report</span>
+            <span className="sm:hidden">Report</span>
+          </button>
+        )}
       </div>
 
       {/* ── Dept filter tabs ─────────────────────────────────────────────────── */}
@@ -281,7 +297,7 @@ export function CountSessionDetail() {
             No products match this filter.
           </div>
         ) : (
-          <div className="space-y-6 pt-2">
+          <div className="space-y-6 pt-6">
             {[...grouped.entries()].map(([category, catEntries]) => (
               <div key={category}>
                 {/* Category header */}

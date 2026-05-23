@@ -1,7 +1,6 @@
 import React, { useState, FormEvent, useMemo } from "react";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { useTheme } from "../context/ThemeContext";
 import { teamApi } from "../api";
 import { Spinner } from "./shared/Spinner";
 
@@ -16,9 +15,12 @@ function decodeInviteToken(token: string): { restaurantName?: string; email?: st
   }
 }
 
+// ── Shared input class (matches SuperAdminLogin) ──────────────────────────────
+const inputCls =
+  "w-full px-3 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#0a0a0a] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors";
+
 export function Register() {
   const { register, login } = useAuth();
-  const { dark, toggleDark } = useTheme();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -55,22 +57,13 @@ export function Register() {
     setLoading(true);
     try {
       if (isInviteMode) {
-        // Register via invite — joins existing restaurant as STAFF
-        const data = await teamApi.registerViaInvite({
-          token: inviteToken,
-          name,
-          email,
-          password,
-        });
-        // Manually seed localStorage + trigger context refresh via login
+        const data = await teamApi.registerViaInvite({ token: inviteToken, name, email, password });
         localStorage.setItem("token", data.token);
         localStorage.setItem("refreshToken", data.refreshToken);
         localStorage.setItem("user", JSON.stringify(data.user));
-        // Re-login to update AuthContext state cleanly
         await login(email, password);
         navigate("/");
       } else {
-        // Self-service registration — creates new restaurant
         await register(name, email, password, restaurantName);
         navigate("/");
       }
@@ -83,192 +76,185 @@ export function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col items-center justify-center px-4">
-      <button
-        onClick={toggleDark}
-        className="absolute top-4 right-4 p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-        aria-label="Toggle dark mode"
-      >
-        {dark ? (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M12 3v1m0 16v1m8.66-9h-1M4.34 12h-1m15.07-6.07-.71.71M5.64 18.36l-.71.71M18.36 18.36l-.71-.71M5.64 5.64l-.71-.71M12 7a5 5 0 100 10A5 5 0 0012 7z" />
-          </svg>
-        ) : (
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-          </svg>
-        )}
-      </button>
-
+    <div className="min-h-screen bg-black flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-500 mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
-            </svg>
-          </div>
 
-          {isInviteMode ? (
-            <>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Accept invitation</h1>
-              {inviteData?.restaurantName && (
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Joining{" "}
-                  <span className="font-semibold text-brand-600 dark:text-brand-400">
-                    {inviteData.restaurantName}
-                  </span>{" "}
-                  as Staff
-                </p>
-              )}
-            </>
-          ) : (
-            <>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create your account</h1>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Set up kyru for your restaurant</p>
-            </>
-          )}
+        {/* Logo */}
+        <div className="flex items-center gap-3 mb-8 justify-center">
+          <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+            <polygon points="20,2 35.6,11 35.6,29 20,38 4.4,29 4.4,11" fill="#3dbf8a" />
+            <text x="20" y="27" textAnchor="middle" fill="#ffffff" fontSize="20" fontWeight="700"
+              fontFamily="Inter, system-ui, sans-serif">K</text>
+          </svg>
+          <div className="flex flex-col gap-[3px]">
+            <span className="text-white font-bold text-[18px] leading-none tracking-tight">kyru</span>
+            <span className="text-[10px] font-semibold leading-none tracking-[0.16em]" style={{ color: "#3dbf8a" }}>
+              ADVISORY
+            </span>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 space-y-4">
+        <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-[12px] p-6">
+          <div className="mb-5">
+            {isInviteMode ? (
+              <>
+                <h1 className="text-[18px] font-semibold text-white">Accept invitation</h1>
+                {inviteData?.restaurantName ? (
+                  <p className="text-[13px] text-[#555] mt-1">
+                    Joining{" "}
+                    <span className="font-semibold" style={{ color: "#3dbf8a" }}>
+                      {inviteData.restaurantName}
+                    </span>{" "}
+                    as Staff
+                  </p>
+                ) : (
+                  <p className="text-[13px] text-[#555] mt-1">Complete your account setup</p>
+                )}
+              </>
+            ) : (
+              <>
+                <h1 className="text-[18px] font-semibold text-white">Create your account</h1>
+                <p className="text-[13px] text-[#555] mt-1">Set up kyru for your restaurant</p>
+              </>
+            )}
+          </div>
+
           {error && (
-            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
-              <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+            <div className="mb-4 px-3 py-2.5 rounded-[8px] bg-red-900/20 border border-red-800/40 text-red-400 text-[13px]">
+              {error}
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Your name
-            </label>
-            <input
-              type="text"
-              required
-              autoComplete="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
-              placeholder="María García"
-            />
-          </div>
-
-          {/* Restaurant name — hidden in invite mode since restaurant already exists */}
-          {!isInviteMode && (
+          <form onSubmit={handleSubmit} className="space-y-3">
+            {/* Your name */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Restaurant name
+              <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
+                Your name
               </label>
               <input
                 type="text"
                 required
-                autoComplete="organization"
-                value={restaurantName}
-                onChange={(e) => setRestaurantName(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
-                placeholder="La Milagrosa"
+                autoComplete="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="María García"
+                className={inputCls}
               />
             </div>
-          )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              // In invite mode the email is locked to the invited address
-              readOnly={isInviteMode && Boolean(inviteData?.email)}
-              onChange={(e) => setEmail(e.target.value)}
-              className={`w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition ${
-                isInviteMode && inviteData?.email ? "opacity-70 cursor-not-allowed" : ""
-              }`}
-              placeholder="you@restaurant.com"
-            />
-            {isInviteMode && inviteData?.email && (
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                This invite was sent to {inviteData.email}
-              </p>
+            {/* Restaurant name — hidden in invite mode */}
+            {!isInviteMode && (
+              <div>
+                <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
+                  Restaurant name
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoComplete="organization"
+                  value={restaurantName}
+                  onChange={(e) => setRestaurantName(e.target.value)}
+                  placeholder="La Milagrosa"
+                  className={inputCls}
+                />
+              </div>
             )}
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Password
-            </label>
-            <div className="relative">
+            {/* Email */}
+            <div>
+              <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                autoComplete="email"
+                value={email}
+                readOnly={isInviteMode && Boolean(inviteData?.email)}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@restaurant.com"
+                className={inputCls + (isInviteMode && inviteData?.email ? " opacity-60 cursor-not-allowed" : "")}
+              />
+              {isInviteMode && inviteData?.email && (
+                <p className="mt-1 text-[11px] text-[#444]">This invite was sent to {inviteData.email}</p>
+              )}
+            </div>
+
+            {/* Password */}
+            <div>
+              <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Min. 8 characters"
+                  className={inputCls + " pr-10"}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-[#444] hover:text-[#888] transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Confirm password */}
+            <div>
+              <label className="block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5">
+                Confirm password
+              </label>
               <input
                 type={showPassword ? "text" : "password"}
                 required
                 autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 pr-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
-                placeholder="Min. 8 characters"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className={inputCls}
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                )}
-              </button>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Confirm password
-            </label>
-            <input
-              type={showPassword ? "text" : "password"}
-              required
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition"
-              placeholder="••••••••"
-            />
-          </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-1 py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+            >
+              {loading && <Spinner size="sm" />}
+              {loading
+                ? isInviteMode ? "Joining…" : "Creating account…"
+                : isInviteMode ? "Join team" : "Create account"}
+            </button>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 px-4 bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
-          >
-            {loading && <Spinner size="sm" />}
-            {loading
-              ? isInviteMode ? "Joining…" : "Creating account…"
-              : isInviteMode ? "Join team" : "Create account"}
-          </button>
+            {!isInviteMode && (
+              <p className="text-center text-[13px] text-[#555] pt-1">
+                Already have an account?{" "}
+                <Link to="/login" className="text-[#3dbf8a] hover:text-[#35a87a] font-medium transition-colors">
+                  Sign in
+                </Link>
+              </p>
+            )}
+          </form>
+        </div>
 
-          {!isInviteMode && (
-            <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-              Already have an account?{" "}
-              <Link
-                to="/login"
-                className="font-medium text-brand-500 hover:text-brand-600 transition-colors"
-              >
-                Sign in
-              </Link>
-            </p>
-          )}
-        </form>
       </div>
     </div>
   );

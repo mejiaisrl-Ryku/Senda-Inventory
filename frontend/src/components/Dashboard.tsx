@@ -17,10 +17,19 @@ function StatCard({
   sub?: string;
   color?: string; // kept for call-site compatibility, ignored
 }) {
+  const str = String(value);
+  // Shrink font responsively for long values (e.g. "MX$124,500.00" = 13 chars)
+  const valCls =
+    str.length > 9
+      ? "text-[16px] sm:text-[22px] lg:text-[28px]"
+      : str.length > 6
+      ? "text-[20px] sm:text-[26px] lg:text-[28px]"
+      : "text-[28px]";
+
   return (
-    <div className="bg-[#0a0a0a] rounded-[8px] px-6 py-5 border border-[#1a1a1a] min-w-0">
+    <div className="bg-[#0a0a0a] rounded-[8px] px-4 sm:px-6 py-5 border border-[#1a1a1a] min-w-0">
       <p className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] truncate">{label}</p>
-      <p className="mt-2 text-[28px] font-semibold text-white tracking-tight leading-none truncate">{value}</p>
+      <p className={`mt-2 font-semibold text-white tracking-tight leading-none truncate ${valCls}`}>{value}</p>
       {sub && <p className="mt-2 text-xs text-[#555] truncate">{sub}</p>}
     </div>
   );

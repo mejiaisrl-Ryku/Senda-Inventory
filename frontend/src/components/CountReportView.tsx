@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CountReport } from "../types";
 import { countsApi } from "../api";
@@ -42,13 +42,27 @@ function varianceBg(v: number): string {
 
 // ── Print sheet generator ─────────────────────────────────────────────────────
 
-function generatePrintHtml(report: CountReport): string {
-  const sessionDate = formatDate(report.session.date);
-  const dept        = report.session.department;
+type PrintDept = "ALL" | "KITCHEN" | "BAR" | "FOH";
 
-  // Group entries by category then sort by name
+function entryMatchesDept(dept: string | undefined, filter: PrintDept): boolean {
+  if (filter === "ALL")     return true;
+  if (filter === "KITCHEN") return dept === "BOH" || dept === "BOTH";
+  if (filter === "BAR")     return dept === "BAR";
+  if (filter === "FOH")     return dept === "FOH" || dept === "BOTH";
+  return true;
+}
+
+function generatePrintHtml(report: CountReport, deptFilter: PrintDept = "ALL"): string {
+  const sessionDate = formatDate(report.session.date);
+  const deptTitle   = deptFilter === "ALL" ? deptLabel(report.session.department) : deptLabel(deptFilter);
+
+  // Filter entries by dept then group by category
+  const filtered = deptFilter === "ALL"
+    ? report.entries
+    : report.entries.filter((e) => entryMatchesDept(e.department, deptFilter));
+
   const byCat = new Map<string, typeof report.entries>();
-  for (const e of report.entries) {
+  for (const e of filtered) {
     const cat = e.category ?? "Uncategorized";
     if (!byCat.has(cat)) byCat.set(cat, []);
     byCat.get(cat)!.push(e);
@@ -56,7 +70,7 @@ function generatePrintHtml(report: CountReport): string {
   const sortedCats = [...byCat.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
   let counter = 0;
-  const tableRows = sortedCats.map(([cat, items]) => {
+  const tableRows = sortedCats.map(([cat, items]: [string, typeof report.entries]) => {
     const rows = items
       .sort((a, b) => (a.productName ?? "").localeCompare(b.productName ?? ""))
       .map((e) => {
@@ -84,7 +98,7 @@ function generatePrintHtml(report: CountReport): string {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Count Sheet — ${sessionDate}</title>
+<title>Count Sheet — ${sessionDate}${deptFilter !== "ALL" ? ` (${deptTitle})` : ""}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #111; background: #fff; }
@@ -125,7 +139,7 @@ function generatePrintHtml(report: CountReport): string {
 <body>
   <div class="page-header">
     <h1>Inventory Count Sheet</h1>
-    <p>Date: ${sessionDate} &nbsp;|&nbsp; Department: ${dept} &nbsp;|&nbsp; Printed: ${new Date().toLocaleDateString()}</p>
+    <p>Date: ${sessionDate} &nbsp;|&nbsp; Department: ${deptTitle} &nbsp;|&nbsp; Printed: ${new Date().toLocaleDateString()}</p>
   </div>
 
   <table>
@@ -184,6 +198,8 @@ export function CountReportView() {
   const [report, setReport]       = useState<CountReport | null>(null);
   const [loading, setLoading]     = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [printDeptOpen, setPrintDeptOpen] = useState(false);
+  const printDeptRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -200,19 +216,31 @@ export function CountReportView() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Close "Print by Dept" dropdown on outside click
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (printDeptRef.current && !printDeptRef.current.contains(e.target as Node)) {
+        setPrintDeptOpen(false);
+      }
+    }
+    if (printDeptOpen) document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [printDeptOpen]);
+
   // Entries sorted by largest absolute variance first (most negative = biggest loss)
   const sortedEntries = useMemo(() => {
     if (!report) return [];
     return [...report.entries].sort((a, b) => a.varianceValue - b.varianceValue);
   }, [report]);
 
-  function handlePrintSheet() {
+  function handlePrintSheet(deptFilter: PrintDept = "ALL") {
     if (!report) return;
-    const html = generatePrintHtml(report);
+    const html = generatePrintHtml(report, deptFilter);
     const win  = window.open("", "_blank");
     if (!win) { toast.error("Pop-up blocked — allow pop-ups and try again."); return; }
     win.document.write(html);
     win.document.close();
+    setPrintDeptOpen(false);
   }
 
   async function handleExport() {
@@ -275,17 +303,50 @@ export function CountReportView() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={handlePrintSheet}
-            className="inline-flex items-center gap-1.5 min-h-[40px] px-4 rounded-xl border border-[#2a2a2a]
-                       text-[#888] hover:text-white hover:border-[#555] text-sm font-medium transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            Print Count Sheet
-          </button>
+
+          {/* Print Count Sheet (full) + Print by Dept dropdown */}
+          <div className="flex rounded-xl border border-[#2a2a2a] overflow-visible relative" ref={printDeptRef}>
+            {/* Main print button */}
+            <button
+              onClick={() => handlePrintSheet("ALL")}
+              className="inline-flex items-center gap-1.5 min-h-[40px] px-4 text-[#888] hover:text-white
+                         text-sm font-medium transition-colors border-r border-[#2a2a2a]"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Print Count Sheet
+            </button>
+            {/* Dropdown chevron */}
+            <button
+              onClick={() => setPrintDeptOpen((o) => !o)}
+              className="inline-flex items-center justify-center min-h-[40px] px-2.5 text-[#888] hover:text-white transition-colors"
+              aria-label="Print by department"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {/* Dept dropdown */}
+            {printDeptOpen && (
+              <div className="absolute top-full right-0 mt-1 z-50 min-w-[160px] bg-[#111] border border-[#2a2a2a] rounded-xl shadow-xl overflow-hidden">
+                {([
+                  { value: "KITCHEN" as PrintDept, label: "Print Kitchen" },
+                  { value: "BAR"     as PrintDept, label: "Print Bar"     },
+                  { value: "FOH"     as PrintDept, label: "Print FOH"     },
+                ]).map(({ value, label }) => (
+                  <button
+                    key={value}
+                    onClick={() => handlePrintSheet(value)}
+                    className="w-full text-left px-4 py-2.5 text-sm text-[#aaa] hover:text-white hover:bg-[#1a1a1a] transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button
             onClick={handleExport}
             disabled={exporting}
