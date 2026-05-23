@@ -383,7 +383,7 @@ export function ProductList() {
   const { t } = useLanguage();
 
   const DEPT_TABS = [
-    { value: "ALL",  label: t.common.all },
+    { value: "ALL",  label: t.invoices.allDepts },
     { value: "BOH",  label: t.ui.kitchen },
     { value: "FOH",  label: t.ui.foh },
     { value: "BAR",  label: t.ui.bar },
@@ -508,44 +508,20 @@ export function ProductList() {
 
   return (
     <div className="p-6 sm:p-8 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold text-white">{t.invoices.title}</h1>
-          {!loading && (
-            <p className="text-[13px] text-[#555] mt-0.5">
-              {groups.length} {t.common.invoices} · {products.length} {t.common.products.toLowerCase()}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setScanOpen(true)}
-            className="inline-flex items-center justify-center gap-2 h-9 px-4 bg-[#3dbf8a] hover:bg-[#35a87a] text-white text-sm font-medium rounded-xl transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span className="hidden sm:inline">{t.invoices.scanInvoice}</span>
-          </button>
-          <button
-            onClick={() => setAddOpen(true)}
-            className="inline-flex items-center justify-center gap-2 h-9 px-4 bg-[#1a1a1a] hover:bg-[#222] border border-[#2a2a2a] hover:border-[#3dbf8a] text-white text-sm font-medium rounded-xl transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span className="hidden sm:inline">{t.invoices.addInvoice}</span>
-          </button>
-        </div>
+      {/* Header — title only */}
+      <div>
+        <h1 className="text-[22px] font-semibold text-white">{t.invoices.title}</h1>
+        {!loading && (
+          <p className="text-[13px] text-[#555] mt-0.5">
+            {groups.length} {t.common.invoices} · {products.length} {t.common.products.toLowerCase()}
+          </p>
+        )}
       </div>
 
-      {/* Controls row: dept tabs + search */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Dept filter */}
-        <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden w-fit flex-shrink-0">
+      {/* Controls row: dept tabs + search + scan/add buttons — all on one line */}
+      <div className="flex items-center gap-2 flex-wrap">
+        {/* Dept filter tabs */}
+        <div className="flex rounded-[8px] border border-[#2a2a2a] overflow-hidden flex-shrink-0">
           {DEPT_TABS.map(({ value, label }) => (
             <button
               key={value}
@@ -561,42 +537,65 @@ export function ProductList() {
           ))}
         </div>
 
-        {/* Search */}
-        <div className="flex-1 flex gap-2">
-          <div className="relative flex-1">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#444] pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="search"
-              placeholder={t.invoices.searchPlaceholder}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-9 pl-9 pr-3 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#444] hover:text-[#888] transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => setScannerOpen(true)}
-            title="Scan barcode"
-            className="flex items-center justify-center h-9 w-9 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] text-[#444] hover:text-white hover:border-[#3dbf8a] transition-colors flex-shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </button>
+        {/* Search — flex-1 takes remaining space */}
+        <div className="flex-1 min-w-[140px] relative">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#444] pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="search"
+            placeholder={t.invoices.searchPlaceholder}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full h-9 pl-9 pr-3 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#444] hover:text-[#888] transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
+
+        {/* Barcode scanner (search by barcode) */}
+        <button
+          onClick={() => setScannerOpen(true)}
+          title="Scan barcode"
+          className="flex items-center justify-center h-9 w-9 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] text-[#444] hover:text-white hover:border-[#3dbf8a] transition-colors flex-shrink-0"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 4c-1.5 0-3 .5-4 1.5M4 8v8m0-8c0-2.2 1.8-4 4-4h8c2.2 0 4 1.8 4 4v8c0 2.2-1.8 4-4 4H8c-2.2 0-4-1.8-4-4m16-8v8M8 12h8" />
+          </svg>
+        </button>
+
+        {/* Scan Invoice button */}
+        <button
+          onClick={() => setScanOpen(true)}
+          className="inline-flex items-center justify-center gap-2 h-9 px-4 bg-[#3dbf8a] hover:bg-[#35a87a] text-white text-sm font-medium rounded-xl transition-colors flex-shrink-0"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <span className="hidden sm:inline">{t.invoices.scanInvoice}</span>
+        </button>
+
+        {/* Add Invoice button */}
+        <button
+          onClick={() => setAddOpen(true)}
+          className="inline-flex items-center justify-center gap-2 h-9 px-4 bg-[#1a1a1a] hover:bg-[#222] border border-[#2a2a2a] hover:border-[#3dbf8a] text-white text-sm font-medium rounded-xl transition-colors flex-shrink-0"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          <span className="hidden sm:inline">{t.invoices.addInvoice}</span>
+        </button>
       </div>
 
       {/* Search result hint */}

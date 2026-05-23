@@ -143,6 +143,7 @@ const en = {
     productName:        "product name",
     adjust:             "Adjust",
     product:            "Product",
+    allDepts:           "All",
   },
 
   // ── Product Form ─────────────────────────────────────────────────────────────
@@ -305,6 +306,8 @@ const en = {
     catEvents:      "Events",
     catDelivery:    "Delivery",
     catBuyouts:     "Buyouts",
+    posConnect:     "Connect your POS (Toast, Square) to import sales automatically",
+    posComingSoon:  "Coming Soon",
   },
 
   // ── Labor ────────────────────────────────────────────────────────────────────
@@ -453,7 +456,7 @@ const es: typeof en = {
   nav: {
     dashboard:    "Inicio",
     invoices:     "Facturas",
-    stock:        "Stock",
+    stock:        "Producto en Existencia",
     orders:       "Pedidos",
     inventory:    "Inventario",
     recipes:      "Recetas",
@@ -587,6 +590,7 @@ const es: typeof en = {
     productName:        "nombre del producto",
     adjust:             "Ajustar",
     product:            "Producto",
+    allDepts:           "Todo",
   },
 
   productForm: {
@@ -739,6 +743,8 @@ const es: typeof en = {
     catEvents:      "Eventos",
     catDelivery:    "Delivery",
     catBuyouts:     "Buyouts",
+    posConnect:     "Conecta tu POS (Toast, Square) para importar ventas automáticamente",
+    posComingSoon:  "Próximamente",
   },
 
   labor: {
@@ -860,7 +866,7 @@ const es: typeof en = {
     areYouSure:  "¿Estás seguro?",
     nothingHere: "Nada aquí todavía",
     kitchen:     "Cocina",
-    foh:         "FOH",
+    foh:         "Sala",
     bar:         "BAR",
     both:        "Ambos",
     adequate:    "Adecuado",

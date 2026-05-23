@@ -107,6 +107,7 @@ function SalesTab({
   setFilterStart: (v: string) => void;
   setFilterEnd: (v: string) => void;
 }) {
+  const { t } = useLanguage();
   const [date, setDate]           = useState(todayLocal());
   const [amounts, setAmounts]     = useState<SalesAmountMap>(emptySales);
   const [submitting, setSubmitting] = useState(false);
@@ -165,17 +166,17 @@ function SalesTab({
 
   return (
     <>
-      {/* POS integration placeholder banner */}
+      {/* POS integration placeholder banner — always visible */}
       <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[#0d0d0d] border border-[#1e1e1e] text-[#555]">
         <svg className="w-4 h-4 flex-shrink-0 text-[#3a3a3a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
             d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
         <p className="text-[12px] flex-1">
-          Connect your POS (Toast, Square) to import sales automatically
+          {t.sales.posConnect}
         </p>
         <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-[0.1em] px-2 py-0.5 rounded-md bg-[#1a1a1a] text-[#444] border border-[#252525]">
-          Coming Soon
+          {t.sales.posComingSoon}
         </span>
       </div>
 
