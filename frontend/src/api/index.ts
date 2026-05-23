@@ -133,6 +133,12 @@ export const authApi = {
   logout: () => api.post("/auth/logout").then((r) => r.data),
 
   me: () => api.get<import("../types").User>("/auth/me").then((r) => r.data),
+
+  forgotPassword: (email: string) =>
+    api.post("/auth/forgot-password", { email }),
+
+  resetPassword: (token: string, password: string) =>
+    api.post("/auth/reset-password", { token, password }),
 };
 
 // ── Products ──────────────────────────────────────────────────────────────────
@@ -182,9 +188,9 @@ export const reportsApi = {
   daily: (date?: string) =>
     api.get<DailyReport>("/reports/daily", { params: date ? { date } : {} }).then((r) => r.data),
 
-  weekly: (endDate?: string) =>
+  weekly: (startDate: string, endDate: string) =>
     api
-      .get<WeeklyReport>("/reports/weekly", { params: endDate ? { endDate } : {} })
+      .get<WeeklyReport>("/reports/weekly", { params: { startDate, endDate } })
       .then((r) => r.data),
 
   exportCsv: (start: string, end: string) =>
@@ -228,6 +234,9 @@ export const teamApi = {
     api.post<TeamMember>("/team/create", data).then((r) => r.data),
 
   remove: (userId: string) => api.delete(`/team/${userId}`),
+
+  sendResetEmail: (userId: string) =>
+    api.post(`/team/${userId}/send-reset-email`),
 
   registerViaInvite: (data: { token: string; name: string; email: string; password: string }) =>
     api

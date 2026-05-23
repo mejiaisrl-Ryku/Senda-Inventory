@@ -7,6 +7,7 @@ import {
   createTeamMember,
   removeTeamMember,
   registerViaInvite,
+  sendTeamMemberResetEmail,
   inviteSchema,
   createMemberSchema,
   registerViaInviteSchema,
@@ -28,6 +29,7 @@ router.use(requireAdmin as never);
 router.get("/", listTeam as never);
 router.post("/invite", validate(inviteSchema), inviteTeamMember as never);
 router.post("/create", validate(createMemberSchema), createTeamMember as never);
+router.post("/:userId/send-reset-email", sendTeamMemberResetEmail as never);
 router.delete("/:userId", removeTeamMember as never);
 
 export default router;

@@ -42,6 +42,23 @@ export interface SAUser {
   restaurantName: string | null;
 }
 
+export interface SARestaurantDetail {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  suspended: boolean;
+  suspendedAt: string | null;
+  createdAt: string;
+  userCount: number;
+  productCount: number;
+  users: { id: string; name: string | null; email: string; role: string }[];
+  productSummary: {
+    byDept: Record<string, number>;
+    byCategory: Record<string, number>;
+  };
+}
+
 // ── API calls ─────────────────────────────────────────────────────────────────
 
 export const superAdminApi = {
@@ -66,9 +83,20 @@ export const superAdminApi = {
   deleteRestaurant: (id: string) =>
     saApi.delete(`/super-admin/restaurants/${id}`),
 
+  getRestaurant: (id: string) =>
+    saApi.get<SARestaurantDetail>(`/super-admin/restaurants/${id}`).then((r) => r.data),
+
+  toggleSuspend: (id: string) =>
+    saApi.patch<{ id: string; suspended: boolean; suspendedAt: string | null }>(
+      `/super-admin/restaurants/${id}/suspend`
+    ).then((r) => r.data),
+
   // -- Users --
   listUsers: () =>
     saApi.get<SAUser[]>("/super-admin/users").then((r) => r.data),
+
+  sendResetEmail: (userId: string) =>
+    saApi.post(`/super-admin/users/${userId}/send-reset-email`),
 
   // -- Invite --
   inviteAdmin: (data: { name: string; email: string; restaurantId: string }) =>

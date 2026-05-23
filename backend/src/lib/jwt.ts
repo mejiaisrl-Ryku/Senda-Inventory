@@ -64,3 +64,24 @@ export function verifyInviteToken(token: string): InvitePayload {
   if (decoded.purpose !== "invite") throw new Error("Invalid token purpose");
   return decoded;
 }
+
+// ── Password-reset tokens ─────────────────────────────────────────────────────
+
+export interface ResetPayload {
+  purpose: "reset";
+  userId: string;
+  email: string;
+}
+
+/** 1-hour reset link token — signed with the main secret. */
+export function signResetToken(data: Omit<ResetPayload, "purpose">): string {
+  return jwt.sign({ ...data, purpose: "reset" }, SECRET, {
+    expiresIn: "1h" as SignOptions["expiresIn"],
+  });
+}
+
+export function verifyResetToken(token: string): ResetPayload {
+  const decoded = jwt.verify(token, SECRET) as ResetPayload;
+  if (decoded.purpose !== "reset") throw new Error("Invalid token purpose");
+  return decoded;
+}

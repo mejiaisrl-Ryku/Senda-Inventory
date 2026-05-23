@@ -2,7 +2,8 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { signToken, signRefreshToken, verifyRefreshToken } from "../lib/jwt";
+import { signToken, signRefreshToken, verifyRefreshToken, signResetToken, verifyResetToken } from "../lib/jwt";
+import { sendPasswordResetEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";
 
 // Self-service registration: any new user creates their own restaurant in one step.
@@ -139,6 +140,74 @@ export async function me(req: AuthRequest, res: Response, next: NextFunction) {
       select: safeUser,
     });
     res.json(toUserResponse(user));
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── Password reset ────────────────────────────────────────────────────────────
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+/**
+ * POST /api/auth/forgot-password
+ * Always returns 204 regardless of whether the email exists (avoids email enumeration).
+ */
+export async function forgotPassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { email } = req.body as { email: string };
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // Silently succeed when user not found — don't leak account existence.
+    if (user) {
+      const token = signResetToken({ userId: user.id, email: user.email });
+      const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+      const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
+
+      // Fire-and-forget — don't let email errors block the response.
+      sendPasswordResetEmail({
+        to: user.email,
+        toName: user.name ?? user.email,
+        resetUrl,
+      }).catch((err) => console.error("[mailer] password reset email failed:", err));
+    }
+
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/auth/reset-password
+ * Validates the reset token and updates the user's password.
+ */
+export async function resetPassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { token, password } = req.body as { token: string; password: string };
+
+    let payload: ReturnType<typeof verifyResetToken>;
+    try {
+      payload = verifyResetToken(token);
+    } catch {
+      return res.status(400).json({ error: "Reset link is invalid or has expired." });
+    }
+
+    // Confirm user still exists.
+    const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+    if (!user) return res.status(400).json({ error: "User not found." });
+
+    const hashed = await bcrypt.hash(password, 12);
+    await prisma.user.update({ where: { id: user.id }, data: { password: hashed } });
+
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

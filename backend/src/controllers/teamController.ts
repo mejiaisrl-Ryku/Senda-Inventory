@@ -2,8 +2,8 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { signToken, signRefreshToken, signInviteToken, verifyInviteToken } from "../lib/jwt";
-import { sendInviteEmail } from "../lib/mailer";
+import { signToken, signRefreshToken, signInviteToken, verifyInviteToken, signResetToken } from "../lib/jwt";
+import { sendInviteEmail, sendPasswordResetEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -208,6 +208,33 @@ export async function registerViaInvite(req: Request, res: Response, next: NextF
       user: { ...rest, restaurantName: restaurant?.name ?? null },
       ...tokens,
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** POST /api/team/:userId/send-reset-email — admin triggers a reset email for a team member */
+export async function sendTeamMemberResetEmail(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { userId } = req.params;
+
+    // Only allow resetting passwords for users in the same restaurant.
+    const target = await prisma.user.findFirst({
+      where: { id: userId, restaurantId: req.user.restaurantId },
+    });
+    if (!target) return res.status(404).json({ error: "User not found." });
+
+    const token = signResetToken({ userId: target.id, email: target.email });
+    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
+
+    await sendPasswordResetEmail({
+      to: target.email,
+      toName: target.name ?? target.email,
+      resetUrl,
+    });
+
+    res.status(204).end();
   } catch (err) {
     next(err);
   }

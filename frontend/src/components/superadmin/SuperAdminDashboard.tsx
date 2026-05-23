@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { superAdminApi, SARestaurant, SAUser } from "../../api/superAdmin";
 import { Spinner } from "../shared/Spinner";
+import { useToast } from "../../context/ToastContext";
 
 // ── Shared styles ─────────────────────────────────────────────────────────────
 
@@ -95,6 +97,7 @@ function RestaurantsTable({
   restaurants: SARestaurant[];
   onDeleted: (id: string) => void;
 }) {
+  const navigate = useNavigate();
   const [deleteTarget, setDeleteTarget] = useState<SARestaurant | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
@@ -144,7 +147,11 @@ function RestaurantsTable({
           </thead>
           <tbody className="divide-y divide-[#111]">
             {restaurants.map((r) => (
-              <tr key={r.id} className="hover:bg-[#0f0f0f] transition-colors">
+              <tr
+                key={r.id}
+                onClick={() => navigate(`/super-admin/partners/${r.id}`)}
+                className="hover:bg-[#0f0f0f] transition-colors cursor-pointer"
+              >
                 <td className="px-4 py-3">
                   <p className="text-white font-medium text-[13px]">{r.name}</p>
                   {r.address && <p className="text-[#444] text-[11px] mt-0.5">{r.address}</p>}
@@ -164,7 +171,7 @@ function RestaurantsTable({
                 <td className="px-4 py-3 text-[#888] text-[13px] whitespace-nowrap">{formatDate(r.createdAt)}</td>
                 <td className="px-4 py-3 text-right">
                   <button
-                    onClick={() => setDeleteTarget(r)}
+                    onClick={(e) => { e.stopPropagation(); setDeleteTarget(r); }}
                     className="text-[#555] hover:text-red-400 transition-colors p-1.5 rounded-[6px] hover:bg-red-900/10"
                     title="Delete partner"
                   >
@@ -361,6 +368,21 @@ function InviteAdminForm({ restaurants }: { restaurants: SARestaurant[] }) {
 // ── Users table ───────────────────────────────────────────────────────────────
 
 function UsersTable({ users }: { users: SAUser[] }) {
+  const toast = useToast();
+  const [sendingReset, setSendingReset] = React.useState<string | null>(null);
+
+  async function handleSendReset(u: SAUser) {
+    setSendingReset(u.id);
+    try {
+      await superAdminApi.sendResetEmail(u.id);
+      toast.success(`Password reset email sent to ${u.email}`);
+    } catch {
+      toast.error("Failed to send reset email.");
+    } finally {
+      setSendingReset(null);
+    }
+  }
+
   if (users.length === 0) {
     return <div className="py-10 text-center text-[13px] text-[#444]">No users yet.</div>;
   }
@@ -370,7 +392,7 @@ function UsersTable({ users }: { users: SAUser[] }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-[#1a1a1a]">
-            {["User", "Email", "Role", "Partner"].map((h) => (
+            {["User", "Email", "Role", "Partner", ""].map((h) => (
               <th key={h} className="text-left px-4 py-3 text-[11px] font-medium text-[#444] uppercase tracking-[0.08em] whitespace-nowrap">
                 {h}
               </th>
@@ -391,6 +413,24 @@ function UsersTable({ users }: { users: SAUser[] }) {
               <td className="px-4 py-3 text-[#888] text-[13px]">{u.email}</td>
               <td className="px-4 py-3"><RolePill role={u.role} /></td>
               <td className="px-4 py-3 text-[#888] text-[13px]">{u.restaurantName ?? <span className="text-[#444]">—</span>}</td>
+              <td className="px-4 py-3 text-right">
+                <button
+                  onClick={() => handleSendReset(u)}
+                  disabled={sendingReset === u.id}
+                  title="Send password reset email"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[11px] text-[#555] hover:text-[#3dbf8a] hover:bg-[#3dbf8a]/10 disabled:opacity-40 border border-transparent hover:border-[#3dbf8a]/20 transition-colors"
+                >
+                  {sendingReset === u.id ? (
+                    <Spinner size="sm" />
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                  )}
+                  Reset password
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>

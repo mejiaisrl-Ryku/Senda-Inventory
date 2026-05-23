@@ -219,6 +219,7 @@ export function TeamPage() {
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [removeTarget, setRemoveTarget] = useState<TeamMember | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [sendingReset, setSendingReset] = useState<string | null>(null); // userId being reset
 
   // Plain function — called on mount and after mutations. Not a dep of any effect.
   function loadMembers() {
@@ -233,6 +234,18 @@ export function TeamPage() {
   // Empty dep array — fires exactly once when the component mounts.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadMembers(); }, []);
+
+  async function handleSendReset(member: TeamMember) {
+    setSendingReset(member.id);
+    try {
+      await teamApi.sendResetEmail(member.id);
+      toast.success(`Password reset email sent to ${member.email}`);
+    } catch (err) {
+      toast.error(getApiError(err));
+    } finally {
+      setSendingReset(null);
+    }
+  }
 
   async function handleRemove() {
     if (!removeTarget) return;
@@ -327,18 +340,37 @@ export function TeamPage() {
                         <RolePill role={m.role} />
                       </td>
                       <td className="px-5 py-3.5 text-right">
-                        {!isSelf && (
+                        <div className="inline-flex items-center gap-1">
+                          {/* Send reset email */}
                           <button
-                            onClick={() => setRemoveTarget(m)}
-                            title="Remove from team"
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            onClick={() => handleSendReset(m)}
+                            disabled={sendingReset === m.id}
+                            title="Send password reset email"
+                            className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-40 transition-colors"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
-                            </svg>
+                            {sendingReset === m.id ? (
+                              <Spinner size="sm" />
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                              </svg>
+                            )}
                           </button>
-                        )}
+                          {/* Remove */}
+                          {!isSelf && (
+                            <button
+                              onClick={() => setRemoveTarget(m)}
+                              title="Remove from team"
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

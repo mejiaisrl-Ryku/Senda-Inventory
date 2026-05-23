@@ -2,8 +2,8 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { signToken, signRefreshToken, signInviteToken } from "../lib/jwt";
-import { sendInviteEmail } from "../lib/mailer";
+import { signToken, signRefreshToken, signInviteToken, signResetToken } from "../lib/jwt";
+import { sendInviteEmail, sendPasswordResetEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";
 
 // ── Validation schemas ────────────────────────────────────────────────────────
@@ -239,6 +239,109 @@ export async function inviteAdmin(req: AuthRequest, res: Response, next: NextFun
     });
 
     res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** POST /api/super-admin/users/:userId/send-reset-email — super admin triggers a reset email */
+export async function sendUserResetEmail(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { userId } = req.params;
+    const target = await prisma.user.findUnique({ where: { id: userId } });
+    if (!target) return res.status(404).json({ error: "User not found." });
+
+    const token = signResetToken({ userId: target.id, email: target.email });
+    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
+
+    await sendPasswordResetEmail({
+      to: target.email,
+      toName: target.name ?? target.email,
+      resetUrl,
+    });
+
+    res.status(204).end();
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/super-admin/restaurants/:id
+ * Full detail view: restaurant info + users + product summary.
+ */
+export async function getRestaurantDetail(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        suspended: true,
+        suspendedAt: true,
+        createdAt: true,
+        users: {
+          select: { id: true, name: true, email: true, role: true },
+          orderBy: [{ role: "asc" }, { email: "asc" }],
+        },
+        products: {
+          select: { id: true, department: true, category: true, cogsCategory: true },
+        },
+        _count: { select: { products: true, users: true } },
+      },
+    });
+
+    if (!restaurant) return res.status(404).json({ error: "Restaurant not found." });
+
+    // Product summary by department
+    const deptCount: Record<string, number> = {};
+    const categoryCount: Record<string, number> = {};
+    for (const p of restaurant.products) {
+      const dept = p.department ?? "BOH";
+      deptCount[dept] = (deptCount[dept] ?? 0) + 1;
+      const cat = p.category ?? "Uncategorized";
+      categoryCount[cat] = (categoryCount[cat] ?? 0) + 1;
+    }
+
+    const { products, _count, ...rest } = restaurant;
+
+    res.json({
+      ...rest,
+      userCount: _count.users,
+      productCount: _count.products,
+      productSummary: { byDept: deptCount, byCategory: categoryCount },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PATCH /api/super-admin/restaurants/:id/suspend
+ * Toggle the suspended flag on a restaurant.
+ */
+export async function toggleSuspendRestaurant(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const restaurant = await prisma.restaurant.findUnique({ where: { id } });
+    if (!restaurant) return res.status(404).json({ error: "Restaurant not found." });
+
+    const nowSuspended = !restaurant.suspended;
+    const updated = await prisma.restaurant.update({
+      where: { id },
+      data: {
+        suspended: nowSuspended,
+        suspendedAt: nowSuspended ? new Date() : null,
+      },
+      select: { id: true, suspended: true, suspendedAt: true },
+    });
+
+    res.json(updated);
   } catch (err) {
     next(err);
   }

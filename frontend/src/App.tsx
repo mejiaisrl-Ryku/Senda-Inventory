@@ -18,9 +18,11 @@ import { CountsPage } from "./components/CountsPage";
 import { CountSessionDetail } from "./components/CountSessionDetail";
 import { CountReportView } from "./components/CountReportView";
 import { RecipesPage } from "./components/RecipesPage";
+import { ResetPassword } from "./components/ResetPassword";
 import { SuperAdminLogin } from "./components/superadmin/SuperAdminLogin";
 import { SuperAdminLayout } from "./components/superadmin/SuperAdminLayout";
 import { SuperAdminDashboard } from "./components/superadmin/SuperAdminDashboard";
+import { SuperAdminPartnerDetail } from "./components/superadmin/SuperAdminPartnerDetail";
 import { Spinner } from "./components/shared/Spinner";
 import { ToastProvider } from "./context/ToastContext";
 import { ToastContainer } from "./components/shared/Toast";
@@ -83,6 +85,9 @@ function AppRoutes() {
   return (
     <BootstrapGate>
       <Routes>
+        {/* Fully public — accessible whether logged in or not */}
+        <Route path="/reset-password" element={<ResetPassword />} />
+
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -123,6 +128,7 @@ function AppRoutes() {
           <Route element={<SAProtectedRoute />}>
             <Route element={<SuperAdminLayout />}>
               <Route index element={<SuperAdminDashboard />} />
+              <Route path="partners/:id" element={<SuperAdminPartnerDetail />} />
             </Route>
           </Route>
         </Route>

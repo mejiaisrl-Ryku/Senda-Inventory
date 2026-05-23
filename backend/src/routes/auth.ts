@@ -8,9 +8,13 @@ import {
   refresh,
   logout,
   me,
+  forgotPassword,
+  resetPassword,
   registerSchema,
   loginSchema,
   refreshSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 } from "../controllers/authController";
 import { AuthRequest } from "../types";
 
@@ -20,6 +24,8 @@ router.post("/register", authLimiter, validate(registerSchema), register);
 router.post("/login", authLimiter, validate(loginSchema), login);
 router.post("/refresh", authLimiter, validate(refreshSchema), refresh);
 router.post("/logout", authenticate as never, logout as never);
+router.post("/forgot-password", authLimiter, validate(forgotPasswordSchema), forgotPassword);
+router.post("/reset-password",  authLimiter, validate(resetPasswordSchema),  resetPassword);
 router.get("/me", authenticate as never, (req, res, next) =>
   me(req as AuthRequest, res, next)
 );

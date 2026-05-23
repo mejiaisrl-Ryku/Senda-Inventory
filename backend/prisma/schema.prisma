@@ -96,12 +96,14 @@ enum RecipeDepartment {
 // ─────────────────────────────────────────────
 
 model Restaurant {
-  id        String    @id @default(cuid())
-  name      String
-  address   String?
-  phone     String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  name        String
+  address     String?
+  phone       String?
+  suspended   Boolean   @default(false)
+  suspendedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   users         User[]
   products      Product[]

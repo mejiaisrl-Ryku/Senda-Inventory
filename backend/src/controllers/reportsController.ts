@@ -79,7 +79,8 @@ export async function getDailyReport(req: AuthRequest, res: Response, next: Next
   }
 }
 
-// ── GET /reports/weekly?endDate=YYYY-MM-DD ───────────────────────────────────
+// ── GET /reports/weekly?endDate=YYYY-MM-DD&startDate=YYYY-MM-DD ──────────────
+// startDate is optional — defaults to endDate - 6 (7-day window, old behaviour)
 export async function getWeeklyReport(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const endStr = typeof req.query.endDate === "string" ? req.query.endDate : todayISO();
@@ -88,8 +89,13 @@ export async function getWeeklyReport(req: AuthRequest, res: Response, next: Nex
 
     const endDay = toUTCDay(endStr);
     const endExclusive = addDays(endDay, 1);
-    const startDay = addDays(endDay, -6); // 7-day window inclusive
-    const startStr = toISODate(startDay);
+
+    // Allow explicit startDate override so the frontend can request any range
+    const startStr =
+      typeof req.query.startDate === "string" && dateSchema.safeParse(req.query.startDate).success
+        ? req.query.startDate
+        : toISODate(addDays(endDay, -6)); // default: 7-day window
+    const startDay = toUTCDay(startStr);
 
     const [logs, products] = await Promise.all([
       prisma.stockLog.findMany({
@@ -105,8 +111,10 @@ export async function getWeeklyReport(req: AuthRequest, res: Response, next: Nex
       prisma.product.findMany({ where: { restaurantId: req.user.restaurantId } }),
     ]);
 
-    // Day-by-day breakdown
-    const days = Array.from({ length: 7 }, (_, i) => {
+    // Day-by-day breakdown (dynamic length based on date range)
+    const diffMs = endDay.getTime() - startDay.getTime();
+    const numDays = Math.round(diffMs / 86_400_000) + 1; // inclusive
+    const days = Array.from({ length: numDays }, (_, i) => {
       const day = addDays(startDay, i);
       const dayEnd = addDays(day, 1);
       const dayLogs = logs.filter((l) => l.timestamp >= day && l.timestamp < dayEnd);
