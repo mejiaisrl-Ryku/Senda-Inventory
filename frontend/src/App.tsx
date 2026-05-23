@@ -101,13 +101,13 @@ function AppRoutes() {
                 </Suspense>
               }
             />
-            {/* Inventory — available to all authenticated users (ADMIN + STAFF) */}
+            {/* Inventory + Recipes — available to all authenticated users (ADMIN + STAFF) */}
             <Route path="inventory"             element={<CountsPage />} />
             <Route path="inventory/:id"         element={<CountSessionDetail />} />
             <Route path="inventory/:id/report"  element={<CountReportView />} />
+            <Route path="recipes"               element={<RecipesPage />} />
 
             <Route element={<AdminRoute />}>
-              <Route path="recipes" element={<RecipesPage />} />
               <Route path="sales" element={<SalesPage />} />
               <Route path="labor" element={<LaborPage />} />
               <Route path="team" element={<TeamPage />} />

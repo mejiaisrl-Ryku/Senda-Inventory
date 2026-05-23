@@ -163,6 +163,20 @@ function SalesTab({
 
   return (
     <>
+      {/* POS integration placeholder banner */}
+      <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-[#0d0d0d] border border-[#1e1e1e] text-[#555]">
+        <svg className="w-4 h-4 flex-shrink-0 text-[#3a3a3a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+        <p className="text-[12px] flex-1">
+          Connect your POS (Toast, Square) to import sales automatically
+        </p>
+        <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-[0.1em] px-2 py-0.5 rounded-md bg-[#1a1a1a] text-[#444] border border-[#252525]">
+          Coming Soon
+        </span>
+      </div>
+
       {/* Entry form */}
       <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-5">
         <h2 className="text-[13px] font-semibold text-[#888] mb-4 uppercase tracking-[0.08em]">Daily Entry</h2>

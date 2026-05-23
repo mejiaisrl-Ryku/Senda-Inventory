@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Product, Recipe, RecipeDepartment, RecipeIngredient } from "../types";
 import { productsApi, recipesApi } from "../api";
+import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
 import { PageSpinner, Spinner } from "./shared/Spinner";
@@ -78,6 +79,7 @@ function blankForm() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function RecipesPage() {
+  const { isAdmin } = useAuth();
   const toast = useToast();
 
   const [recipes,  setRecipes]  = useState<Recipe[]>([]);
@@ -305,16 +307,18 @@ export function RecipesPage() {
           <h1 className="text-[22px] font-semibold text-white">Recipes</h1>
           <p className="text-[13px] text-[#555] mt-0.5">Recipe costing and margin analysis</p>
         </div>
-        <button
-          onClick={openAdd}
-          className="inline-flex items-center gap-1.5 min-h-[40px] px-4 bg-[#3dbf8a] hover:bg-[#35a87a] text-white text-sm font-semibold rounded-xl transition-colors flex-shrink-0"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="hidden sm:inline">Add Recipe</span>
-          <span className="sm:hidden">Add</span>
-        </button>
+        {isAdmin && (
+          <button
+            onClick={openAdd}
+            className="inline-flex items-center gap-1.5 min-h-[40px] px-4 bg-[#3dbf8a] hover:bg-[#35a87a] text-white text-sm font-semibold rounded-xl transition-colors flex-shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="hidden sm:inline">Add Recipe</span>
+            <span className="sm:hidden">Add</span>
+          </button>
+        )}
       </div>
 
       {/* Kitchen / Bar tabs */}
@@ -344,12 +348,14 @@ export function RecipesPage() {
             </svg>
           </div>
           <p className="text-[#555] text-[14px]">No {tab === "KITCHEN" ? "Kitchen" : "Bar"} recipes yet.</p>
-          <button
-            onClick={openAdd}
-            className="mt-4 text-[#3dbf8a] text-[13px] hover:underline"
-          >
-            + Add your first recipe
-          </button>
+          {isAdmin && (
+            <button
+              onClick={openAdd}
+              className="mt-4 text-[#3dbf8a] text-[13px] hover:underline"
+            >
+              + Add your first recipe
+            </button>
+          )}
         </div>
       ) : (
         <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl overflow-hidden">
@@ -397,20 +403,22 @@ export function RecipesPage() {
                         </span>
                       </td>
                       <td className="px-5 py-4">
-                        <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            onClick={() => openEdit(r)}
-                            className="text-[12px] px-2.5 py-1 rounded-lg text-[#888] hover:text-white hover:bg-[#1a1a1a] transition-colors"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget(r)}
-                            className="text-[12px] px-2.5 py-1 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        {isAdmin && (
+                          <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => openEdit(r)}
+                              className="text-[12px] px-2.5 py-1 rounded-lg text-[#888] hover:text-white hover:bg-[#1a1a1a] transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => setDeleteTarget(r)}
+                              className="text-[12px] px-2.5 py-1 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );

@@ -61,11 +61,6 @@ const navGroups: NavGroup[] = [
           </svg>
         ),
       },
-    ],
-  },
-  {
-    header: "Admin",
-    items: [
       {
         to: "/inventory",
         label: "Inventory",
@@ -79,7 +74,6 @@ const navGroups: NavGroup[] = [
       {
         to: "/recipes",
         label: "Recipes",
-        adminOnly: true,
         icon: (
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -87,6 +81,11 @@ const navGroups: NavGroup[] = [
           </svg>
         ),
       },
+    ],
+  },
+  {
+    header: "Admin",
+    items: [
       {
         to: "/sales",
         label: "Sales",
