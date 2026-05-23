@@ -28,7 +28,10 @@ const CATEGORIES = [
   "Perishable Food",
   "Dry Food",
   "Beverages",
-  "Non-Food Supplies",
+  "Paper Goods",
+  "Chemicals",
+  "Office Supplies",
+  "Miscellaneous",
 ] as const;
 
 const DEPARTMENTS: { value: Department; label: string }[] = [

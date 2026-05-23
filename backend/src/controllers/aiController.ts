@@ -18,7 +18,7 @@ Extract these fields:
 - "invoiceDate": the invoice date in YYYY-MM-DD format (string or null)
 - "unit": the unit of measurement — must be one of: KG, LITERS, PIECES, LB, OZ, G, EA, DOZ (string or null)
 - "costPerUnit": the unit cost as a number (number or null)
-- "category": one of: "Perishable Food", "Dry Food", "Beverages", "Non-Food Supplies" (string or null)
+- "category": one of: "Perishable Food", "Dry Food", "Beverages", "Paper Goods", "Chemicals", "Office Supplies", "Miscellaneous" (string or null)
 - "department": classify the item into exactly one of these three values based on what the item is:
   - "BAR" — liquor, wine, beer, spirits, cocktail ingredients, mixers, bar supplies, glassware for bar
   - "BOH" — proteins, meat, seafood, produce, dairy, eggs, dry goods, grains, spices, kitchen equipment, food prep items, cooking supplies
