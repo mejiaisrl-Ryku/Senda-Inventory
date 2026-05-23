@@ -147,6 +147,7 @@ function navItemClass(isActive: boolean) {
 
 function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const { user, logout, isAdmin } = useAuth();
+  const restaurantLogo = user?.restaurantLogo ?? null;
   const navigate = useNavigate();
 
   function handleLogout() {
@@ -164,11 +165,19 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       {/* Logo */}
       <div className="px-5 pt-8 pb-6 border-b border-[#1a1a1a]">
         <div className="flex items-center gap-3">
-          <svg width="48" height="48" viewBox="0 0 40 40" fill="none" aria-hidden="true" className="flex-shrink-0">
-            <polygon points="20,2 35.6,11 35.6,29 20,38 4.4,29 4.4,11" fill="#3dbf8a" />
-            <text x="20" y="27" textAnchor="middle" fill="#ffffff" fontSize="20" fontWeight="700"
-              fontFamily="Inter, system-ui, sans-serif">K</text>
-          </svg>
+          {restaurantLogo ? (
+            <img
+              src={restaurantLogo}
+              alt={user?.restaurantName ?? "Restaurant logo"}
+              className="w-12 h-12 rounded-full object-cover flex-shrink-0 border border-[#2a2a2a]"
+            />
+          ) : (
+            <svg width="48" height="48" viewBox="0 0 40 40" fill="none" aria-hidden="true" className="flex-shrink-0">
+              <polygon points="20,2 35.6,11 35.6,29 20,38 4.4,29 4.4,11" fill="#3dbf8a" />
+              <text x="20" y="27" textAnchor="middle" fill="#ffffff" fontSize="20" fontWeight="700"
+                fontFamily="Inter, system-ui, sans-serif">K</text>
+            </svg>
+          )}
           <div className="flex flex-col gap-[3px]">
             <span className="text-white font-bold text-[20px] leading-none tracking-tight">kyru</span>
             <span className="text-[11px] font-semibold leading-none tracking-[0.16em]" style={{ color: "#3dbf8a" }}>

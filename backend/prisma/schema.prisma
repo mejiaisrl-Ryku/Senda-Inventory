@@ -100,6 +100,7 @@ model Restaurant {
   name        String
   address     String?
   phone       String?
+  logo        String?   // base64 data URL (PNG/JPG, max ~2.7 MB encoded)
   suspended   Boolean   @default(false)
   suspendedAt DateTime?
   createdAt   DateTime  @default(now())

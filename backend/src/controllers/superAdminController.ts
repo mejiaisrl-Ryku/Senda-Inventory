@@ -77,6 +77,7 @@ export async function listRestaurants(req: AuthRequest, res: Response, next: Nex
         name: true,
         address: true,
         phone: true,
+        logo: true,
         createdAt: true,
         _count: { select: { users: true, products: true } },
         users: {
@@ -94,6 +95,7 @@ export async function listRestaurants(req: AuthRequest, res: Response, next: Nex
       name: r.name,
       address: r.address,
       phone: r.phone,
+      logo: r.logo,
       createdAt: r.createdAt,
       userCount: r._count.users,
       productCount: r._count.products,
@@ -282,6 +284,7 @@ export async function getRestaurantDetail(req: AuthRequest, res: Response, next:
         name: true,
         address: true,
         phone: true,
+        logo: true,
         suspended: true,
         suspendedAt: true,
         createdAt: true,
@@ -339,6 +342,44 @@ export async function toggleSuspendRestaurant(req: AuthRequest, res: Response, n
         suspendedAt: nowSuspended ? new Date() : null,
       },
       select: { id: true, suspended: true, suspendedAt: true },
+    });
+
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PUT /api/super-admin/restaurants/:id/logo
+ * Set or clear the restaurant logo (base64 data URL). Pass null to remove.
+ */
+export async function updateRestaurantLogo(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { id } = req.params;
+    const { logo } = req.body as { logo: string | null };
+
+    // Validate: must be a data URL or null
+    if (logo !== null && logo !== undefined) {
+      if (typeof logo !== "string") {
+        return res.status(400).json({ error: "logo must be a base64 data URL string or null." });
+      }
+      if (!logo.startsWith("data:image/")) {
+        return res.status(400).json({ error: "logo must be a valid image data URL." });
+      }
+      // Rough size guard: base64 of 2 MB ≈ 2.73 MB of chars
+      if (logo.length > 3_000_000) {
+        return res.status(400).json({ error: "Logo exceeds the 2 MB limit." });
+      }
+    }
+
+    const restaurant = await prisma.restaurant.findUnique({ where: { id } });
+    if (!restaurant) return res.status(404).json({ error: "Restaurant not found." });
+
+    const updated = await prisma.restaurant.update({
+      where: { id },
+      data: { logo: logo ?? null },
+      select: { id: true, logo: true },
     });
 
     res.json(updated);

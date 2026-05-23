@@ -27,6 +27,7 @@ export interface SARestaurant {
   name: string;
   address: string | null;
   phone: string | null;
+  logo: string | null;
   createdAt: string;
   userCount: number;
   productCount: number;
@@ -47,6 +48,7 @@ export interface SARestaurantDetail {
   name: string;
   address: string | null;
   phone: string | null;
+  logo: string | null;
   suspended: boolean;
   suspendedAt: string | null;
   createdAt: string;
@@ -89,6 +91,12 @@ export const superAdminApi = {
   toggleSuspend: (id: string) =>
     saApi.patch<{ id: string; suspended: boolean; suspendedAt: string | null }>(
       `/super-admin/restaurants/${id}/suspend`
+    ).then((r) => r.data),
+
+  updateLogo: (id: string, logo: string | null) =>
+    saApi.put<{ id: string; logo: string | null }>(
+      `/super-admin/restaurants/${id}/logo`,
+      { logo }
     ).then((r) => r.data),
 
   // -- Users --

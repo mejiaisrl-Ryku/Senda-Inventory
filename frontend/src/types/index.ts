@@ -5,6 +5,7 @@ export interface User {
   role: "ADMIN" | "STAFF";
   restaurantId: string;
   restaurantName?: string;
+  restaurantLogo?: string | null;
 }
 
 export type Unit = "KG" | "LITERS" | "PIECES" | "LB" | "OZ" | "G" | "EA" | "DOZ";

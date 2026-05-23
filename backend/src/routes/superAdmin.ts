@@ -9,6 +9,7 @@ import {
   deleteRestaurant,
   getRestaurantDetail,
   toggleSuspendRestaurant,
+  updateRestaurantLogo,
   listAllUsers,
   inviteAdmin,
   sendUserResetEmail,
@@ -31,6 +32,7 @@ router.get("/restaurants", listRestaurants as never);
 router.post("/restaurants", validate(createRestaurantSchema), createRestaurant as never);
 router.get("/restaurants/:id", getRestaurantDetail as never);
 router.patch("/restaurants/:id/suspend", toggleSuspendRestaurant as never);
+router.put("/restaurants/:id/logo", updateRestaurantLogo as never);
 router.delete("/restaurants/:id", deleteRestaurant as never);
 
 // Users (cross-restaurant)

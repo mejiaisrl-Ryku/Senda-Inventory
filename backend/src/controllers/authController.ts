@@ -23,14 +23,14 @@ export const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
-// Select shape — includes the restaurant relation so every response carries restaurantName.
+// Select shape — includes the restaurant relation so every response carries restaurantName + restaurantLogo.
 const safeUser = {
   id: true,
   name: true,
   email: true,
   role: true,
   restaurantId: true,
-  restaurant: { select: { name: true } },
+  restaurant: { select: { name: true, logo: true } },
 } as const;
 
 type SafeUserResult = {
@@ -39,13 +39,17 @@ type SafeUserResult = {
   email: string;
   role: string;
   restaurantId: string | null;
-  restaurant: { name: string } | null;
+  restaurant: { name: string; logo: string | null } | null;
 };
 
-/** Flatten the nested restaurant relation into a top-level restaurantName field. */
+/** Flatten the nested restaurant relation into top-level restaurantName + restaurantLogo fields. */
 function toUserResponse(u: SafeUserResult) {
   const { restaurant, ...rest } = u;
-  return { ...rest, restaurantName: restaurant?.name ?? null };
+  return {
+    ...rest,
+    restaurantName: restaurant?.name ?? null,
+    restaurantLogo: restaurant?.logo ?? null,
+  };
 }
 
 function makeTokenPair(userId: string, role: string, restaurantId: string | null) {

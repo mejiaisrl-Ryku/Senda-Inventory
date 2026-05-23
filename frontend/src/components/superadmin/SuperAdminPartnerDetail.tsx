@@ -26,11 +26,16 @@ function RolePill({ role }: { role: string }) {
     ADMIN: "bg-blue-900/20 text-blue-400 border-blue-800/30",
     STAFF: "bg-[#1a1a1a] text-[#888] border-[#2a2a2a]",
   };
+  const labels: Record<string, string> = {
+    SUPER_ADMIN: "Super admin",
+    ADMIN: "Admin",
+    STAFF: "User",
+  };
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${styles[role] ?? styles.STAFF}`}
     >
-      {role.charAt(0) + role.slice(1).toLowerCase().replace("_", " ")}
+      {labels[role] ?? role}
     </span>
   );
 }
@@ -280,6 +285,13 @@ function ProductSummary({
     BOTH: "bg-[#3dbf8a]/10 text-[#3dbf8a]",
   };
 
+  const deptLabels: Record<string, string> = {
+    BOH: "Kitchen",
+    FOH: "FOH",
+    BAR: "Bar",
+    BOTH: "Both",
+  };
+
   return (
     <div>
       <div className="mb-4">
@@ -303,7 +315,7 @@ function ProductSummary({
                       deptColors[dept] ?? "bg-[#1a1a1a] text-[#888]"
                     }`}
                   >
-                    {dept}
+                    {deptLabels[dept] ?? dept}
                   </span>
                   <span className="text-[13px] text-[#888]">{count}</span>
                 </div>
@@ -331,6 +343,116 @@ function ProductSummary({
           )}
         </Card>
       </div>
+    </div>
+  );
+}
+
+// ── Main detail page ──────────────────────────────────────────────────────────
+
+// ── Logo upload area ──────────────────────────────────────────────────────────
+
+function LogoUpload({
+  currentLogo,
+  restaurantName,
+  onSave,
+}: {
+  currentLogo: string | null;
+  restaurantName: string;
+  onSave: (logo: string | null) => Promise<void>;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a PNG or JPG image.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Image must be under 2 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      await onSave(dataUrl);
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  async function handleRemove() {
+    setRemoving(true);
+    try {
+      await onSave(null);
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  const initials = restaurantName
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <div className="relative group flex-shrink-0">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={handleFile}
+      />
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading || removing}
+        title="Upload logo"
+        className="w-14 h-14 rounded-full overflow-hidden border-2 border-[#2a2a2a] hover:border-[#3dbf8a] transition-colors flex items-center justify-center bg-[#111] disabled:opacity-50 relative"
+      >
+        {currentLogo ? (
+          <img src={currentLogo} alt={restaurantName} className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-[#555] text-[18px] font-bold">{initials}</span>
+        )}
+        {/* Hover overlay */}
+        <span className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
+          {uploading || removing ? (
+            <Spinner size="sm" />
+          ) : (
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          )}
+        </span>
+      </button>
+      {/* Remove button — only when logo exists */}
+      {currentLogo && !uploading && !removing && (
+        <button
+          type="button"
+          onClick={handleRemove}
+          title="Remove logo"
+          className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[#0a0a0a] border border-[#2a2a2a] flex items-center justify-center text-[#555] hover:text-red-400 hover:border-red-800/40 transition-colors opacity-0 group-hover:opacity-100"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
@@ -395,6 +517,17 @@ export function SuperAdminPartnerDetail() {
     }
   }
 
+  async function handleLogoSave(logo: string | null) {
+    if (!detail) return;
+    try {
+      const updated = await superAdminApi.updateLogo(detail.id, logo);
+      setDetail((prev) => prev ? { ...prev, logo: updated.logo } : prev);
+      toast.success(logo ? "Logo updated." : "Logo removed.");
+    } catch {
+      toast.error("Failed to update logo.");
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -431,6 +564,11 @@ export function SuperAdminPartnerDetail() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
+          <LogoUpload
+            currentLogo={detail.logo}
+            restaurantName={detail.name}
+            onSave={handleLogoSave}
+          />
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-[22px] font-semibold text-white truncate">{detail.name}</h1>
@@ -442,8 +580,7 @@ export function SuperAdminPartnerDetail() {
             </div>
             <p className="text-[13px] text-[#555] mt-0.5">
               {detail.userCount} user{detail.userCount !== 1 ? "s" : ""} ·{" "}
-              {detail.productCount} product{detail.productCount !== 1 ? "s" : ""} · Created{" "}
-              {formatDate(detail.createdAt)}
+              {detail.productCount} product{detail.productCount !== 1 ? "s" : ""}
             </p>
           </div>
         </div>
@@ -493,12 +630,14 @@ export function SuperAdminPartnerDetail() {
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
-            <p className={labelCls}>Address</p>
-            <p className="text-[13px] text-[#888]">{detail.address ?? "—"}</p>
+            <p className={labelCls}>Created</p>
+            <p className="text-[13px] text-[#888]">{formatDate(detail.createdAt)}</p>
           </div>
           <div>
-            <p className={labelCls}>Phone</p>
-            <p className="text-[13px] text-[#888]">{detail.phone ?? "—"}</p>
+            <p className={labelCls}>Owner email</p>
+            <p className="text-[13px] text-[#888] truncate">
+              {detail.users.find((u) => u.role === "ADMIN")?.email ?? "—"}
+            </p>
           </div>
           <div>
             <p className={labelCls}>Users</p>

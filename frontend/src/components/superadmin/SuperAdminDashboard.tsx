@@ -37,9 +37,14 @@ function RolePill({ role }: { role: string }) {
     ADMIN: "bg-blue-900/20 text-blue-400 border-blue-800/30",
     STAFF: "bg-[#1a1a1a] text-[#888] border-[#2a2a2a]",
   };
+  const labels: Record<string, string> = {
+    SUPER_ADMIN: "Super admin",
+    ADMIN: "Admin",
+    STAFF: "User",
+  };
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${styles[role] ?? styles.STAFF}`}>
-      {role.charAt(0) + role.slice(1).toLowerCase().replace("_", " ")}
+      {labels[role] ?? role}
     </span>
   );
 }
