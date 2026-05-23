@@ -55,7 +55,6 @@ const recipeInclude = {
         },
       },
     },
-    orderBy: { product: { name: "asc" } } as const,
   },
 };
 
@@ -132,26 +131,29 @@ export async function createRecipe(req: AuthRequest, res: Response, next: NextFu
   try {
     const body = upsertRecipeSchema.parse(req.body);
 
-    const recipe = await (prisma as any).$transaction(async (tx: any) => {
-      const r = await tx.recipe.create({
-        data: {
-          restaurantId: req.user.restaurantId,
-          name:         body.name,
-          department:   body.department as never,
-          sellingPrice: body.sellingPrice,
-        },
-      });
+    // Create recipe first, then bulk-insert ingredients
+    const created = await recipeModel.create({
+      data: {
+        restaurantId: req.user.restaurantId,
+        name:         body.name,
+        department:   body.department as never,
+        sellingPrice: body.sellingPrice,
+      },
+    });
 
-      await tx.recipeIngredient.createMany({
-        data: body.ingredients.map((ing) => ({
-          recipeId:  r.id,
-          productId: ing.productId,
-          quantity:  ing.quantity,
-          unit:      ing.unit,
-        })),
-      });
+    await ingredientModel.createMany({
+      data: body.ingredients.map((ing) => ({
+        recipeId:  created.id,
+        productId: ing.productId,
+        quantity:  ing.quantity,
+        unit:      ing.unit,
+      })),
+    });
 
-      return tx.recipe.findUnique({ where: { id: r.id }, include: recipeInclude });
+    // Re-fetch with full product details for the response
+    const recipe = await recipeModel.findFirst({
+      where:   { id: created.id },
+      include: recipeInclude,
     });
 
     res.status(201).json(serialize(recipe));
@@ -171,28 +173,31 @@ export async function updateRecipe(req: AuthRequest, res: Response, next: NextFu
 
     const body = upsertRecipeSchema.parse(req.body);
 
-    const recipe = await (prisma as any).$transaction(async (tx: any) => {
-      await tx.recipe.update({
-        where: { id: req.params.id },
-        data:  {
-          name:         body.name,
-          department:   body.department as never,
-          sellingPrice: body.sellingPrice,
-        },
-      });
+    // Update core fields
+    await recipeModel.update({
+      where: { id: req.params.id },
+      data:  {
+        name:         body.name,
+        department:   body.department as never,
+        sellingPrice: body.sellingPrice,
+      },
+    });
 
-      // Full replace: delete all existing ingredients then re-insert
-      await tx.recipeIngredient.deleteMany({ where: { recipeId: req.params.id } });
-      await tx.recipeIngredient.createMany({
-        data: body.ingredients.map((ing) => ({
-          recipeId:  req.params.id,
-          productId: ing.productId,
-          quantity:  ing.quantity,
-          unit:      ing.unit,
-        })),
-      });
+    // Full replace: delete all existing ingredients then re-insert
+    await ingredientModel.deleteMany({ where: { recipeId: req.params.id } });
+    await ingredientModel.createMany({
+      data: body.ingredients.map((ing) => ({
+        recipeId:  req.params.id,
+        productId: ing.productId,
+        quantity:  ing.quantity,
+        unit:      ing.unit,
+      })),
+    });
 
-      return tx.recipe.findUnique({ where: { id: req.params.id }, include: recipeInclude });
+    // Re-fetch with full product details
+    const recipe = await recipeModel.findFirst({
+      where:   { id: req.params.id },
+      include: recipeInclude,
     });
 
     res.json(serialize(recipe));

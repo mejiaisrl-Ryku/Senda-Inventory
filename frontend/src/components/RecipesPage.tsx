@@ -24,6 +24,29 @@ function costPctBg(pct: number): string {
   return "bg-red-400/10";
 }
 
+// ── Recipe-specific unit options ──────────────────────────────────────────────
+
+const RECIPE_UNITS = [
+  { value: "PCS", label: "PCS – Pieces"      },
+  { value: "KG",  label: "KG – Kilograms"    },
+  { value: "G",   label: "G – Grams"         },
+  { value: "L",   label: "L – Liters"        },
+  { value: "ML",  label: "ML – Milliliters"  },
+  { value: "LB",  label: "LB – Pounds"       },
+  { value: "OZ",  label: "OZ – Ounces"       },
+  { value: "EA",  label: "EA – Each"         },
+  { value: "DOZ", label: "DOZ – Dozen"       },
+] as const;
+
+// Map product Unit values → nearest RECIPE_UNITS value
+function toRecipeUnit(productUnit: string): string {
+  const map: Record<string, string> = {
+    PIECES: "PCS",
+    LITERS: "L",
+  };
+  return map[productUnit] ?? productUnit;
+}
+
 // ── Ingredient row in the modal ───────────────────────────────────────────────
 
 interface IngredientLine {
@@ -161,7 +184,7 @@ export function RecipesPage() {
         productUnit: ing.product?.unit ?? ing.unit,
         costPerUnit: ing.product?.costPerUnit ?? 0,
         quantity:    String(ing.quantity),
-        unit:        ing.unit,
+        unit:        ing.unit, // stored unit (already a RECIPE_UNITS value)
       })),
     });
     setIngSearch("");
@@ -188,7 +211,7 @@ export function RecipesPage() {
           productUnit: p.unit,
           costPerUnit: p.costPerUnit,
           quantity:    "1",
-          unit:        p.unit,
+          unit:        toRecipeUnit(p.unit),
         },
       ],
     }));
@@ -204,6 +227,13 @@ export function RecipesPage() {
     setForm((f) => ({
       ...f,
       ingredients: f.ingredients.map((i) => i.key === key ? { ...i, quantity } : i),
+    }));
+  }
+
+  function updateIngUnit(key: string, unit: string) {
+    setForm((f) => ({
+      ...f,
+      ingredients: f.ingredients.map((i) => i.key === key ? { ...i, unit } : i),
     }));
   }
 
@@ -486,28 +516,39 @@ export function RecipesPage() {
                       value={ingSearch}
                       onChange={(e) => { setIngSearch(e.target.value); setSearchOpen(true); }}
                       onFocus={() => setSearchOpen(true)}
-                      placeholder="Search products to add as ingredients…"
-                      className="w-full pl-8 pr-3 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                      placeholder="Search products by name or SKU…"
+                      className="w-full pl-8 pr-8 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
                     />
+                    {ingSearch && (
+                      <button
+                        type="button"
+                        onClick={() => { setIngSearch(""); setSearchOpen(false); }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#444] hover:text-[#888] transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
 
-                  {/* Dropdown */}
+                  {/* Results dropdown */}
                   {searchOpen && searchResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-[#111] border border-[#2a2a2a] rounded-xl shadow-xl overflow-hidden">
+                    <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-[#111] border border-[#2a2a2a] rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto">
                       {searchResults.map((p) => (
                         <button
                           key={p.id}
                           type="button"
                           onClick={() => addIngredient(p)}
-                          className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left hover:bg-[#1a1a1a] transition-colors"
+                          className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-left hover:bg-[#1a1a1a] transition-colors border-b border-[#1a1a1a] last:border-0"
                         >
-                          <div>
+                          <div className="min-w-0">
                             <span className="text-white font-medium">{p.name}</span>
                             {p.category && (
                               <span className="ml-2 text-[11px] text-[#444]">{p.category}</span>
                             )}
                           </div>
-                          <span className="text-[12px] text-[#555] ml-4 flex-shrink-0">
+                          <span className="text-[12px] text-[#555] ml-4 flex-shrink-0 tabular-nums">
                             {formatCurrency(p.costPerUnit)} / {p.unit}
                           </span>
                         </button>
@@ -515,9 +556,11 @@ export function RecipesPage() {
                     </div>
                   )}
 
-                  {searchOpen && ingSearch.trim() && searchResults.length === 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-[#111] border border-[#2a2a2a] rounded-xl shadow-xl px-4 py-3 text-[13px] text-[#444]">
-                      No products found matching "{ingSearch}"
+                  {/* No results hint */}
+                  {searchOpen && ingSearch.trim().length >= 2 && searchResults.length === 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-[#111] border border-[#2a2a2a] rounded-xl shadow-xl px-4 py-3">
+                      <p className="text-[13px] text-[#444]">No products found for "<span className="text-[#666]">{ingSearch}</span>"</p>
+                      <p className="text-[11px] text-[#333] mt-1">Make sure the product exists in your Invoices list.</p>
                     </div>
                   )}
                 </div>
@@ -526,37 +569,56 @@ export function RecipesPage() {
                 {form.ingredients.length > 0 && (
                   <div className="mt-3 space-y-2">
                     {/* Column headers */}
-                    <div className="grid grid-cols-[1fr_90px_80px_32px] gap-2 px-1">
+                    <div className="grid grid-cols-[1fr_68px_100px_72px_28px] gap-1.5 px-1">
                       <span className="text-[10px] text-[#444] uppercase tracking-wider">Product</span>
                       <span className="text-[10px] text-[#444] uppercase tracking-wider text-right">Qty</span>
+                      <span className="text-[10px] text-[#444] uppercase tracking-wider">Unit</span>
                       <span className="text-[10px] text-[#444] uppercase tracking-wider text-right">Cost</span>
                       <span />
                     </div>
                     {form.ingredients.map((ing) => (
                       <div
                         key={ing.key}
-                        className="grid grid-cols-[1fr_90px_80px_32px] gap-2 items-center bg-[#111] border border-[#1a1a1a] rounded-lg px-3 py-2"
+                        className="grid grid-cols-[1fr_68px_100px_72px_28px] gap-1.5 items-center bg-[#111] border border-[#1a1a1a] rounded-lg px-3 py-2"
                       >
+                        {/* Product info */}
                         <div className="min-w-0">
                           <p className="text-[13px] text-white font-medium truncate">{ing.productName}</p>
-                          <p className="text-[11px] text-[#444]">{formatCurrency(ing.costPerUnit)} / {ing.productUnit}</p>
+                          <p className="text-[11px] text-[#444]">{formatCurrency(ing.costPerUnit)}/{ing.productUnit}</p>
                         </div>
+
+                        {/* Quantity */}
                         <input
                           type="text"
                           inputMode="decimal"
                           value={ing.quantity}
                           onChange={(e) => updateIngQty(ing.key, e.target.value)}
-                          className="w-full text-right px-2 py-1 rounded-lg bg-[#0a0a0a] border border-[#2a2a2a] text-white text-sm focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                          className="w-full text-right px-2 py-1.5 rounded-[6px] bg-[#0a0a0a] border border-[#2a2a2a] text-white text-sm focus:outline-none focus:border-[#3dbf8a] transition-colors"
                         />
-                        <span className="text-right text-[13px] text-[#888] tabular-nums">
+
+                        {/* Unit dropdown */}
+                        <select
+                          value={ing.unit}
+                          onChange={(e) => updateIngUnit(ing.key, e.target.value)}
+                          className="w-full px-2 py-1.5 rounded-[6px] bg-[#0a0a0a] border border-[#2a2a2a] text-white text-[12px] focus:outline-none focus:border-[#3dbf8a] transition-colors appearance-none cursor-pointer"
+                        >
+                          {RECIPE_UNITS.map(({ value, label }) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+
+                        {/* Computed cost */}
+                        <span className="text-right text-[12px] text-[#888] tabular-nums leading-tight">
                           {formatCurrency(ingCost(ing))}
                         </span>
+
+                        {/* Remove */}
                         <button
                           type="button"
                           onClick={() => removeIngredient(ing.key)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[#444] hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                          className="w-6 h-6 flex items-center justify-center rounded-md text-[#444] hover:text-red-400 hover:bg-red-400/10 transition-colors mx-auto"
                         >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>

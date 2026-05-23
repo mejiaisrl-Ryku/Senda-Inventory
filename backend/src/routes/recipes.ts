@@ -14,10 +14,10 @@ const router = Router();
 router.use(authenticate  as never);
 router.use(requireAdmin  as never);
 
-router.get(   "/",    listRecipes);
-router.get(   "/:id", getRecipe);
-router.post(  "/",    createRecipe);
-router.put(   "/:id", updateRecipe);
-router.delete("/:id", deleteRecipe);
+router.get(   "/",    listRecipes  as never);
+router.get(   "/:id", getRecipe    as never);
+router.post(  "/",    createRecipe as never);
+router.put(   "/:id", updateRecipe as never);
+router.delete("/:id", deleteRecipe as never);
 
 export default router;
