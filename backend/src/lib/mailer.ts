@@ -1,12 +1,68 @@
 import { Resend } from "resend";
 
-const FROM = "noreply@kyruadvisory.com";
+// ── Config ────────────────────────────────────────────────────────────────────
 
-function getClient() {
+// RESEND_FROM must be a "name <email>" or plain email address whose domain is
+// verified in your Resend account.  If the domain is unverified Resend rejects
+// the send.  Set this in Railway's environment variables.
+// Fallback: Resend's own onboarding domain works without domain verification
+// and is useful for testing; swap for your verified domain in production.
+const FROM =
+  process.env.RESEND_FROM ?? "kyru Advisory <noreply@kyruadvisory.com>";
+
+// ── Client factory ────────────────────────────────────────────────────────────
+
+function getClient(): Resend {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) throw new Error("RESEND_API_KEY is not set");
+  if (!apiKey) {
+    console.error("[mailer] CRITICAL: RESEND_API_KEY is not set — emails will not be sent");
+    throw new Error("RESEND_API_KEY is not set");
+  }
+  console.log(`[mailer] Resend client ready. FROM="${FROM}"`);
   return new Resend(apiKey);
 }
+
+// ── Shared send helper ────────────────────────────────────────────────────────
+
+async function sendMail(payload: Parameters<Resend["emails"]["send"]>[0]): Promise<string> {
+  const resend = getClient();
+
+  console.log(`[mailer] Sending email to="${payload.to}" subject="${payload.subject}"`);
+
+  let result: Awaited<ReturnType<Resend["emails"]["send"]>>;
+  try {
+    result = await resend.emails.send(payload);
+  } catch (networkErr: unknown) {
+    // Resend SDK can throw on network errors (not just return { error })
+    const msg = networkErr instanceof Error ? networkErr.message : String(networkErr);
+    console.error(`[mailer] Network/SDK error calling Resend: ${msg}`);
+    throw new Error(`Resend network error: ${msg}`);
+  }
+
+  const { data, error } = result;
+
+  if (error) {
+    console.error(
+      `[mailer] Resend rejected the send: ${JSON.stringify(error)}`
+    );
+    throw new Error(`Resend error: ${error.message}`);
+  }
+
+  if (!data?.id) {
+    // Resend SDK quirk: on some failure modes neither data nor error is set.
+    console.error(
+      `[mailer] Resend returned no message ID and no error — email was NOT queued. Raw result: ${JSON.stringify(result)}`
+    );
+    throw new Error(
+      "Resend returned no message ID — the email was not queued. Check your RESEND_FROM domain is verified in the Resend dashboard."
+    );
+  }
+
+  console.log(`[mailer] ✓ Email queued successfully. Resend message ID: ${data.id}`);
+  return data.id;
+}
+
+// ── Public helpers ────────────────────────────────────────────────────────────
 
 export async function sendInviteEmail({
   to,
@@ -18,9 +74,7 @@ export async function sendInviteEmail({
   toName: string;
   restaurantName: string;
   inviteUrl: string;
-}) {
-  const resend = getClient();
-
+}): Promise<string> {
   const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -98,15 +152,13 @@ export async function sendInviteEmail({
 </body>
 </html>`;
 
-  const { error } = await resend.emails.send({
-    from: `kyru Advisory <${FROM}>`,
+  return sendMail({
+    from: FROM,
     to: `${toName} <${to}>`,
     subject: `You're invited to join ${restaurantName} on kyru`,
     text: `Hi ${toName},\n\nYou've been invited to join ${restaurantName} on kyru.\n\nAccept your invitation here:\n${inviteUrl}\n\nThis link expires in 7 days.\n\n— kyru Advisory`,
     html,
   });
-
-  if (error) throw new Error(`Resend error: ${error.message}`);
 }
 
 export async function sendPasswordResetEmail({
@@ -117,9 +169,7 @@ export async function sendPasswordResetEmail({
   to: string;
   toName: string;
   resetUrl: string;
-}) {
-  const resend = getClient();
-
+}): Promise<string> {
   const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -197,13 +247,11 @@ export async function sendPasswordResetEmail({
 </body>
 </html>`;
 
-  const { error } = await resend.emails.send({
-    from: `kyru Advisory <${FROM}>`,
+  return sendMail({
+    from: FROM,
     to: toName ? `${toName} <${to}>` : to,
     subject: "Reset your kyru password",
     text: `Hi ${toName},\n\nWe received a request to reset your kyru password.\n\nReset it here (expires in 1 hour):\n${resetUrl}\n\nIf you didn't request this, ignore this email.\n\n— kyru Advisory`,
     html,
   });
-
-  if (error) throw new Error(`Resend error: ${error.message}`);
 }

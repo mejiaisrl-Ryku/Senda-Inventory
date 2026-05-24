@@ -79,15 +79,20 @@ export async function inviteTeamMember(req: AuthRequest, res: Response, next: Ne
     const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
     const inviteUrl = `${frontendUrl}/register?token=${token}`;
 
-    await sendInviteEmail({
+    console.log(`[inviteTeamMember] Calling sendInviteEmail to="${email}" restaurant="${restaurant.name}"`);
+
+    const messageId = await sendInviteEmail({
       to: email,
       toName: name,
       restaurantName: restaurant.name,
       inviteUrl,
     });
 
-    res.status(204).end();
+    console.log(`[inviteTeamMember] ✓ Invite sent. Resend messageId="${messageId}" to="${email}"`);
+
+    res.status(200).json({ ok: true, messageId });
   } catch (err) {
+    console.error(`[inviteTeamMember] Failed to invite email="${(req.body as { email?: string }).email}":`, err);
     next(err);
   }
 }

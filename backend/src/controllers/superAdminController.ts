@@ -212,14 +212,18 @@ export async function inviteAdmin(req: AuthRequest, res: Response, next: NextFun
       restaurantId: string;
     };
 
+    console.log(`[inviteAdmin] Invite requested: email="${email}" restaurant="${restaurantId}"`);
+
     const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
     if (!restaurant) {
+      console.warn(`[inviteAdmin] Restaurant not found: ${restaurantId}`);
       return res.status(404).json({ error: "Restaurant not found." });
     }
 
     // Don't invite someone who already has an account in this restaurant.
     const existing = await prisma.user.findFirst({ where: { email, restaurantId } });
     if (existing) {
+      console.warn(`[inviteAdmin] Duplicate invite blocked: ${email} already in restaurant ${restaurantId}`);
       return res.status(409).json({ error: "A user with that email already exists in this team." });
     }
 
@@ -233,15 +237,21 @@ export async function inviteAdmin(req: AuthRequest, res: Response, next: NextFun
     const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
     const inviteUrl = `${frontendUrl}/register?token=${token}`;
 
-    await sendInviteEmail({
+    console.log(`[inviteAdmin] Calling sendInviteEmail to="${email}" restaurant="${restaurant.name}" frontendUrl="${frontendUrl}"`);
+
+    const messageId = await sendInviteEmail({
       to: email,
       toName: name,
       restaurantName: restaurant.name,
       inviteUrl,
     });
 
-    res.status(204).end();
+    console.log(`[inviteAdmin] ✓ Invite email sent. Resend messageId="${messageId}" to="${email}"`);
+
+    // Return 200 with the Resend message ID so the caller can confirm delivery.
+    res.status(200).json({ ok: true, messageId });
   } catch (err) {
+    console.error(`[inviteAdmin] Failed to send invite to email="${(req.body as { email?: string }).email}":`, err);
     next(err);
   }
 }
@@ -253,18 +263,23 @@ export async function sendUserResetEmail(req: AuthRequest, res: Response, next: 
     const target = await prisma.user.findUnique({ where: { id: userId } });
     if (!target) return res.status(404).json({ error: "User not found." });
 
+    console.log(`[sendUserResetEmail] Sending password reset to email="${target.email}" userId="${userId}"`);
+
     const token = signResetToken({ userId: target.id, email: target.email });
     const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
     const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
 
-    await sendPasswordResetEmail({
+    const messageId = await sendPasswordResetEmail({
       to: target.email,
       toName: target.name ?? target.email,
       resetUrl,
     });
 
-    res.status(204).end();
+    console.log(`[sendUserResetEmail] ✓ Reset email sent. Resend messageId="${messageId}" to="${target.email}"`);
+
+    res.status(200).json({ ok: true, messageId });
   } catch (err) {
+    console.error(`[sendUserResetEmail] Failed for userId="${req.params.userId}":`, err);
     next(err);
   }
 }
