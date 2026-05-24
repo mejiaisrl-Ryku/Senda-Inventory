@@ -3,6 +3,7 @@ import { stockApi } from "../api";
 import { StockReport } from "../types";
 import { formatCurrency } from "../utils/stock";
 import { LowStockAlerts } from "./LowStockAlerts";
+import { OnboardingChecklist } from "./OnboardingChecklist";
 import { PageSpinner } from "./shared/Spinner";
 import { useStockSocket } from "../hooks/useStockSocket";
 import { useAuth } from "../context/AuthContext";
@@ -83,6 +84,8 @@ export function Dashboard() {
         <h1 className="text-[22px] font-semibold text-white">{pageTitle}</h1>
         <p className="text-[13px] text-[#555] mt-1">{t.dashboard.subtitle}</p>
       </div>
+
+      <OnboardingChecklist />
 
       {report && (
         <>

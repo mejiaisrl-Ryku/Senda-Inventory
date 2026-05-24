@@ -18,6 +18,7 @@ import aiRouter from "./routes/ai";
 import laborRouter from "./routes/labor";
 import countsRouter from "./routes/counts";
 import recipesRouter from "./routes/recipes";
+import onboardingRouter from "./routes/onboarding";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -75,6 +76,7 @@ app.use("/api/ai", aiRouter);
 app.use("/api/labor", laborRouter);
 app.use("/api/counts", countsRouter);
 app.use("/api/recipes", recipesRouter);
+app.use("/api/onboarding", onboardingRouter);
 
 app.use(errorHandler);
 

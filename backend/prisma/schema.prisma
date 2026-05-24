@@ -97,15 +97,16 @@ enum RecipeDepartment {
 // ─────────────────────────────────────────────
 
 model Restaurant {
-  id          String    @id @default(cuid())
-  name        String
-  address     String?
-  phone       String?
-  logo        String?   // base64 data URL (PNG/JPG, max ~2.7 MB encoded)
-  suspended   Boolean   @default(false)
-  suspendedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id                   String    @id @default(cuid())
+  name                 String
+  address              String?
+  phone                String?
+  logo                 String?   // base64 data URL (PNG/JPG, max ~2.7 MB encoded)
+  suspended            Boolean   @default(false)
+  suspendedAt          DateTime?
+  onboardingDismissed  Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   users         User[]
   products      Product[]

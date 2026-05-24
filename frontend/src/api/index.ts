@@ -348,6 +348,27 @@ export const laborApi = {
   delete: (id: string) => api.delete(`/labor/${id}`),
 };
 
+// ── Onboarding checklist ──────────────────────────────────────────────────────
+
+export interface OnboardingProgress {
+  dismissed: boolean;
+  completed: {
+    invoice:  boolean;
+    product:  boolean;
+    recipe:   boolean;
+    parLevel: boolean;
+    team:     boolean;
+  };
+}
+
+export const onboardingApi = {
+  progress: () =>
+    api.get<OnboardingProgress>("/onboarding/progress").then((r) => r.data),
+
+  dismiss: () =>
+    api.post<{ ok: boolean }>("/onboarding/dismiss").then((r) => r.data),
+};
+
 // ── Partner setup (public — used on the /partner-setup onboarding page) ───────
 
 export const partnerSetupApi = {
