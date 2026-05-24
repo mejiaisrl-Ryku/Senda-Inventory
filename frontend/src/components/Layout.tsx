@@ -134,7 +134,7 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-// ── Shared nav item class builder ─────────────────────────────────────────────
+// ── Nav item class builders ────────────────────────────────────────────────────
 
 function navItemClass(isActive: boolean) {
   const base =
@@ -144,9 +144,23 @@ function navItemClass(isActive: boolean) {
     : `${base} text-[#888] hover:text-white hover:bg-[#111] border-transparent`;
 }
 
+function collapsedNavItemClass(isActive: boolean) {
+  const base =
+    "flex items-center justify-center w-full py-2.5 rounded-[6px] transition-colors outline-none border-l-2";
+  return isActive
+    ? `${base} bg-[#1a1a1a] text-white border-[#3dbf8a]`
+    : `${base} text-[#888] hover:text-white hover:bg-[#111] border-transparent`;
+}
+
 // ── Sidebar ───────────────────────────────────────────────────────────────────
 
-function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
+interface SidebarContentProps {
+  onNavClick?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}
+
+function SidebarContent({ onNavClick, collapsed = false, onToggleCollapse }: SidebarContentProps) {
   const { user, logout, isAdmin } = useAuth();
   const { t } = useLanguage();
   const restaurantLogo = user?.restaurantLogo ?? null;
@@ -166,31 +180,41 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="px-5 pt-8 pb-6 border-b border-[#1a1a1a]">
-        <div className="flex flex-col gap-3">
+      <div className={`${collapsed ? 'px-2 flex justify-center' : 'px-5'} pt-8 pb-6 border-b border-[#1a1a1a]`}>
+        {collapsed ? (
           <img
-            src={process.env.PUBLIC_URL + '/kyru-logo-horizontal.svg'}
+            src={process.env.PUBLIC_URL + '/kyru-logo-icon.svg'}
             alt="Kyru"
-            className="h-8 w-auto object-contain"
+            className="object-contain"
+            style={{ width: '32px', height: 'auto' }}
           />
-          {restaurantLogo && (
+        ) : (
+          <div className="flex flex-col gap-3">
             <img
-              src={restaurantLogo}
-              alt={user?.restaurantName ?? "Restaurant logo"}
-              className="h-10 w-auto object-contain flex-shrink-0"
+              src={process.env.PUBLIC_URL + '/kyru-logo-horizontal.svg'}
+              alt="Kyru"
+              className="object-contain"
+              style={{ width: '140px', height: 'auto' }}
             />
-          )}
-        </div>
+            {restaurantLogo && (
+              <img
+                src={restaurantLogo}
+                alt={user?.restaurantName ?? "Restaurant logo"}
+                className="h-10 w-auto object-contain flex-shrink-0"
+              />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-3 space-y-4 overflow-y-auto">
+      <nav className={`flex-1 ${collapsed ? 'px-1.5' : 'px-3'} py-3 space-y-4 overflow-y-auto`}>
         {navGroups.map((group, gi) => {
           const visible = filterItems(group.items);
           if (visible.length === 0) return null;
           return (
             <div key={gi}>
-              {group.headerKey && (
+              {!collapsed && group.headerKey && (
                 <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#444]">
                   {navT[group.headerKey] ?? group.headerKey}
                 </p>
@@ -202,10 +226,12 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
                     to={to}
                     end={to === "/"}
                     onClick={onNavClick}
-                    className={({ isActive }) => navItemClass(isActive)}
+                    className={({ isActive }) =>
+                      collapsed ? collapsedNavItemClass(isActive) : navItemClass(isActive)
+                    }
                   >
                     {icon}
-                    {navT[labelKey] ?? labelKey}
+                    {!collapsed && (navT[labelKey] ?? labelKey)}
                   </NavLink>
                 ))}
               </div>
@@ -214,29 +240,56 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
         })}
       </nav>
 
-      {/* Bottom: logout + user + lang toggle */}
-      <div className="px-3 py-3 border-t border-[#1a1a1a] space-y-0.5">
+      {/* Bottom: collapse toggle + logout + user */}
+      <div className={`${collapsed ? 'px-1.5' : 'px-3'} py-3 border-t border-[#1a1a1a] space-y-0.5`}>
+        {/* Collapse toggle — desktop only, hidden on mobile overlay */}
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2.5 pl-[10px] pr-3'} w-full py-2 rounded-[6px] text-[#555] hover:text-white hover:bg-[#111] transition-colors`}
+          >
+            <svg
+              className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${collapsed ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+            {!collapsed && (
+              <span className="text-[13px] font-medium">Collapse</span>
+            )}
+          </button>
+        )}
+
         {/* Log out */}
-        <button onClick={handleLogout} className={navItemClass(false)}>
+        <button
+          onClick={handleLogout}
+          className={collapsed ? collapsedNavItemClass(false) : navItemClass(false)}
+        >
           <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
-          {t.nav.logOut}
+          {!collapsed && t.nav.logOut}
         </button>
 
         {/* User row + language toggle */}
-        <div className="flex items-center gap-2.5 px-3 py-2 mt-1">
+        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2.5'} px-3 py-2 mt-1`}>
           <div className="w-6 h-6 rounded-full bg-[#3dbf8a] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
             {(user?.name ?? user?.email ?? "?")[0].toUpperCase()}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-medium text-white truncate">
-              {user?.name ? user.name.split(" ")[0] : user?.email}
-            </p>
-          </div>
-          {/* Language toggle — bottom-left near user */}
-          <LangToggle />
+          {!collapsed && (
+            <>
+              <div className="flex-1 min-w-0">
+                <p className="text-[12px] font-medium text-white truncate">
+                  {user?.name ? user.name.split(" ")[0] : user?.email}
+                </p>
+              </div>
+              {/* Language toggle — bottom-left near user */}
+              <LangToggle />
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -247,14 +300,20 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const { user } = useAuth();
   const { t } = useLanguage();
 
   return (
     <div className="min-h-screen bg-black flex">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:flex-shrink-0 w-[220px] border-r border-[#1a1a1a] bg-[#0a0a0a] flex-col">
-        <SidebarContent />
+      <aside
+        className={`hidden lg:flex lg:flex-shrink-0 ${collapsed ? 'w-[60px]' : 'w-[220px]'} border-r border-[#1a1a1a] bg-[#0a0a0a] flex-col transition-[width] duration-200`}
+      >
+        <SidebarContent
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed((c) => !c)}
+        />
       </aside>
 
       {/* Mobile sidebar overlay */}

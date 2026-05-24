@@ -255,7 +255,7 @@ export function PartnerSetup() {
 
         {/* Brand */}
         <div className="flex justify-center mb-8">
-          <img src={process.env.PUBLIC_URL + '/kyru-logo-vertical.svg'} alt="Kyru" className="h-20 w-auto object-contain" />
+          <img src={process.env.PUBLIC_URL + '/kyru-logo-vertical.svg'} alt="Kyru" className="object-contain" style={{ width: '140px', height: 'auto' }} />
         </div>
 
         {/* Card */}

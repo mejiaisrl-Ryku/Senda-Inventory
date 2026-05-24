@@ -26,7 +26,8 @@ function SidebarContent() {
         <img
           src={process.env.PUBLIC_URL + '/kyru-logo-horizontal.svg'}
           alt="Kyru"
-          className="h-8 w-auto object-contain"
+          className="object-contain"
+          style={{ width: '140px', height: 'auto' }}
         />
         {/* Super admin badge */}
         <div className="mt-3">
