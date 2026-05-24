@@ -13,8 +13,10 @@ import {
   listAllUsers,
   inviteAdmin,
   sendUserResetEmail,
+  createPartnerInvite,
   createRestaurantSchema,
   inviteAdminSchema,
+  createPartnerInviteSchema,
 } from "../controllers/superAdminController";
 
 const router = Router();
@@ -41,5 +43,8 @@ router.post("/users/:userId/send-reset-email", sendUserResetEmail as never);
 
 // Invite a new admin to an existing restaurant
 router.post("/invite", validate(inviteAdminSchema), inviteAdmin as never);
+
+// Partner invites — send setup email, create pending invite record (no restaurant yet)
+router.post("/partner-invites", validate(createPartnerInviteSchema), createPartnerInvite as never);
 
 export default router;

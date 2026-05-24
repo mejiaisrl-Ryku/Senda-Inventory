@@ -299,6 +299,24 @@ model Recipe {
   @@map("recipes")
 }
 
+// A pending invitation sent to a prospective partner (restaurant admin).
+// Created when Super Admin sends an invite; token is a 64-char hex string.
+// The onboarding flow claims the invite by presenting the token and sets
+// status to "accepted" when the partner completes setup.
+model PartnerInvite {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  firstName String
+  lastName  String
+  token     String   @unique
+  status    String   @default("pending")  // "pending" | "accepted"
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@map("partner_invites")
+}
+
 // One ingredient line within a recipe.
 model RecipeIngredient {
   id        String  @id @default(cuid())

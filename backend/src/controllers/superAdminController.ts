@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from "express";
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { signToken, signRefreshToken, signInviteToken, signResetToken } from "../lib/jwt";
-import { sendInviteEmail, sendPasswordResetEmail } from "../lib/mailer";
+import { sendInviteEmail, sendPasswordResetEmail, sendPartnerInviteEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";
 
 // ── Validation schemas ────────────────────────────────────────────────────────
@@ -18,6 +19,12 @@ export const createRestaurantSchema = z.object({
   adminName: z.string().min(1, "Admin name is required").max(255).trim(),
   adminEmail: z.string().email("Invalid email address"),
   adminPassword: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export const createPartnerInviteSchema = z.object({
+  firstName: z.string().min(1, "First name is required").max(100).trim(),
+  lastName:  z.string().min(1, "Last name is required").max(100).trim(),
+  email:     z.string().email("Invalid email address"),
 });
 
 export const inviteAdminSchema = z.object({
@@ -195,6 +202,71 @@ export async function listAllUsers(req: AuthRequest, res: Response, next: NextFu
 
     res.json(response);
   } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/super-admin/partner-invites
+ * Send a setup invite email to a prospective partner (new restaurant admin).
+ * Creates a PartnerInvite record with status="pending" and a 72-hour token.
+ * No restaurant or user is created yet — that happens during onboarding.
+ */
+export async function createPartnerInvite(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { firstName, lastName, email } = req.body as {
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+
+    console.log(`[createPartnerInvite] Invite requested for email="${email}" name="${firstName} ${lastName}"`);
+
+    // Reject if there's already a live pending invite for this address.
+    const existing = await prisma.partnerInvite.findUnique({ where: { email } });
+    if (existing && existing.status === "pending" && existing.expiresAt > new Date()) {
+      console.warn(`[createPartnerInvite] Live pending invite already exists for ${email}`);
+      return res.status(409).json({
+        error: "A pending invite already exists for this email address. Resend or delete it first.",
+      });
+    }
+
+    // Also reject if a full user account already exists.
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(409).json({ error: "A user account already exists for this email address." });
+    }
+
+    // Generate a cryptographically-secure 64-char hex token.
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
+
+    // Upsert so a previously expired invite for the same email gets replaced.
+    const invite = await prisma.partnerInvite.upsert({
+      where: { email },
+      create: { email, firstName, lastName, token, status: "pending", expiresAt },
+      update: { firstName, lastName, token, status: "pending", expiresAt },
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const setupUrl = `${frontendUrl}/partner-setup?token=${token}`;
+
+    console.log(`[createPartnerInvite] Sending invite email to="${email}" setupUrl="${setupUrl}"`);
+
+    const messageId = await sendPartnerInviteEmail({ to: email, firstName, setupUrl });
+
+    console.log(`[createPartnerInvite] ✓ Invite sent. inviteId="${invite.id}" Resend messageId="${messageId}" to="${email}"`);
+
+    res.status(201).json({
+      id: invite.id,
+      email: invite.email,
+      firstName: invite.firstName,
+      lastName: invite.lastName,
+      expiresAt: invite.expiresAt,
+      messageId,
+    });
+  } catch (err) {
+    console.error(`[createPartnerInvite] Failed for email="${(req.body as { email?: string }).email}":`, err);
     next(err);
   }
 }

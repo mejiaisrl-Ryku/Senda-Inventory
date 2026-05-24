@@ -204,30 +204,27 @@ function RestaurantsTable({
   );
 }
 
-// ── Add Restaurant form ───────────────────────────────────────────────────────
+// ── Create Partner (invite) form ──────────────────────────────────────────────
 
-function AddRestaurantForm({ onCreated }: { onCreated: (r: SARestaurant) => void }) {
-  const [name, setName] = useState("");
-  const [adminName, setAdminName] = useState("");
-  const [adminEmail, setAdminEmail] = useState("");
-  const [adminPassword, setAdminPassword] = useState("");
-  const [showPw, setShowPw] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+function AddRestaurantForm() {
+  const [firstName, setFirstName] = useState("");
+  const [lastName,  setLastName]  = useState("");
+  const [email,     setEmail]     = useState("");
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState("");
+  const [sentTo,    setSentTo]    = useState("");   // non-empty = success state
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setSuccess("");
+    setSentTo("");
     setLoading(true);
     try {
-      const { restaurant } = await superAdminApi.createRestaurant({ name, adminName, adminEmail, adminPassword });
-      setSuccess(`"${restaurant.name}" created with admin account for ${adminEmail}.`);
-      setName(""); setAdminName(""); setAdminEmail(""); setAdminPassword("");
-      onCreated(restaurant);
+      await superAdminApi.createPartnerInvite({ firstName, lastName, email });
+      setSentTo(email);
+      setFirstName(""); setLastName(""); setEmail("");
     } catch (err: any) {
-      setError(err?.response?.data?.error ?? "Failed to create partner.");
+      setError(err?.response?.data?.error ?? "Failed to send invite.");
     } finally {
       setLoading(false);
     }
@@ -236,65 +233,61 @@ function AddRestaurantForm({ onCreated }: { onCreated: (r: SARestaurant) => void
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       {error && (
-        <div className="px-3 py-2.5 rounded-[8px] bg-red-900/20 border border-red-800/40 text-red-400 text-[13px]">{error}</div>
+        <div className="px-3 py-2.5 rounded-[8px] bg-red-900/20 border border-red-800/40 text-red-400 text-[13px]">
+          {error}
+        </div>
       )}
-      {success && (
-        <div className="px-3 py-2.5 rounded-[8px] bg-[#3dbf8a]/10 border border-[#3dbf8a]/20 text-[#3dbf8a] text-[13px]">{success}</div>
+      {sentTo && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-[8px] bg-[#3dbf8a]/10 border border-[#3dbf8a]/20 text-[#3dbf8a] text-[13px]">
+          <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Invite sent to <span className="font-medium ml-1">{sentTo}</span>. They'll receive a setup link valid for 72 hours.
+        </div>
       )}
-      <div>
-        <label className={labelCls}>Partner name</label>
-        <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="La Milagrosa" className={inputCls} />
-      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>Admin name</label>
-          <input required value={adminName} onChange={(e) => setAdminName(e.target.value)} placeholder="Carlos López" className={inputCls} />
+          <label className={labelCls}>First name</label>
+          <input
+            required
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            placeholder="Carlos"
+            className={inputCls}
+          />
         </div>
         <div>
-          <label className={labelCls}>Admin email</label>
-          <input type="email" required value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="carlos@restaurant.com" className={inputCls} />
-        </div>
-      </div>
-      <div>
-        <label className={labelCls}>Admin password</label>
-        <div className="relative">
+          <label className={labelCls}>Last name</label>
           <input
-            type={showPw ? "text" : "password"}
             required
-            minLength={8}
-            value={adminPassword}
-            onChange={(e) => setAdminPassword(e.target.value)}
-            placeholder="Min. 8 characters"
-            className={inputCls + " pr-10"}
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            placeholder="López"
+            className={inputCls}
           />
-          <button
-            type="button"
-            onClick={() => setShowPw((v) => !v)}
-            className="absolute inset-y-0 right-0 flex items-center px-3 text-[#444] hover:text-[#888] transition-colors"
-            aria-label={showPw ? "Hide" : "Show"}
-          >
-            {showPw ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            )}
-          </button>
         </div>
       </div>
+
+      <div>
+        <label className={labelCls}>Admin email</label>
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="carlos@restaurant.com"
+          className={inputCls}
+        />
+      </div>
+
       <button
         type="submit"
         disabled={loading}
         className="w-full py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-[13px] font-semibold transition-colors flex items-center justify-center gap-2"
       >
         {loading && <Spinner size="sm" />}
-        Create Partner
+        Send Invite
       </button>
     </form>
   );
@@ -469,11 +462,6 @@ export function SuperAdminDashboard() {
   useEffect(() => { loadRestaurants(); }, [loadRestaurants]);
   useEffect(() => { loadUsers(); }, [loadUsers]);
 
-  function onRestaurantCreated(r: SARestaurant) {
-    setRestaurants((prev) => [r, ...prev]);
-    loadUsers(); // refresh users to show the new admin
-  }
-
   function onRestaurantDeleted(id: string) {
     setRestaurants((prev) => prev.filter((r) => r.id !== id));
     setUsers((prev) => prev.filter((u) => u.restaurantId !== id));
@@ -510,10 +498,10 @@ export function SuperAdminDashboard() {
         <div>
           <SectionHeader
             title="Create Partner"
-            sub="Set up a new account with an admin"
+            sub="Send a setup invite to a new partner"
           />
           <Card className="p-5">
-            <AddRestaurantForm onCreated={onRestaurantCreated} />
+            <AddRestaurantForm />
           </Card>
         </div>
 

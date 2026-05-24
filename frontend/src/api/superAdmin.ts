@@ -22,6 +22,15 @@ saApi.interceptors.request.use((config) => {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface SAPartnerInvite {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  expiresAt: string;
+  messageId: string;
+}
+
 export interface SARestaurant {
   id: string;
   name: string;
@@ -109,4 +118,8 @@ export const superAdminApi = {
   // -- Invite --
   inviteAdmin: (data: { name: string; email: string; restaurantId: string }) =>
     saApi.post("/super-admin/invite", data),
+
+  // -- Partner invites (new-partner onboarding flow) --
+  createPartnerInvite: (data: { firstName: string; lastName: string; email: string }) =>
+    saApi.post<SAPartnerInvite>("/super-admin/partner-invites", data).then((r) => r.data),
 };
