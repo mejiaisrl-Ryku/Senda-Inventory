@@ -169,7 +169,7 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       <div className="px-5 pt-8 pb-6 border-b border-[#1a1a1a]">
         <div className="flex flex-col gap-3">
           <img
-            src="/kyru-logo-horizontal.svg"
+            src={process.env.PUBLIC_URL + '/kyru-logo-horizontal.svg'}
             alt="Kyru"
             className="h-8 w-auto object-contain"
           />

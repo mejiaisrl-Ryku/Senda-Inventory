@@ -59,7 +59,7 @@ export function ResetPassword() {
 
         {/* Logo */}
         <div className="flex justify-center mb-8">
-          <img src="/kyru-logo-vertical.svg" alt="Kyru" className="h-20 w-auto object-contain" />
+          <img src={process.env.PUBLIC_URL + '/kyru-logo-vertical.svg'} alt="Kyru" className="h-20 w-auto object-contain" />
         </div>
 
         <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-[12px] p-6">

@@ -24,7 +24,7 @@ function SidebarContent() {
       {/* Logo */}
       <div className="px-5 pt-8 pb-6 border-b border-[#1a1a1a]">
         <img
-          src="/kyru-logo-horizontal.svg"
+          src={process.env.PUBLIC_URL + '/kyru-logo-horizontal.svg'}
           alt="Kyru"
           className="h-8 w-auto object-contain"
         />
@@ -81,7 +81,7 @@ export function SuperAdminLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile top bar */}
         <header className="lg:hidden flex items-center px-4 h-14 bg-[#0a0a0a] border-b border-[#1a1a1a] flex-shrink-0">
-          <img src="/kyru-logo-horizontal.svg" alt="Kyru" className="h-7 w-auto object-contain" />
+          <img src={process.env.PUBLIC_URL + '/kyru-logo-horizontal.svg'} alt="Kyru" className="h-7 w-auto object-contain" />
         </header>
         <main className="flex-1 overflow-auto bg-black">
           <Outlet />
