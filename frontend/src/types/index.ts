@@ -71,8 +71,12 @@ export interface StockLog {
 export interface OrderItem {
   id: string;
   orderId: string;
-  productId: string;
+  productId?: string | null;
   product?: Product;
+  productName?: string | null;
+  sku?: string | null;
+  category?: string | null;
+  unit?: string | null;
   quantity: number;
   unitCost: number;
 }
@@ -82,8 +86,12 @@ export interface Order {
   restaurantId: string;
   status: OrderStatus;
   totalCost: number;
+  purveyor?: string | null;
+  invoiceDate?: string | null;
+  invoiceNumber?: string | null;
+  department?: string | null;
   createdAt: string;
-  deliveredAt?: string;
+  deliveredAt?: string | null;
   orderItems: OrderItem[];
 }
 

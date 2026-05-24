@@ -4,32 +4,48 @@ import { OrderStatus, StockReason } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 
-const orderItemSchema = z.object({
-  productId: z.string().cuid(),
-  quantity: z.number().positive(),
-  unitCost: z.number().nonnegative(),
+// ── Schemas ───────────────────────────────────────────────────────────────────
+
+const invoiceItemSchema = z.object({
+  productName: z.string().min(1, "Product name is required"),
+  sku:         z.string().optional(),
+  category:    z.string().optional(),
+  unit:        z.string().optional(),
+  quantity:    z.number().positive(),
+  unitCost:    z.number().nonnegative(),
+  productId:   z.string().cuid().optional(), // optional link to product catalogue
 });
 
 export const createOrderSchema = z.object({
-  items: z.array(orderItemSchema).min(1, "Order must have at least one item"),
+  purveyor:      z.string().optional(),
+  invoiceDate:   z.string().optional(), // ISO date string, e.g. "2025-05-24"
+  invoiceNumber: z.string().optional(),
+  department:    z.string().optional(), // "KITCHEN" | "FOH" | "BAR" | undefined (all)
+  items:         z.array(invoiceItemSchema).min(1, "Invoice must have at least one item"),
 });
 
 export const updateOrderSchema = z.object({
   status: z.nativeEnum(OrderStatus).optional(),
 });
 
+// ── Handlers ──────────────────────────────────────────────────────────────────
+
 export async function createOrder(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { items } = req.body as z.infer<typeof createOrderSchema>;
+    const { purveyor, invoiceDate, invoiceNumber, department, items } =
+      req.body as z.infer<typeof createOrderSchema>;
     const restaurantId = req.user.restaurantId;
 
-    // Verify all products belong to this restaurant.
-    const productIds = items.map((i) => i.productId);
-    const products = await prisma.product.findMany({
-      where: { id: { in: productIds }, restaurantId },
-    });
-    if (products.length !== productIds.length) {
-      return res.status(400).json({ error: "One or more products not found in this restaurant" });
+    // If any items reference a productId, verify they belong to this restaurant.
+    const referencedProductIds = items.flatMap((i) => (i.productId ? [i.productId] : []));
+    if (referencedProductIds.length > 0) {
+      const products = await prisma.product.findMany({
+        where: { id: { in: referencedProductIds }, restaurantId },
+        select: { id: true },
+      });
+      if (products.length !== referencedProductIds.length) {
+        return res.status(400).json({ error: "One or more products not found in this restaurant" });
+      }
     }
 
     const totalCost = items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0);
@@ -37,12 +53,20 @@ export async function createOrder(req: AuthRequest, res: Response, next: NextFun
     const order = await prisma.order.create({
       data: {
         restaurantId,
-        totalCost: Math.round(totalCost * 100) / 100,
+        totalCost:     Math.round(totalCost * 100) / 100,
+        purveyor:      purveyor     ?? null,
+        invoiceDate:   invoiceDate  ? new Date(invoiceDate) : null,
+        invoiceNumber: invoiceNumber ?? null,
+        department:    department   ?? null,
         orderItems: {
           create: items.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-            unitCost: i.unitCost,
+            productId:   i.productId   ?? null,
+            productName: i.productName,
+            sku:         i.sku         ?? null,
+            category:    i.category    ?? null,
+            unit:        i.unit        ?? null,
+            quantity:    i.quantity,
+            unitCost:    i.unitCost,
           })),
         },
       },
@@ -99,31 +123,33 @@ export async function receiveOrder(req: AuthRequest, res: Response, next: NextFu
       return res.status(400).json({ error: `Order is already ${order.status.toLowerCase()}` });
     }
 
-    // Build all DB operations for the transaction.
-    const stockLogCreates = order.orderItems.map((item) =>
+    // Only items linked to a product catalogue entry get their stock updated.
+    const linkedItems = order.orderItems.filter((item) => item.productId && item.product);
+
+    const stockLogCreates = linkedItems.map((item) =>
       prisma.stockLog.create({
         data: {
-          productId: item.productId,
-          previousQuantity: item.product.currentStock,
-          newQuantity: item.product.currentStock + item.quantity,
-          change: item.quantity,
-          reason: StockReason.RECEIVED,
-          userId: req.user.userId,
-          notes: `Order ${order.id} received`,
+          productId:        item.productId!,
+          previousQuantity: item.product!.currentStock,
+          newQuantity:      item.product!.currentStock + item.quantity,
+          change:           item.quantity,
+          reason:           StockReason.RECEIVED,
+          userId:           req.user.userId,
+          notes:            `Invoice ${order.id} received`,
         },
       })
     );
 
-    const productUpdates = order.orderItems.map((item) =>
+    const productUpdates = linkedItems.map((item) =>
       prisma.product.update({
-        where: { id: item.productId },
-        data: { currentStock: { increment: item.quantity } },
+        where: { id: item.productId! },
+        data:  { currentStock: { increment: item.quantity } },
       })
     );
 
     const orderUpdate = prisma.order.update({
       where: { id: order.id },
-      data: { status: OrderStatus.RECEIVED, deliveredAt: new Date() },
+      data:  { status: OrderStatus.RECEIVED, deliveredAt: new Date() },
       include: { orderItems: { include: { product: true } } },
     });
 
@@ -133,7 +159,6 @@ export async function receiveOrder(req: AuthRequest, res: Response, next: NextFu
       orderUpdate,
     ]);
 
-    // Last item in the transaction is the updated order.
     res.json(results[results.length - 1]);
   } catch (err) {
     next(err);

@@ -171,10 +171,24 @@ export const stockApi = {
   report: () => api.get<StockReport>("/stock/report").then((r) => r.data),
 };
 
-// ── Orders ────────────────────────────────────────────────────────────────────
+// ── Orders / Invoices ─────────────────────────────────────────────────────────
 export const ordersApi = {
-  create: (items: { productId: string; quantity: number; unitCost: number }[]) =>
-    api.post<Order>("/orders", { items }).then((r) => r.data),
+  create: (payload: {
+    purveyor?:      string;
+    invoiceDate?:   string;
+    invoiceNumber?: string;
+    department?:    string;
+    items: {
+      productName: string;
+      sku?:        string;
+      category?:   string;
+      unit?:       string;
+      quantity:    number;
+      unitCost:    number;
+      productId?:  string;
+    }[];
+  }) =>
+    api.post<Order>("/orders", payload).then((r) => r.data),
 
   list: (status?: OrderStatus) =>
     api.get<Order[]>("/orders", { params: status ? { status } : {} }).then((r) => r.data),
