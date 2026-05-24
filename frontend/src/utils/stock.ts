@@ -12,10 +12,10 @@ export function getStockStatus(product: Product): StockStatus {
 
 export const statusStyles = {
   adequate: {
-    badge: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400",
-    border: "border-green-200 dark:border-green-800",
-    bar: "bg-green-500",
-    dot: "bg-green-500",
+    badge: "bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400",
+    border: "border-brand-100 dark:border-brand-900",
+    bar: "bg-brand-500",
+    dot: "bg-brand-500",
     label: "Adequate",
   },
   low: {

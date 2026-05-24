@@ -7,7 +7,7 @@ import { EmptyState } from "./shared/EmptyState";
 import { useLanguage } from "../context/LanguageContext";
 
 const reasonStyles: Record<StockReason, string> = {
-  RECEIVED: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400",
+  RECEIVED: "bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400",
   USED: "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300",
   ADJUSTED: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400",
   WASTE: "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400",
@@ -88,7 +88,7 @@ export function StockHistory({ productId, productName }: StockHistoryProps) {
                 {/* Change indicator */}
                 <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
                   isPositive
-                    ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+                    ? "bg-brand-100 dark:bg-brand-900/30 text-brand-500 dark:text-brand-400"
                     : "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
                 }`}>
                   {isPositive ? "+" : ""}

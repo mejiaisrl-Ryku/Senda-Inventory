@@ -22,7 +22,7 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
   const { t } = useLanguage();
 
   const modeConfig: Record<Mode, { label: string; reason: StockReason; sign: 1 | -1; color: string; adminOnly: boolean }> = {
-    add:    { label: t.stockAdjust.addStock,    reason: "RECEIVED", sign:  1, color: "bg-green-500 hover:bg-green-600 text-white",  adminOnly: false },
+    add:    { label: t.stockAdjust.addStock,    reason: "RECEIVED", sign:  1, color: "bg-brand-500 hover:bg-brand-600 text-white",  adminOnly: false },
     remove: { label: t.stockAdjust.removeStock,  reason: "USED",     sign: -1, color: "bg-red-500 hover:bg-red-600 text-white",     adminOnly: false },
     adjust: { label: t.stockAdjust.adjustStock,  reason: "ADJUSTED", sign:  1, color: "bg-yellow-500 hover:bg-yellow-600 text-white", adminOnly: true },
   };
@@ -190,7 +190,7 @@ export function StockAdjustForm({ product, onDone, onCancel }: StockAdjustFormPr
                 ? "text-red-500"
                 : newStock < product.minimumStock
                 ? "text-yellow-500"
-                : "text-green-600 dark:text-green-400"
+                : "text-brand-500 dark:text-brand-400"
             }`}
           >
             {Math.max(0, newStock).toFixed(3)} {unit}

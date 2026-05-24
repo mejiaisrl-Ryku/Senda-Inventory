@@ -20,7 +20,7 @@ const CATEGORY_META: Record<SalesCategory, { label: string; badge: string; dot: 
   BEER:          { label: "Beer",          badge: "bg-yellow-900/30 text-yellow-400", dot: "bg-yellow-400" },
   LIQUOR:        { label: "Liquor",        badge: "bg-purple-900/30 text-purple-400", dot: "bg-purple-400" },
   WINE:          { label: "Wine",          badge: "bg-red-900/30 text-red-400",       dot: "bg-red-400"    },
-  FOOD:          { label: "Food",          badge: "bg-green-900/30 text-green-400",   dot: "bg-green-400"  },
+  FOOD:          { label: "Food",          badge: "bg-brand-900/30 text-brand-400",   dot: "bg-brand-400"  },
   NON_ALCOHOLIC: { label: "Non-Alcoholic", badge: "bg-blue-900/30 text-blue-400",     dot: "bg-blue-400"   },
   EVENTS:        { label: "Events",        badge: "bg-pink-900/30 text-pink-400",     dot: "bg-pink-400"   },
   DELIVERY:      { label: "Delivery",      badge: "bg-orange-900/30 text-orange-400", dot: "bg-orange-400" },

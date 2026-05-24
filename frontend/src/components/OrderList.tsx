@@ -14,7 +14,7 @@ import { useAuth } from "../context/AuthContext";
 
 const statusStyles: Record<OrderStatus, string> = {
   PENDING:   "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400",
-  RECEIVED:  "bg-green-100  dark:bg-green-900/30  text-green-700  dark:text-green-400",
+  RECEIVED:  "bg-brand-100  dark:bg-brand-900/30  text-brand-700  dark:text-brand-400",
   CANCELLED: "bg-gray-100   dark:bg-gray-700       text-gray-500   dark:text-gray-400",
 };
 
@@ -279,7 +279,7 @@ export function OrderList() {
                         <button
                           onClick={() => handleReceive(order)}
                           disabled={receiving === order.id}
-                          className="flex-1 py-2 rounded-xl bg-green-500 hover:bg-green-600 disabled:opacity-60 text-white text-sm font-medium transition-colors"
+                          className="flex-1 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white text-sm font-medium transition-colors"
                         >
                           {receiving === order.id ? "Receiving…" : "Mark as Received"}
                         </button>

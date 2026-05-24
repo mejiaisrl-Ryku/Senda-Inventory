@@ -284,7 +284,7 @@ function aggregateToMonths(days: CogsReport["days"]): DisplayPeriod[] {
 
 function ratioBadge(ratio: number | null): string {
   if (ratio === null) return "text-gray-400 dark:text-gray-500";
-  if (ratio < 0.25)   return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400";
+  if (ratio < 0.25)   return "bg-brand-100 dark:bg-brand-900/30 text-brand-700 dark:text-brand-400";
   if (ratio <= 0.35)  return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400";
   return "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400";
 }
@@ -506,7 +506,7 @@ function CogsReportSection() {
               <>
                 <p className={`mt-1 text-2xl font-bold tabular-nums ${
                   data.period.cogsRatio < 0.25
-                    ? "text-green-600 dark:text-green-400"
+                    ? "text-brand-500 dark:text-brand-400"
                     : data.period.cogsRatio <= 0.35
                     ? "text-yellow-600 dark:text-yellow-400"
                     : "text-red-600 dark:text-red-400"
@@ -578,8 +578,8 @@ export function Reports() {
           {
             label: "Received",
             data: report.days.map((d) => d.received),
-            borderColor: "#22c55e",
-            backgroundColor: "rgba(34,197,94,0.08)",
+            borderColor: "#3EBF8A",
+            backgroundColor: "rgba(62,191,138,0.08)",
             fill: true, tension: 0.35, pointRadius: 3, pointHoverRadius: 5,
           },
           {
@@ -681,13 +681,13 @@ export function Reports() {
               label={t.reports.invValue}
               value={formatCurrency(report.inventoryValue)}
               sub="current at cost"
-              accent="text-green-600 dark:text-green-400"
+              accent="text-brand-500 dark:text-brand-400"
             />
             <SummaryCard
               label={t.reports.lowItems}
               value={report.lowItemsCount}
               sub="below minimum"
-              accent={report.lowItemsCount > 0 ? "text-red-500" : "text-green-600 dark:text-green-400"}
+              accent={report.lowItemsCount > 0 ? "text-red-500" : "text-brand-500 dark:text-brand-400"}
             />
             <SummaryCard
               label={t.reports.totalWaste}
@@ -735,7 +735,7 @@ export function Reports() {
                       <td className="px-5 py-3 font-medium text-gray-700 dark:text-gray-300">
                         {formatChartLabel(day.date)}
                       </td>
-                      <td className="px-5 py-3 font-medium text-green-600 dark:text-green-400">
+                      <td className="px-5 py-3 font-medium text-brand-500 dark:text-brand-400">
                         {day.received > 0 ? day.received : <span className="text-gray-300 dark:text-gray-600">—</span>}
                       </td>
                       <td className="px-5 py-3 font-medium text-blue-600 dark:text-blue-400">

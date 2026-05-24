@@ -107,7 +107,7 @@ export function ProductCard({ product, onAdjust, onEdit, onQuickAdjust }: Produc
           disabled={!!quickLoading}
           title="Receive 1 unit (RECEIVED)"
           aria-label={`Add 1 ${unitLabel[product.unit]}`}
-          className="flex items-center justify-center min-h-[44px] w-11 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xl font-bold leading-none"
+          className="flex items-center justify-center min-h-[44px] w-11 rounded-xl bg-brand-50 dark:bg-brand-900/20 text-brand-500 dark:text-brand-400 hover:bg-brand-100 dark:hover:bg-brand-900/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xl font-bold leading-none"
         >
           {quickLoading === "add" ? <MiniSpinner /> : "+"}
         </button>

@@ -22,15 +22,18 @@ module.exports = {
       },
 
       colors: {
-        // Primary accent — #3dbf8a and surrounding shades
+        // Primary accent — Kyru official brand palette
         brand: {
           50:  "#f0fdf7",
           100: "#d0f7e8",
           400: "#4dcf9b",
-          500: "#3dbf8a",
-          600: "#2da070",
+          500: "#3EBF8A",   // primary accent (buttons, active states, highlights)
+          600: "#2da070",   // hover / darker shade
           700: "#1f8059",
           900: "#0d3d2a",
+          // Kyru gradient palette (charts, data visualisations)
+          "grad-from": "#5DD1E6",  // gradient start (cyan)
+          "grad-to":   "#57C49B",  // gradient end (teal-green)
         },
 
         // Custom gray scale — dark values map to the brand palette exactly:
