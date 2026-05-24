@@ -333,3 +333,29 @@ export const laborApi = {
 
   delete: (id: string) => api.delete(`/labor/${id}`),
 };
+
+// ── Partner setup (public — used on the /partner-setup onboarding page) ───────
+
+export const partnerSetupApi = {
+  /** Validate a partner invite token before showing the setup form. */
+  validate: (token: string) =>
+    api
+      .get<{ email: string; firstName: string; lastName: string; expiresAt: string }>(
+        `/super-admin/partner-invites/validate/${encodeURIComponent(token)}`
+      )
+      .then((r) => r.data),
+
+  /** Complete partner onboarding — creates the restaurant + admin account. */
+  complete: (data: {
+    token: string;
+    restaurantName: string;
+    password: string;
+    logo?: string | null;
+  }) =>
+    api
+      .post<{ user: import("../types").User; token: string; refreshToken: string }>(
+        "/super-admin/partner-setup",
+        data
+      )
+      .then((r) => r.data),
+};

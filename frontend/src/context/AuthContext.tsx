@@ -17,6 +17,8 @@ interface AuthState {
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string, restaurantName: string) => Promise<void>;
+  /** Instantly log in with tokens already obtained from the server (e.g. after partner setup). */
+  loginWithSession: (user: User, token: string, refreshToken: string) => void;
   logout: () => void;
 }
 
@@ -114,6 +116,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const loginWithSession = useCallback(
+    (sessionUser: User, sessionToken: string, sessionRefresh: string) => {
+      storeSession(sessionUser, sessionToken, sessionRefresh);
+      setUser(sessionUser);
+      setToken(sessionToken);
+    },
+    []
+  );
+
   const logout = useCallback(() => {
     authApi.logout().catch(() => {});
     clearSession();
@@ -131,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAdmin: user?.role === "ADMIN",
         login,
         register,
+        loginWithSession,
         logout,
       }}
     >

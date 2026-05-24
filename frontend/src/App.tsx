@@ -19,6 +19,7 @@ import { CountSessionDetail } from "./components/CountSessionDetail";
 import { CountReportView } from "./components/CountReportView";
 import { RecipesPage } from "./components/RecipesPage";
 import { ResetPassword } from "./components/ResetPassword";
+import { PartnerSetup } from "./components/PartnerSetup";
 import { SuperAdminLogin } from "./components/superadmin/SuperAdminLogin";
 import { SuperAdminLayout } from "./components/superadmin/SuperAdminLayout";
 import { SuperAdminDashboard } from "./components/superadmin/SuperAdminDashboard";
@@ -88,6 +89,7 @@ function AppRoutes() {
       <Routes>
         {/* Fully public — accessible whether logged in or not */}
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/partner-setup"  element={<PartnerSetup />} />
 
         <Route element={<PublicRoute />}>
           <Route path="/login" element={<Login />} />

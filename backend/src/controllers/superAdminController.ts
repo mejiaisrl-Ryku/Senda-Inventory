@@ -21,6 +21,13 @@ export const createRestaurantSchema = z.object({
   adminPassword: z.string().min(8, "Password must be at least 8 characters"),
 });
 
+export const completePartnerSetupSchema = z.object({
+  token:          z.string().min(1,  "Token is required"),
+  restaurantName: z.string().min(1,  "Restaurant name is required").max(255).trim(),
+  password:       z.string().min(8,  "Password must be at least 8 characters"),
+  logo:           z.string().optional().nullable(), // base64 data URL, max ~3.6 MB encoded
+});
+
 export const createPartnerInviteSchema = z.object({
   firstName: z.string().min(1, "First name is required").max(100).trim(),
   lastName:  z.string().min(1, "Last name is required").max(100).trim(),
@@ -34,6 +41,132 @@ export const inviteAdminSchema = z.object({
 });
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/super-admin/partner-invites/validate/:token  (PUBLIC)
+ * Returns invite metadata (firstName, lastName, email, expiresAt) if the token
+ * is valid and still pending.  Returns 404 (not found) or 410 (used / expired).
+ */
+export async function validatePartnerInvite(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { token } = req.params;
+    const invite = await prisma.partnerInvite.findUnique({ where: { token } });
+
+    if (!invite) {
+      return res.status(404).json({ error: "Invite not found. The link may be invalid." });
+    }
+    if (invite.status === "accepted") {
+      return res.status(410).json({ error: "This invite has already been used. Please sign in." });
+    }
+    if (invite.expiresAt < new Date()) {
+      return res.status(410).json({ error: "This invite has expired. Please contact your administrator." });
+    }
+
+    res.json({
+      email:     invite.email,
+      firstName: invite.firstName,
+      lastName:  invite.lastName,
+      expiresAt: invite.expiresAt,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/super-admin/partner-setup  (PUBLIC)
+ * Completes partner onboarding: creates the restaurant + admin user in a
+ * transaction, marks the invite as "accepted", and returns auth tokens so
+ * the frontend can log the new admin in immediately.
+ */
+export async function completePartnerSetup(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { token, restaurantName, password, logo } = req.body as {
+      token: string;
+      restaurantName: string;
+      password: string;
+      logo?: string | null;
+    };
+
+    console.log(`[completePartnerSetup] Attempt with token="${token.slice(0, 8)}…"`);
+
+    // Re-validate the invite (same checks as GET, in case of a race).
+    const invite = await prisma.partnerInvite.findUnique({ where: { token } });
+    if (!invite) {
+      return res.status(404).json({ error: "Invite not found. The link may be invalid." });
+    }
+    if (invite.status === "accepted") {
+      return res.status(410).json({ error: "This invite has already been used. Please sign in." });
+    }
+    if (invite.expiresAt < new Date()) {
+      return res.status(410).json({ error: "This invite has expired. Please contact your administrator." });
+    }
+
+    // Guard against a race where an account was created between the GET and POST.
+    const existingUser = await prisma.user.findUnique({ where: { email: invite.email } });
+    if (existingUser) {
+      return res.status(409).json({ error: "An account already exists for this email." });
+    }
+
+    const hashed = await bcrypt.hash(password, 12);
+
+    // Atomic: create restaurant → create admin user → mark invite accepted.
+    const user = await prisma.$transaction(async (tx) => {
+      const restaurant = await tx.restaurant.create({
+        data: {
+          name: restaurantName.trim(),
+          ...(logo ? { logo } : {}),
+        },
+      });
+
+      const newUser = await tx.user.create({
+        data: {
+          name:         `${invite.firstName} ${invite.lastName}`,
+          email:        invite.email,
+          password:     hashed,
+          role:         "ADMIN",
+          restaurantId: restaurant.id,
+        },
+        select: {
+          id:           true,
+          name:         true,
+          email:        true,
+          role:         true,
+          restaurantId: true,
+          restaurant:   { select: { name: true, logo: true } },
+        },
+      });
+
+      await tx.partnerInvite.update({
+        where: { token },
+        data:  { status: "accepted" },
+      });
+
+      return newUser;
+    });
+
+    // Flatten restaurant relation — matches the shape returned by login/register.
+    const { restaurant: rest, ...userFields } = user;
+    const userResponse = {
+      ...userFields,
+      restaurantName: rest?.name ?? null,
+      restaurantLogo: rest?.logo ?? null,
+    };
+
+    const tokenPayload = { userId: user.id, role: user.role, restaurantId: user.restaurantId! };
+
+    console.log(`[completePartnerSetup] ✓ Partner onboarded. userId="${user.id}" restaurant="${restaurantName}"`);
+
+    res.status(201).json({
+      user:         userResponse,
+      token:        signToken(tokenPayload),
+      refreshToken: signRefreshToken(tokenPayload),
+    });
+  } catch (err) {
+    console.error(`[completePartnerSetup] Failed:`, err);
+    next(err);
+  }
+}
 
 /**
  * POST /api/super-admin/login  (PUBLIC — no auth middleware)

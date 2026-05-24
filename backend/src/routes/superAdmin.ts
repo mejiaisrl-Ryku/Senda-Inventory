@@ -14,16 +14,25 @@ import {
   inviteAdmin,
   sendUserResetEmail,
   createPartnerInvite,
+  validatePartnerInvite,
+  completePartnerSetup,
   createRestaurantSchema,
   inviteAdminSchema,
   createPartnerInviteSchema,
+  completePartnerSetupSchema,
 } from "../controllers/superAdminController";
 
 const router = Router();
 
 // ── Public ────────────────────────────────────────────────────────────────────
-// Login must be registered BEFORE the authenticate/requireSuperAdmin wall.
+// These routes are registered BEFORE the authenticate/requireSuperAdmin wall.
+
+// Super-admin login
 router.post("/login", validate(superAdminLoginSchema), superAdminLogin as never);
+
+// Partner onboarding — no auth required (the invite token is the credential)
+router.get("/partner-invites/validate/:token", validatePartnerInvite as never);
+router.post("/partner-setup", validate(completePartnerSetupSchema), completePartnerSetup as never);
 
 // ── Protected — valid JWT + SUPER_ADMIN role required ────────────────────────
 router.use(authenticate as never);
