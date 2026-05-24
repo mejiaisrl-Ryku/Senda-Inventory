@@ -4,7 +4,10 @@ import { partnerSetupApi } from "../api";
 import { useAuth } from "../context/AuthContext";
 import { Spinner } from "./shared/Spinner";
 
-// ── Shared styles (matches Login / Register dark theme) ───────────────────────
+// ── localStorage key used to resume setup if the admin navigates away ─────────
+export const PARTNER_SETUP_TOKEN_KEY = "partnerSetupToken";
+
+// ── Shared styles ─────────────────────────────────────────────────────────────
 
 const inputCls =
   "w-full px-3 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#0a0a0a] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors";
@@ -12,7 +15,16 @@ const inputCls =
 const labelCls =
   "block text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] mb-1.5";
 
-// ── Full-page spinner ─────────────────────────────────────────────────────────
+// ── Invite status type ────────────────────────────────────────────────────────
+
+type InviteStatus =
+  | "loading"    // validating token with server
+  | "valid"      // token OK — show the form
+  | "EXPIRED"    // token existed but 72 h window passed
+  | "ACCEPTED"   // token already used (redirect to login)
+  | "INVALID";   // token not found or malformed
+
+// ── Sub-screens ───────────────────────────────────────────────────────────────
 
 function FullPageSpinner() {
   return (
@@ -22,21 +34,41 @@ function FullPageSpinner() {
   );
 }
 
-// ── Error / expired state ─────────────────────────────────────────────────────
-
-function InviteErrorScreen({ message }: { message: string }) {
+/** Expired — no login link (admin must contact their administrator). */
+function ExpiredScreen() {
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4">
       <div className="w-full max-w-[400px] bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-8 text-center">
-        {/* Icon */}
+        <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+          <svg className="w-6 h-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h2 className="text-[16px] font-semibold text-white mb-2">Invite expired</h2>
+        <p className="text-[13px] text-[#666] leading-relaxed">
+          This invite link has expired. Please contact your administrator to send a new one.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Invalid / not found — generic message with no sensitive info. */
+function InvalidScreen() {
+  return (
+    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4">
+      <div className="w-full max-w-[400px] bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-8 text-center">
         <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
           <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
-        <h2 className="text-[16px] font-semibold text-white mb-2">Link unavailable</h2>
-        <p className="text-[13px] text-[#666] mb-6 leading-relaxed">{message}</p>
+        <h2 className="text-[16px] font-semibold text-white mb-2">Invalid invite link</h2>
+        <p className="text-[13px] text-[#666] mb-6 leading-relaxed">
+          This link is invalid or has been revoked. Please use the exact link from your invitation email.
+        </p>
         <Link
           to="/login"
           className="inline-flex items-center justify-center w-full py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] text-white text-[13px] font-semibold transition-colors"
@@ -47,8 +79,6 @@ function InviteErrorScreen({ message }: { message: string }) {
     </div>
   );
 }
-
-// ── Eye icon toggle ────────────────────────────────────────────────────────────
 
 function EyeIcon({ visible }: { visible: boolean }) {
   return visible ? (
@@ -73,16 +103,15 @@ export function PartnerSetup() {
   const navigate = useNavigate();
   const { loginWithSession } = useAuth();
 
-  // Token validation
-  const [validating, setValidating]     = useState(true);
-  const [inviteError, setInviteError]   = useState("");
-  const [invite, setInvite]             = useState<{
+  // Invite state machine
+  const [status, setStatus] = useState<InviteStatus>("loading");
+  const [invite, setInvite] = useState<{
     email: string;
     firstName: string;
     lastName: string;
   } | null>(null);
 
-  // Form
+  // Form state
   const [restaurantName, setRestaurantName] = useState("");
   const [logo, setLogo]                     = useState<string | null>(null);
   const [logoPreview, setLogoPreview]       = useState<string | null>(null);
@@ -98,32 +127,40 @@ export function PartnerSetup() {
 
   useEffect(() => {
     if (!token) {
-      setInviteError("No invite token was found in this link. Please use the link from your invitation email.");
-      setValidating(false);
+      localStorage.removeItem(PARTNER_SETUP_TOKEN_KEY);
+      setStatus("INVALID");
       return;
     }
 
     partnerSetupApi
       .validate(token)
       .then((data) => {
+        // Token is valid — persist it so ProtectedRoutes can redirect here
+        // if the admin navigates away before completing setup.
+        localStorage.setItem(PARTNER_SETUP_TOKEN_KEY, token);
         setInvite(data);
-        setValidating(false);
+        setStatus("valid");
       })
       .catch((err: any) => {
-        const msg =
-          err?.response?.data?.error ??
-          "Invalid or expired invite link. Please contact your administrator.";
-        setInviteError(msg);
-        setValidating(false);
+        const code: string = err?.response?.data?.code ?? "INVALID";
+
+        localStorage.removeItem(PARTNER_SETUP_TOKEN_KEY);
+
+        if (code === "ACCEPTED") {
+          // Account already exists — send straight to login.
+          navigate("/login", { replace: true });
+          return;
+        }
+
+        setStatus(code === "EXPIRED" ? "EXPIRED" : "INVALID");
       });
-  }, [token]);
+  }, [token, navigate]);
 
   // ── Logo upload ────────────────────────────────────────────────────────────
 
   function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
     if (file.size > 2.5 * 1024 * 1024) {
       setFormError("Logo file must be under 2.5 MB.");
       return;
@@ -132,7 +169,6 @@ export function PartnerSetup() {
       setFormError("Please upload an image file (PNG, JPG, WebP, etc.).");
       return;
     }
-
     setFormError("");
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -176,14 +212,30 @@ export function PartnerSetup() {
         password,
         logo: logo ?? null,
       });
-      // Log the new admin in immediately — no separate login step needed.
+
+      // Clear the pending-setup marker before logging in.
+      localStorage.removeItem(PARTNER_SETUP_TOKEN_KEY);
+
       loginWithSession(data.user, data.token, data.refreshToken);
       navigate("/", { replace: true });
     } catch (err: any) {
-      setFormError(
-        err?.response?.data?.error ??
-          "Setup failed. Please try again or contact support."
-      );
+      const code: string = err?.response?.data?.code ?? "";
+      const msg: string  = err?.response?.data?.error ?? "Setup failed. Please try again.";
+
+      // If the server tells us the invite is now accepted/expired mid-submit,
+      // handle those cases gracefully too.
+      if (code === "ACCEPTED") {
+        localStorage.removeItem(PARTNER_SETUP_TOKEN_KEY);
+        navigate("/login", { replace: true });
+        return;
+      }
+      if (code === "EXPIRED") {
+        localStorage.removeItem(PARTNER_SETUP_TOKEN_KEY);
+        setStatus("EXPIRED");
+        return;
+      }
+
+      setFormError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -191,14 +243,17 @@ export function PartnerSetup() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
-  if (validating) return <FullPageSpinner />;
-  if (inviteError) return <InviteErrorScreen message={inviteError} />;
+  if (status === "loading")   return <FullPageSpinner />;
+  if (status === "EXPIRED")   return <ExpiredScreen />;
+  if (status === "INVALID")   return <InvalidScreen />;
+  if (status === "ACCEPTED")  return <FullPageSpinner />; // transient — navigate fires in useEffect
 
+  // status === "valid"
   return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4">
       <div className="w-full max-w-[480px]">
 
-        {/* Logo + brand */}
+        {/* Brand */}
         <div className="flex items-center justify-center gap-2.5 mb-8">
           <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
             <polygon points="20,2 35.6,11 35.6,29 20,38 4.4,29 4.4,11" fill="#3dbf8a" />
@@ -214,7 +269,6 @@ export function PartnerSetup() {
         {/* Card */}
         <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-8 shadow-2xl">
 
-          {/* Welcome header */}
           <div className="mb-6">
             <h1 className="text-[20px] font-bold text-white leading-tight">
               Welcome, {invite!.firstName}!
@@ -229,7 +283,6 @@ export function PartnerSetup() {
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
 
-            {/* Error banner */}
             {formError && (
               <div className="px-3 py-2.5 rounded-[8px] bg-red-900/20 border border-red-800/40 text-red-400 text-[13px]">
                 {formError}
@@ -238,7 +291,9 @@ export function PartnerSetup() {
 
             {/* Restaurant name */}
             <div>
-              <label className={labelCls}>Restaurant name <span className="text-red-500">*</span></label>
+              <label className={labelCls}>
+                Restaurant name <span className="text-red-500">*</span>
+              </label>
               <input
                 required
                 value={restaurantName}
@@ -251,7 +306,9 @@ export function PartnerSetup() {
 
             {/* Logo upload */}
             <div>
-              <label className={labelCls}>Restaurant logo <span className="text-[#444]">(optional)</span></label>
+              <label className={labelCls}>
+                Restaurant logo <span className="text-[#444]">(optional)</span>
+              </label>
 
               {logoPreview ? (
                 <div className="flex items-center gap-3">
@@ -281,7 +338,7 @@ export function PartnerSetup() {
                 <button
                   type="button"
                   onClick={() => logoInputRef.current?.click()}
-                  className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-[8px] border border-dashed border-[#2a2a2a] hover:border-[#3dbf8a]/50 text-[#444] hover:text-[#888] transition-colors cursor-pointer"
+                  className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-[8px] border border-dashed border-[#2a2a2a] hover:border-[#3dbf8a]/50 text-[#444] hover:text-[#888] transition-colors"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
@@ -301,12 +358,13 @@ export function PartnerSetup() {
               />
             </div>
 
-            {/* Divider */}
             <div className="border-t border-[#1a1a1a]" />
 
             {/* Password */}
             <div>
-              <label className={labelCls}>Password <span className="text-red-500">*</span></label>
+              <label className={labelCls}>
+                Password <span className="text-red-500">*</span>
+              </label>
               <div className="relative">
                 <input
                   type={showPw ? "text" : "password"}
@@ -330,7 +388,9 @@ export function PartnerSetup() {
 
             {/* Confirm password */}
             <div>
-              <label className={labelCls}>Confirm password <span className="text-red-500">*</span></label>
+              <label className={labelCls}>
+                Confirm password <span className="text-red-500">*</span>
+              </label>
               <div className="relative">
                 <input
                   type={showConfirm ? "text" : "password"}
@@ -351,7 +411,6 @@ export function PartnerSetup() {
               </div>
             </div>
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={submitting}

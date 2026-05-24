@@ -47,7 +47,11 @@ function BootstrapGate({ children }: { children: React.ReactNode }) {
 
 function ProtectedRoutes() {
   const { isAuthenticated } = useAuth();
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAuthenticated) {
+    const setupToken = localStorage.getItem("partnerSetupToken");
+    if (setupToken) return <Navigate to={`/partner-setup?token=${encodeURIComponent(setupToken)}`} replace />;
+    return <Navigate to="/login" replace />;
+  }
   return <Outlet />;
 }
 

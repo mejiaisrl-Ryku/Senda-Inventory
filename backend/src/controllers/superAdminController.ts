@@ -53,13 +53,13 @@ export async function validatePartnerInvite(req: Request, res: Response, next: N
     const invite = await prisma.partnerInvite.findUnique({ where: { token } });
 
     if (!invite) {
-      return res.status(404).json({ error: "Invite not found. The link may be invalid." });
+      return res.status(404).json({ code: "INVALID",   error: "Invalid invite link." });
     }
     if (invite.status === "accepted") {
-      return res.status(410).json({ error: "This invite has already been used. Please sign in." });
+      return res.status(410).json({ code: "ACCEPTED",  error: "This invite has already been used." });
     }
     if (invite.expiresAt < new Date()) {
-      return res.status(410).json({ error: "This invite has expired. Please contact your administrator." });
+      return res.status(410).json({ code: "EXPIRED",   error: "This invite has expired. Contact your administrator." });
     }
 
     res.json({
@@ -93,19 +93,19 @@ export async function completePartnerSetup(req: Request, res: Response, next: Ne
     // Re-validate the invite (same checks as GET, in case of a race).
     const invite = await prisma.partnerInvite.findUnique({ where: { token } });
     if (!invite) {
-      return res.status(404).json({ error: "Invite not found. The link may be invalid." });
+      return res.status(404).json({ code: "INVALID",  error: "Invalid invite link." });
     }
     if (invite.status === "accepted") {
-      return res.status(410).json({ error: "This invite has already been used. Please sign in." });
+      return res.status(410).json({ code: "ACCEPTED", error: "This invite has already been used." });
     }
     if (invite.expiresAt < new Date()) {
-      return res.status(410).json({ error: "This invite has expired. Please contact your administrator." });
+      return res.status(410).json({ code: "EXPIRED",  error: "This invite has expired. Contact your administrator." });
     }
 
     // Guard against a race where an account was created between the GET and POST.
     const existingUser = await prisma.user.findUnique({ where: { email: invite.email } });
     if (existingUser) {
-      return res.status(409).json({ error: "An account already exists for this email." });
+      return res.status(409).json({ code: "ACCEPTED", error: "An account already exists for this email. Please sign in." });
     }
 
     const hashed = await bcrypt.hash(password, 12);
