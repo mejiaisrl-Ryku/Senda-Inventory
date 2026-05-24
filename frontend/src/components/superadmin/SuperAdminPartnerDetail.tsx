@@ -420,7 +420,7 @@ function LogoUpload({
         onClick={() => inputRef.current?.click()}
         disabled={uploading || removing}
         title="Upload logo"
-        className="w-14 h-14 rounded-full overflow-hidden border-2 border-[#2a2a2a] hover:border-[#3dbf8a] transition-colors flex items-center justify-center bg-[#111] disabled:opacity-50 relative"
+        className="w-14 h-14 rounded-full overflow-hidden flex items-center justify-center bg-[#111] disabled:opacity-50 relative"
       >
         {currentLogo ? (
           <img src={currentLogo} alt={restaurantName} className="w-full h-full object-cover" />

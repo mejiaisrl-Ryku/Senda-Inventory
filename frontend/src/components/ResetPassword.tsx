@@ -58,18 +58,8 @@ export function ResetPassword() {
       <div className="w-full max-w-sm">
 
         {/* Logo */}
-        <div className="flex items-center gap-3 mb-8 justify-center">
-          <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true">
-            <polygon points="20,2 35.6,11 35.6,29 20,38 4.4,29 4.4,11" fill="#3dbf8a" />
-            <text x="20" y="27" textAnchor="middle" fill="#ffffff" fontSize="20" fontWeight="700"
-              fontFamily="Inter, system-ui, sans-serif">K</text>
-          </svg>
-          <div className="flex flex-col gap-[3px]">
-            <span className="text-white font-bold text-[18px] leading-none tracking-tight">kyru</span>
-            <span className="text-[10px] font-semibold leading-none tracking-[0.16em]" style={{ color: "#3dbf8a" }}>
-              ADVISORY
-            </span>
-          </div>
+        <div className="flex justify-center mb-8">
+          <img src="/kyru-logo-vertical.svg" alt="Kyru" className="h-20 w-auto object-contain" />
         </div>
 
         <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-[12px] p-6">

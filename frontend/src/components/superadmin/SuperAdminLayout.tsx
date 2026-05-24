@@ -23,19 +23,11 @@ function SidebarContent() {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="px-5 pt-8 pb-6 border-b border-[#1a1a1a]">
-        <div className="flex items-center gap-3">
-          <svg width="48" height="48" viewBox="0 0 40 40" fill="none" aria-hidden="true" className="flex-shrink-0">
-            <polygon points="20,2 35.6,11 35.6,29 20,38 4.4,29 4.4,11" fill="#3dbf8a" />
-            <text x="20" y="27" textAnchor="middle" fill="#ffffff" fontSize="20" fontWeight="700"
-              fontFamily="Inter, system-ui, sans-serif">K</text>
-          </svg>
-          <div className="flex flex-col gap-[3px]">
-            <span className="text-white font-bold text-[20px] leading-none tracking-tight">kyru</span>
-            <span className="text-[11px] font-semibold leading-none tracking-[0.16em]" style={{ color: "#3dbf8a" }}>
-              ADVISORY
-            </span>
-          </div>
-        </div>
+        <img
+          src="/kyru-logo-horizontal.svg"
+          alt="Kyru"
+          className="h-8 w-auto object-contain"
+        />
         {/* Super admin badge */}
         <div className="mt-3">
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-[0.08em] uppercase bg-[#3dbf8a]/10 text-[#3dbf8a] border border-[#3dbf8a]/20">
@@ -89,7 +81,7 @@ export function SuperAdminLayout() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile top bar */}
         <header className="lg:hidden flex items-center px-4 h-14 bg-[#0a0a0a] border-b border-[#1a1a1a] flex-shrink-0">
-          <span className="text-[14px] font-semibold text-white">kyru Super Admin</span>
+          <img src="/kyru-logo-horizontal.svg" alt="Kyru" className="h-7 w-auto object-contain" />
         </header>
         <main className="flex-1 overflow-auto bg-black">
           <Outlet />

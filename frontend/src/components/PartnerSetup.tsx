@@ -254,16 +254,8 @@ export function PartnerSetup() {
       <div className="w-full max-w-[480px]">
 
         {/* Brand */}
-        <div className="flex items-center justify-center gap-2.5 mb-8">
-          <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
-            <polygon points="20,2 35.6,11 35.6,29 20,38 4.4,29 4.4,11" fill="#3dbf8a" />
-            <text x="20" y="27" textAnchor="middle" fill="#fff" fontSize="20"
-              fontWeight="700" fontFamily="Inter,system-ui,sans-serif">K</text>
-          </svg>
-          <div>
-            <div className="text-white font-bold text-[16px] leading-none">kyru</div>
-            <div className="text-[#3dbf8a] font-semibold text-[10px] tracking-[0.18em] mt-0.5">ADVISORY</div>
-          </div>
+        <div className="flex justify-center mb-8">
+          <img src="/kyru-logo-vertical.svg" alt="Kyru" className="h-20 w-auto object-contain" />
         </div>
 
         {/* Card */}
