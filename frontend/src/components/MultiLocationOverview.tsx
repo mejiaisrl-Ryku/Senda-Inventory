@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { locationsApi, LocationSummary, MetricTrend } from "../api";
+import { locationsApi, seedApi, LocationSummary, MetricTrend } from "../api";
 import { useLanguage } from "../context/LanguageContext";
+import { useAuth } from "../context/AuthContext";
 import { formatCurrency } from "../utils/stock";
 import { PageSpinner } from "./shared/Spinner";
 
@@ -20,6 +21,27 @@ function readStoredLocation(): string {
 function writeStoredLocation(id: string) {
   try { localStorage.setItem(LS_KEY, id); } catch { /* ignore */ }
 }
+
+// ── Color rating ─────────────────────────────────────────────────────────────
+
+type ColorRating = "green" | "yellow" | "red" | null;
+
+function rateMetric(key: string | undefined, value: number | null): ColorRating {
+  if (!key || value === null) return null;
+  switch (key) {
+    case "foodCostPct":          return value < 30 ? "green" : value <= 35 ? "yellow" : "red";
+    case "laborCostPct":         return value < 25 ? "green" : value <= 30 ? "yellow" : "red";
+    case "primeCostPct":         return value < 55 ? "green" : value <= 60 ? "yellow" : "red";
+    case "inventoryAccuracyPct": return value >= 85 ? "green" : value >= 70 ? "yellow" : "red";
+    default:                     return null;
+  }
+}
+
+const RATING_DOT: Record<NonNullable<ColorRating>, string> = {
+  green:  "bg-[#22c55e]",
+  yellow: "bg-[#f59e0b]",
+  red:    "bg-[#ef4444]",
+};
 
 // ── Location switcher dropdown ────────────────────────────────────────────────
 
@@ -161,6 +183,7 @@ function MetricRow({
   noData,
   noDataHint,
   highlighted = false,
+  metricKey,
 }: {
   label:        string;
   value:        number | null;
@@ -169,8 +192,10 @@ function MetricRow({
   noData:       string;
   noDataHint:   string;
   highlighted?: boolean;
+  metricKey?:   string;
 }) {
-  const hasValue = value !== null && value !== undefined;
+  const hasValue   = value !== null && value !== undefined;
+  const rating     = rateMetric(metricKey, value);
 
   return (
     <div className={`flex items-start justify-between gap-3 py-3 border-b border-[#111] last:border-0 transition-colors rounded-md ${
@@ -191,7 +216,14 @@ function MetricRow({
           </>
         )}
       </div>
-      {hasValue && <div className="shrink-0 mt-1"><TrendArrow trend={trend} /></div>}
+      {hasValue && (
+        <div className="shrink-0 mt-1 flex items-center gap-1.5">
+          {rating && (
+            <span className={`w-2 h-2 rounded-full shrink-0 ${RATING_DOT[rating]}`} />
+          )}
+          <TrendArrow trend={trend} />
+        </div>
+      )}
     </div>
   );
 }
@@ -219,15 +251,20 @@ function LocationCard({
             <span className="text-[#3dbf8a] text-[13px] font-bold">{loc.name[0]?.toUpperCase() ?? "?"}</span>
           </div>
         )}
-        <p className="text-[14px] font-semibold text-white truncate">{loc.name}</p>
+        <p className="text-[14px] font-semibold text-white truncate flex-1">{loc.name}</p>
+        {loc.isTest && (
+          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
+            TEST
+          </span>
+        )}
       </div>
 
       {/* Metrics */}
       <div>
-        <MetricRow label={ml.foodCostPct}    value={loc.metrics.foodCostPct}          trend={loc.trends.foodCostPct}          noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "foodCostPct"} />
-        <MetricRow label={ml.laborCostPct}   value={loc.metrics.laborCostPct}         trend={loc.trends.laborCostPct}         noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "laborCostPct"} />
-        <MetricRow label={ml.primeCostPct}   value={loc.metrics.primeCostPct}         trend={loc.trends.primeCostPct}         noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "primeCostPct"} />
-        <MetricRow label={ml.invAccuracyPct} value={loc.metrics.inventoryAccuracyPct} trend={loc.trends.inventoryAccuracyPct} noData={ml.noData} noDataHint={ml.noDataHint} />
+        <MetricRow label={ml.foodCostPct}    value={loc.metrics.foodCostPct}          trend={loc.trends.foodCostPct}          noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "foodCostPct"}  metricKey="foodCostPct" />
+        <MetricRow label={ml.laborCostPct}   value={loc.metrics.laborCostPct}         trend={loc.trends.laborCostPct}         noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "laborCostPct"} metricKey="laborCostPct" />
+        <MetricRow label={ml.primeCostPct}   value={loc.metrics.primeCostPct}         trend={loc.trends.primeCostPct}         noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "primeCostPct"} metricKey="primeCostPct" />
+        <MetricRow label={ml.invAccuracyPct} value={loc.metrics.inventoryAccuracyPct} trend={loc.trends.inventoryAccuracyPct} noData={ml.noData} noDataHint={ml.noDataHint} metricKey="inventoryAccuracyPct" />
         <MetricRow label={ml.revenue30d}     value={loc.metrics.revenue30d > 0 ? loc.metrics.revenue30d : null} trend={loc.trends.revenue30d} isCurrency noData={ml.noData} noDataHint={ml.noDataHint} />
       </div>
     </div>
@@ -362,15 +399,17 @@ function BenchmarkCard({
 const MAX_VISIBLE = 3;
 
 export function MultiLocationOverview() {
-  const { t }    = useLanguage();
-  const navigate = useNavigate();
-  const ml       = t.multiLocation;
+  const { t }      = useLanguage();
+  const navigate   = useNavigate();
+  const { isAdmin } = useAuth();
+  const ml         = t.multiLocation;
 
-  const [locations,        setLocations]        = useState<LocationSummary[]>([]);
-  const [loading,          setLoading]          = useState(true);
-  const [showAll,          setShowAll]          = useState(false);
-  const [selected,         setSelected]         = useState<string>(readStoredLocation);
+  const [locations,         setLocations]         = useState<LocationSummary[]>([]);
+  const [loading,           setLoading]           = useState(true);
+  const [showAll,           setShowAll]           = useState(false);
+  const [selected,          setSelected]          = useState<string>(readStoredLocation);
   const [highlightedMetric, setHighlightedMetric] = useState<HighlightMetric>(null);
+  const [seeding,           setSeeding]           = useState(false);
 
   useEffect(() => {
     locationsApi.overview()
@@ -387,6 +426,24 @@ export function MultiLocationOverview() {
 
   function toggleHighlight(metric: HighlightMetric & string) {
     setHighlightedMetric((prev) => (prev === metric ? null : metric));
+  }
+
+  async function handleSeed() {
+    setSeeding(true);
+    try {
+      await seedApi.seedTestLocations();
+      const fresh = await locationsApi.overview();
+      setLocations(fresh);
+    } catch { /* ignore */ } finally { setSeeding(false); }
+  }
+
+  async function handleClear() {
+    setSeeding(true);
+    try {
+      await seedApi.clearTestLocations();
+      const fresh = await locationsApi.overview();
+      setLocations(fresh);
+    } catch { /* ignore */ } finally { setSeeding(false); }
   }
 
   if (loading) return <PageSpinner />;
@@ -468,6 +525,31 @@ export function MultiLocationOverview() {
               ↑ metric highlighted in location cards above · click again to clear
             </p>
           )}
+        </div>
+      )}
+
+      {/* Admin-only seed / clear buttons */}
+      {isAdmin && (
+        <div className="pt-4 mt-2 border-t border-[#111] flex items-center justify-between gap-4 flex-wrap">
+          <p className="text-[10px] text-[#2a2a2a] uppercase tracking-wider font-semibold">
+            Dev tools — admin only
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSeed}
+              disabled={seeding}
+              className="px-3 py-1.5 text-[11px] text-[#555] border border-[#222] rounded-md hover:text-[#3dbf8a] hover:border-[#3dbf8a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {seeding ? "Working…" : "Seed test data"}
+            </button>
+            <button
+              onClick={handleClear}
+              disabled={seeding}
+              className="px-3 py-1.5 text-[11px] text-[#555] border border-[#222] rounded-md hover:text-[#ef4444] hover:border-[#ef4444] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {seeding ? "Working…" : "Clear test data"}
+            </button>
+          </div>
         </div>
       )}
     </div>

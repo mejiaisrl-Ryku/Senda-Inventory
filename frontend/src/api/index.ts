@@ -395,6 +395,7 @@ export interface LocationSummary {
   restaurantId: string;
   name:         string;
   logo:         string | null;
+  isTest:       boolean;
   hasData:      boolean;
   metrics: {
     foodCostPct:          number | null;
@@ -415,6 +416,14 @@ export interface LocationSummary {
 export const locationsApi = {
   overview: () =>
     api.get<LocationSummary[]>("/locations/overview").then((r) => r.data),
+};
+
+export const seedApi = {
+  seedTestLocations: () =>
+    api.post<{ ok: boolean; seeded: string[] }>("/locations/seed-test").then((r) => r.data),
+
+  clearTestLocations: () =>
+    api.delete<{ ok: boolean; deleted: number }>("/locations/seed-test").then((r) => r.data),
 };
 
 // ── Partner setup (public — used on the /partner-setup onboarding page) ───────
