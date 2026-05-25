@@ -406,6 +406,7 @@ export function MultiLocationOverview() {
 
   const [locations,         setLocations]         = useState<LocationSummary[]>([]);
   const [loading,           setLoading]           = useState(true);
+  const [fetchError,        setFetchError]        = useState(false);
   const [showAll,           setShowAll]           = useState(false);
   const [selected,          setSelected]          = useState<string>(readStoredLocation);
   const [highlightedMetric, setHighlightedMetric] = useState<HighlightMetric>(null);
@@ -413,8 +414,15 @@ export function MultiLocationOverview() {
 
   useEffect(() => {
     locationsApi.overview()
-      .then(setLocations)
-      .catch(() => {})
+      .then((data) => { setLocations(data); setFetchError(false); })
+      .catch((err) => {
+        // 401 / 403: the axios interceptor already redirects to /login automatically —
+        // all requests go through the shared `api` instance which injects
+        // `Authorization: Bearer <token>` and retries with a refreshed token on 401.
+        // For any other error (network down, 5xx, etc.) show a recoverable error state.
+        const status = (err as any)?.response?.status;
+        if (status !== 401 && status !== 403) setFetchError(true);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -447,6 +455,38 @@ export function MultiLocationOverview() {
   }
 
   if (loading) return <PageSpinner />;
+
+  if (fetchError) {
+    return (
+      <div className="p-6 sm:p-8 space-y-4">
+        <h1 className="text-[22px] font-semibold text-white">{ml.title}</h1>
+        <div className="flex items-start gap-3 px-4 py-4 rounded-[8px] bg-[#1a1a1a] border border-[#ef4444]/30">
+          <svg className="w-4 h-4 text-[#ef4444] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="space-y-1">
+            <p className="text-[13px] text-[#ccc]">Unable to load location data.</p>
+            <p className="text-[11px] text-[#555]">
+              Check your connection, then{" "}
+              <button
+                onClick={() => { setFetchError(false); setLoading(true);
+                  locationsApi.overview().then(setLocations).catch(() => setFetchError(true)).finally(() => setLoading(false)); }}
+                className="text-[#3dbf8a] hover:underline"
+              >
+                try again
+              </button>
+              {" "}or{" "}
+              <button onClick={() => navigate("/login")} className="text-[#3dbf8a] hover:underline">
+                log in again
+              </button>
+              .
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const visible  = showAll ? locations : locations.slice(0, MAX_VISIBLE);
   const overflow = locations.length - MAX_VISIBLE;
