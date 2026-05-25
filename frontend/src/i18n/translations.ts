@@ -3,18 +3,19 @@ export type Lang = "en" | "es";
 const en = {
   // ── Navigation ──────────────────────────────────────────────────────────────
   nav: {
-    dashboard:  "Dashboard",
-    invoices:   "Invoices",
-    stock:      "Stock",
-    orders:     "Orders",
-    inventory:  "Inventory",
-    recipes:    "Recipes",
-    sales:      "Sales",
-    labor:      "Labor",
-    reports:    "Reports",
-    team:       "Team",
-    logOut:     "Log Out",
-    adminSection: "Admin",
+    dashboard:      "Dashboard",
+    multiLocation:  "Multi-Location",
+    invoices:       "Invoices",
+    stock:          "Stock",
+    orders:         "Orders",
+    inventory:      "Inventory",
+    recipes:        "Recipes",
+    sales:          "Sales",
+    labor:          "Labor",
+    reports:        "Reports",
+    team:           "Team",
+    logOut:         "Log Out",
+    adminSection:   "Admin",
   },
 
   // ── Common ──────────────────────────────────────────────────────────────────
@@ -463,6 +464,22 @@ const en = {
     },
   },
 
+  // ── Multi-Location Overview ───────────────────────────────────────────────────
+  multiLocation: {
+    title:            "Multi-Location Overview",
+    subtitle:         "Performance across all locations",
+    singleLocation:   "You have 1 location. This view is designed for 2+ locations.",
+    foodCostPct:      "Food Cost %",
+    laborCostPct:     "Labor Cost %",
+    primeCostPct:     "Prime Cost %",
+    invAccuracyPct:   "Inventory Accuracy %",
+    revenue30d:       "Revenue (last 30 days)",
+    noData:           "—",
+    noDataHint:       "Set up invoices to see data",
+    moreLocations:    "more locations",
+    showMore:         "Show all",
+  },
+
   // ── Onboarding checklist ─────────────────────────────────────────────────────
   onboarding: {
     title:         "Get started",
@@ -499,10 +516,11 @@ const en = {
 
 const es: typeof en = {
   nav: {
-    dashboard:    "Inicio",
-    invoices:     "Facturas",
-    stock:        "Producto en Existencia",
-    orders:       "Pedidos",
+    dashboard:      "Inicio",
+    multiLocation:  "Multi-Ubicación",
+    invoices:       "Facturas",
+    stock:          "Producto en Existencia",
+    orders:         "Pedidos",
     inventory:    "Inventario",
     recipes:      "Recetas",
     sales:        "Ventas",
@@ -949,6 +967,21 @@ const es: typeof en = {
     critical:    "Crítico",
     adminRole:   "Admin",
     userRole:    "Usuario",
+  },
+
+  multiLocation: {
+    title:           "Vista Multi-Ubicación",
+    subtitle:        "Rendimiento en todas las ubicaciones",
+    singleLocation:  "Tienes 1 ubicación. Esta vista está diseñada para 2 o más ubicaciones.",
+    foodCostPct:     "Costo de Alimentos %",
+    laborCostPct:    "Costo de Nómina %",
+    primeCostPct:    "Prime Cost %",
+    invAccuracyPct:  "Precisión de Inventario %",
+    revenue30d:      "Ingresos (últimos 30 días)",
+    noData:          "—",
+    noDataHint:      "Agrega facturas para ver datos",
+    moreLocations:   "ubicaciones más",
+    showMore:        "Ver todas",
   },
 
   onboarding: {

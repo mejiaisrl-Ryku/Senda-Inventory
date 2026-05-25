@@ -387,6 +387,36 @@ export const onboardingApi = {
     api.post<{ ok: boolean }>("/onboarding/dismiss").then((r) => r.data),
 };
 
+// ── Locations (Multi-Location Overview) ──────────────────────────────────────
+
+export type MetricTrend = "up" | "down" | "flat" | null;
+
+export interface LocationSummary {
+  restaurantId: string;
+  name:         string;
+  logo:         string | null;
+  hasData:      boolean;
+  metrics: {
+    foodCostPct:          number | null;
+    laborCostPct:         number | null;
+    primeCostPct:         number | null;
+    inventoryAccuracyPct: number | null;
+    revenue30d:           number;
+  };
+  trends: {
+    foodCostPct:          MetricTrend;
+    laborCostPct:         MetricTrend;
+    primeCostPct:         MetricTrend;
+    inventoryAccuracyPct: MetricTrend;
+    revenue30d:           MetricTrend;
+  };
+}
+
+export const locationsApi = {
+  overview: () =>
+    api.get<LocationSummary[]>("/locations/overview").then((r) => r.data),
+};
+
 // ── Partner setup (public — used on the /partner-setup onboarding page) ───────
 
 export const partnerSetupApi = {
