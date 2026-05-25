@@ -1,26 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { onboardingApi, OnboardingProgress } from "../api";
+import { useLanguage } from "../context/LanguageContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type CompletedKey = keyof OnboardingProgress["completed"];
 
 interface ChecklistItem {
-  key:    CompletedKey;
-  label:  string;
-  route:  string;
+  key:   CompletedKey;
+  label: string;
+  route: string;
 }
-
-// ── Config ────────────────────────────────────────────────────────────────────
-
-const ITEMS: ChecklistItem[] = [
-  { key: "invoice",  label: "Add your first invoice",              route: "/orders"   },
-  { key: "product",  label: "Create your first product",           route: "/products" },
-  { key: "recipe",   label: "Build your first recipe",             route: "/recipes"  },
-  { key: "parLevel", label: "Set your par levels (minimum stock)", route: "/products" },
-  { key: "team",     label: "Add a team member",                   route: "/team"     },
-];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -54,11 +45,21 @@ function CircleIcon() {
 
 export function OnboardingChecklist() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
+  const o = t.onboarding;
 
   const [progress,    setProgress]    = useState<OnboardingProgress | null>(null);
   const [celebrating, setCelebrating] = useState(false);
   const [hidden,      setHidden]      = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Build the 4-step checklist from translations (re-computed when language changes).
+  const ITEMS: ChecklistItem[] = [
+    { key: "product",  label: o.step1Label, route: "/products" },
+    { key: "invoice",  label: o.step2Label, route: "/products" },
+    { key: "recipe",   label: o.step3Label, route: "/recipes"  },
+    { key: "team",     label: o.step4Label, route: "/team"     },
+  ];
 
   // Fetch progress whenever the component mounts (i.e. every dashboard visit).
   useEffect(() => {
@@ -77,6 +78,7 @@ export function OnboardingChecklist() {
       try { await onboardingApi.dismiss(); } catch { /* best-effort */ }
       setHidden(true);
     }, 3000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress, celebrating]);
 
   // Hide while loading, already dismissed, or just dismissed this session.
@@ -96,8 +98,8 @@ export function OnboardingChecklist() {
           </svg>
         </div>
         <div>
-          <p className="text-[13px] font-semibold text-white">You're all set! 🎉</p>
-          <p className="text-[12px] text-[#555] mt-0.5">Setup complete — this checklist won't appear again.</p>
+          <p className="text-[13px] font-semibold text-white">{o.allSetTitle}</p>
+          <p className="text-[12px] text-[#555] mt-0.5">{o.allSetDesc}</p>
         </div>
       </div>
     );
@@ -110,10 +112,10 @@ export function OnboardingChecklist() {
       {/* Header + progress counter */}
       <div className="flex items-center justify-between gap-3">
         <p className="text-[12px] font-semibold text-white uppercase tracking-[0.07em]">
-          Get started
+          {o.title}
         </p>
         <span className="text-[11px] text-[#555] shrink-0">
-          {completedCount} of {total} completed
+          {completedCount} {o.ofCompleted} {total} {o.completed}
         </span>
       </div>
 

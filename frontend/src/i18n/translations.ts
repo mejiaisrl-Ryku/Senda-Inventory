@@ -463,6 +463,19 @@ const en = {
     },
   },
 
+  // ── Onboarding checklist ─────────────────────────────────────────────────────
+  onboarding: {
+    title:         "Get started",
+    ofCompleted:   "of",
+    completed:     "completed",
+    allSetTitle:   "You're all set! 🎉",
+    allSetDesc:    "Setup complete — this checklist won't appear again.",
+    step1Label:    "Start on the first day of your inventory cycle",
+    step2Label:    "Add your first invoice",
+    step3Label:    "Build your first recipe",
+    step4Label:    "Add a team member",
+  },
+
   // ── Shared / UI ──────────────────────────────────────────────────────────────
   ui: {
     // ConfirmDialog default
@@ -936,6 +949,18 @@ const es: typeof en = {
     critical:    "Crítico",
     adminRole:   "Admin",
     userRole:    "Usuario",
+  },
+
+  onboarding: {
+    title:         "Primeros pasos",
+    ofCompleted:   "de",
+    completed:     "completados",
+    allSetTitle:   "¡Todo listo! 🎉",
+    allSetDesc:    "Configuración completa — esta lista no volverá a aparecer.",
+    step1Label:    "Comienza el primer día de tu ciclo de inventario",
+    step2Label:    "Agrega tu primera factura",
+    step3Label:    "Crea tu primera receta",
+    step4Label:    "Agrega a un miembro del equipo",
   },
 };
 
