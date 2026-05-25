@@ -478,6 +478,8 @@ const en = {
     noDataHint:       "Set up invoices to see data",
     moreLocations:    "more locations",
     showMore:         "Show all",
+    allLocations:     "All Locations",
+    switchLocation:   "Switch location",
   },
 
   // ── Onboarding checklist ─────────────────────────────────────────────────────
@@ -982,6 +984,8 @@ const es: typeof en = {
     noDataHint:      "Agrega facturas para ver datos",
     moreLocations:   "ubicaciones más",
     showMore:        "Ver todas",
+    allLocations:    "Todas las Ubicaciones",
+    switchLocation:  "Cambiar ubicación",
   },
 
   onboarding: {
