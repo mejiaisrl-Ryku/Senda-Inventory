@@ -5,6 +5,11 @@ import { useLanguage } from "../context/LanguageContext";
 import { formatCurrency } from "../utils/stock";
 import { PageSpinner } from "./shared/Spinner";
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+/** Which cost-% metric is currently highlighted across all location cards. */
+type HighlightMetric = "foodCostPct" | "laborCostPct" | "primeCostPct" | null;
+
 // ── Persistence ───────────────────────────────────────────────────────────────
 
 const LS_KEY = "kyru-selected-location";
@@ -12,7 +17,6 @@ const LS_KEY = "kyru-selected-location";
 function readStoredLocation(): string {
   try { return localStorage.getItem(LS_KEY) ?? "all"; } catch { return "all"; }
 }
-
 function writeStoredLocation(id: string) {
   try { localStorage.setItem(LS_KEY, id); } catch { /* ignore */ }
 }
@@ -24,16 +28,15 @@ function LocationSwitcher({
   selected,
   onSelect,
 }: {
-  locations:  LocationSummary[];
-  selected:   string; // restaurantId or "all"
-  onSelect:   (id: string) => void;
+  locations: LocationSummary[];
+  selected:  string; // restaurantId or "all"
+  onSelect:  (id: string) => void;
 }) {
   const { t } = useLanguage();
   const ml = t.multiLocation;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     function handler(e: MouseEvent) {
@@ -46,14 +49,8 @@ function LocationSwitcher({
   const selectedLoc = locations.find((l) => l.restaurantId === selected);
   const label       = selectedLoc ? selectedLoc.name : ml.allLocations;
 
-  function handleSelect(id: string) {
-    onSelect(id);
-    setOpen(false);
-  }
-
   return (
     <div ref={ref} className="relative shrink-0">
-      {/* Trigger button */}
       <button
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
@@ -64,7 +61,6 @@ function LocationSwitcher({
             : "border-[#2a2a2a] bg-[#0a0a0a] text-[#aaa] hover:text-white hover:border-[#3a3a3a]"
         }`}
       >
-        {/* Location avatar or globe icon */}
         {selectedLoc ? (
           selectedLoc.logo ? (
             <img src={selectedLoc.logo} alt="" className="w-4 h-4 rounded-full object-cover shrink-0" />
@@ -79,9 +75,7 @@ function LocationSwitcher({
               d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         )}
-
         <span className={selectedLoc ? "font-semibold text-white" : ""}>{label}</span>
-
         <svg
           className={`w-3.5 h-3.5 shrink-0 transition-transform duration-150 ${open ? "rotate-180 text-[#3dbf8a]" : "text-[#555]"}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -90,21 +84,14 @@ function LocationSwitcher({
         </svg>
       </button>
 
-      {/* Dropdown panel */}
       {open && (
-        <div
-          role="listbox"
-          className="absolute right-0 mt-1.5 w-56 rounded-xl border border-[#1a1a1a] bg-[#0a0a0a] shadow-xl shadow-black/60 z-50 overflow-hidden"
-        >
-          {/* "All Locations" option */}
+        <div role="listbox" className="absolute right-0 mt-1.5 w-56 rounded-xl border border-[#1a1a1a] bg-[#0a0a0a] shadow-xl shadow-black/60 z-50 overflow-hidden">
+          {/* "All Locations" */}
           <button
-            role="option"
-            aria-selected={selected === "all"}
-            onClick={() => handleSelect("all")}
+            role="option" aria-selected={selected === "all"}
+            onClick={() => { onSelect("all"); setOpen(false); }}
             className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] transition-colors hover:bg-[#111] ${
-              selected === "all"
-                ? "text-[#3dbf8a] font-semibold bg-[#3dbf8a]/5"
-                : "text-[#888]"
+              selected === "all" ? "text-[#3dbf8a] font-semibold bg-[#3dbf8a]/5" : "text-[#888]"
             }`}
           >
             <svg className={`w-4 h-4 shrink-0 ${selected === "all" ? "text-[#3dbf8a]" : "text-[#444]"}`}
@@ -122,22 +109,16 @@ function LocationSwitcher({
 
           {locations.length > 0 && <div className="border-t border-[#111]" />}
 
-          {/* Individual locations */}
           {locations.map((loc) => {
             const isActive = selected === loc.restaurantId;
             return (
               <button
-                key={loc.restaurantId}
-                role="option"
-                aria-selected={isActive}
-                onClick={() => handleSelect(loc.restaurantId)}
+                key={loc.restaurantId} role="option" aria-selected={isActive}
+                onClick={() => { onSelect(loc.restaurantId); setOpen(false); }}
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] transition-colors hover:bg-[#111] ${
-                  isActive
-                    ? "text-[#3dbf8a] font-semibold bg-[#3dbf8a]/5"
-                    : "text-[#888]"
+                  isActive ? "text-[#3dbf8a] font-semibold bg-[#3dbf8a]/5" : "text-[#888]"
                 }`}
               >
-                {/* Avatar */}
                 {loc.logo ? (
                   <img src={loc.logo} alt="" className="w-5 h-5 rounded-full object-cover shrink-0" />
                 ) : (
@@ -165,13 +146,9 @@ function LocationSwitcher({
 // ── Trend arrow ───────────────────────────────────────────────────────────────
 
 function TrendArrow({ trend }: { trend: MetricTrend }) {
-  if (!trend || trend === "flat") {
-    return <span className="text-[#555] text-[13px]">→</span>;
-  }
-  if (trend === "up") {
-    return <span className="text-[#aaa] text-[13px]">↑</span>;
-  }
-  return <span className="text-[#aaa] text-[13px]">↓</span>;
+  if (!trend || trend === "flat") return <span className="text-[#555] text-[13px]">→</span>;
+  if (trend === "up")             return <span className="text-[#aaa] text-[13px]">↑</span>;
+  return                                 <span className="text-[#aaa] text-[13px]">↓</span>;
 }
 
 // ── Single metric row ─────────────────────────────────────────────────────────
@@ -183,20 +160,24 @@ function MetricRow({
   isCurrency = false,
   noData,
   noDataHint,
+  highlighted = false,
 }: {
-  label:       string;
-  value:       number | null;
-  trend:       MetricTrend;
-  isCurrency?: boolean;
-  noData:      string;
-  noDataHint:  string;
+  label:        string;
+  value:        number | null;
+  trend:        MetricTrend;
+  isCurrency?:  boolean;
+  noData:       string;
+  noDataHint:   string;
+  highlighted?: boolean;
 }) {
   const hasValue = value !== null && value !== undefined;
 
   return (
-    <div className="flex items-start justify-between gap-3 py-3 border-b border-[#111] last:border-0">
+    <div className={`flex items-start justify-between gap-3 py-3 border-b border-[#111] last:border-0 transition-colors rounded-md ${
+      highlighted ? "bg-[#3dbf8a]/[0.07] -mx-2 px-2" : ""
+    }`}>
       <div className="min-w-0">
-        <p className="text-[11px] font-semibold text-[#555] uppercase tracking-wider truncate">
+        <p className={`text-[11px] font-semibold uppercase tracking-wider truncate ${highlighted ? "text-[#3dbf8a]" : "text-[#555]"}`}>
           {label}
         </p>
         {hasValue ? (
@@ -210,83 +191,169 @@ function MetricRow({
           </>
         )}
       </div>
-      {hasValue && (
-        <div className="shrink-0 mt-1">
-          <TrendArrow trend={trend} />
-        </div>
-      )}
+      {hasValue && <div className="shrink-0 mt-1"><TrendArrow trend={trend} /></div>}
     </div>
   );
 }
 
 // ── Location card ─────────────────────────────────────────────────────────────
 
-function LocationCard({ loc }: { loc: LocationSummary }) {
+function LocationCard({
+  loc,
+  highlightedMetric,
+}: {
+  loc:              LocationSummary;
+  highlightedMetric: HighlightMetric;
+}) {
   const { t } = useLanguage();
   const ml = t.multiLocation;
 
   return (
     <div className="flex-1 min-w-0 bg-[#0a0a0a] border border-[#1a1a1a] rounded-[10px] p-5 space-y-1">
-      {/* Card header */}
+      {/* Header */}
       <div className="flex items-center gap-3 pb-3 border-b border-[#1a1a1a]">
         {loc.logo ? (
-          <img
-            src={loc.logo}
-            alt={loc.name}
-            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-          />
+          <img src={loc.logo} alt={loc.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
         ) : (
           <div className="w-8 h-8 rounded-full bg-[#3dbf8a]/20 flex items-center justify-center flex-shrink-0">
-            <span className="text-[#3dbf8a] text-[13px] font-bold">
-              {loc.name[0]?.toUpperCase() ?? "?"}
-            </span>
+            <span className="text-[#3dbf8a] text-[13px] font-bold">{loc.name[0]?.toUpperCase() ?? "?"}</span>
           </div>
         )}
-        <div className="min-w-0">
-          <p className="text-[14px] font-semibold text-white truncate">{loc.name}</p>
-        </div>
+        <p className="text-[14px] font-semibold text-white truncate">{loc.name}</p>
       </div>
 
       {/* Metrics */}
       <div>
-        <MetricRow
-          label={ml.foodCostPct}
-          value={loc.metrics.foodCostPct}
-          trend={loc.trends.foodCostPct}
-          noData={ml.noData}
-          noDataHint={ml.noDataHint}
-        />
-        <MetricRow
-          label={ml.laborCostPct}
-          value={loc.metrics.laborCostPct}
-          trend={loc.trends.laborCostPct}
-          noData={ml.noData}
-          noDataHint={ml.noDataHint}
-        />
-        <MetricRow
-          label={ml.primeCostPct}
-          value={loc.metrics.primeCostPct}
-          trend={loc.trends.primeCostPct}
-          noData={ml.noData}
-          noDataHint={ml.noDataHint}
-        />
-        <MetricRow
-          label={ml.invAccuracyPct}
-          value={loc.metrics.inventoryAccuracyPct}
-          trend={loc.trends.inventoryAccuracyPct}
-          noData={ml.noData}
-          noDataHint={ml.noDataHint}
-        />
-        <MetricRow
-          label={ml.revenue30d}
-          value={loc.metrics.revenue30d > 0 ? loc.metrics.revenue30d : null}
-          trend={loc.trends.revenue30d}
-          isCurrency
-          noData={ml.noData}
-          noDataHint={ml.noDataHint}
-        />
+        <MetricRow label={ml.foodCostPct}    value={loc.metrics.foodCostPct}          trend={loc.trends.foodCostPct}          noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "foodCostPct"} />
+        <MetricRow label={ml.laborCostPct}   value={loc.metrics.laborCostPct}         trend={loc.trends.laborCostPct}         noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "laborCostPct"} />
+        <MetricRow label={ml.primeCostPct}   value={loc.metrics.primeCostPct}         trend={loc.trends.primeCostPct}         noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "primeCostPct"} />
+        <MetricRow label={ml.invAccuracyPct} value={loc.metrics.inventoryAccuracyPct} trend={loc.trends.inventoryAccuracyPct} noData={ml.noData} noDataHint={ml.noDataHint} />
+        <MetricRow label={ml.revenue30d}     value={loc.metrics.revenue30d > 0 ? loc.metrics.revenue30d : null} trend={loc.trends.revenue30d} isCurrency noData={ml.noData} noDataHint={ml.noDataHint} />
       </div>
     </div>
+  );
+}
+
+// ── Benchmark section ─────────────────────────────────────────────────────────
+
+interface BenchmarkDef {
+  metricKey:       HighlightMetric & string; // "foodCostPct" | "laborCostPct" | "primeCostPct"
+  labelKey:        "lowestFoodCost" | "lowestLaborCost" | "bestPrimeCost";
+}
+
+const BENCHMARKS: BenchmarkDef[] = [
+  { metricKey: "foodCostPct",  labelKey: "lowestFoodCost"  },
+  { metricKey: "laborCostPct", labelKey: "lowestLaborCost" },
+  { metricKey: "primeCostPct", labelKey: "bestPrimeCost"   },
+];
+
+function BenchmarkCard({
+  def,
+  locations,
+  isActive,
+  onToggle,
+}: {
+  def:       BenchmarkDef;
+  locations: LocationSummary[];
+  isActive:  boolean;
+  onToggle:  () => void;
+}) {
+  const { t } = useLanguage();
+  const ml = t.multiLocation;
+
+  // Locations that have a value for this metric
+  const withData = locations.filter((l) => l.metrics[def.metricKey as keyof LocationSummary["metrics"]] !== null) as LocationSummary[];
+  const allHaveData = withData.length === locations.length && locations.length > 0;
+
+  // Sort ascending — lowest first (lower is better for all 3 cost metrics)
+  const sorted = [...withData].sort(
+    (a, b) =>
+      (a.metrics[def.metricKey as keyof LocationSummary["metrics"]] as number) -
+      (b.metrics[def.metricKey as keyof LocationSummary["metrics"]] as number)
+  );
+
+  const best  = sorted[0];
+  const worst = sorted[sorted.length - 1];
+  const others = sorted.slice(1); // everyone except best, for the comparison list
+
+  const bestVal  = best  ? (best.metrics[def.metricKey  as keyof LocationSummary["metrics"]] as number) : null;
+  const worstVal = worst ? (worst.metrics[def.metricKey as keyof LocationSummary["metrics"]] as number) : null;
+  const gap      = bestVal !== null && worstVal !== null && best?.restaurantId !== worst?.restaurantId
+    ? Math.round((worstVal - bestVal) * 10) / 10
+    : null;
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`flex-1 min-w-0 text-left rounded-[10px] border p-4 transition-all ${
+        isActive
+          ? "border-[#3dbf8a] bg-[#3dbf8a]/[0.06] shadow-[0_0_0_1px_#3dbf8a22]"
+          : "border-[#1a1a1a] bg-[#0a0a0a] hover:border-[#2a2a2a] hover:bg-[#0d0d0d]"
+      }`}
+    >
+      {/* Card header: icon + label */}
+      <div className="flex items-center gap-2 mb-3">
+        <span className={`text-[15px] font-bold leading-none ${isActive ? "text-[#3dbf8a]" : "text-[#555]"}`}>↓</span>
+        <p className={`text-[11px] font-semibold uppercase tracking-wider ${isActive ? "text-[#3dbf8a]" : "text-[#555]"}`}>
+          {ml[def.labelKey]}
+        </p>
+        <span className={`ml-auto text-[10px] italic ${isActive ? "text-[#3dbf8a]/70" : "text-[#333]"}`}>
+          {ml.lowerIsBetter}
+        </span>
+      </div>
+
+      {/* No data at all */}
+      {withData.length === 0 && (
+        <p className="text-[12px] text-[#444] italic">{ml.missingData}</p>
+      )}
+
+      {/* Best performer */}
+      {best && (
+        <div className="space-y-1.5">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[#3dbf8a] font-semibold text-[14px] truncate">{best.name}</span>
+            <span className="text-[#555] text-[12px] shrink-0">{ml.at}</span>
+            <span className="text-white font-bold text-[18px] shrink-0">{bestVal?.toFixed(1)}%</span>
+          </div>
+
+          {/* Gap callout */}
+          {gap !== null && gap > 0 && worst && (
+            <p className="text-[12px] text-[#888]">
+              <span className="text-[#3dbf8a] font-semibold">{gap.toFixed(1)}%</span>
+              {" "}{ml.betterThan}{" "}
+              <span className="text-[#666]">{worst.name}</span>
+              {" "}
+              <span className="text-[#444]">({worstVal?.toFixed(1)}%)</span>
+            </p>
+          )}
+
+          {/* Missing data note */}
+          {!allHaveData && locations.length > withData.length && (
+            <p className="text-[11px] text-[#444] italic mt-1">{ml.missingData}</p>
+          )}
+
+          {/* Other locations mini-list */}
+          {others.length > 0 && (
+            <div className="pt-2 mt-1 border-t border-[#111] flex flex-wrap gap-x-3 gap-y-1">
+              {others.map((loc) => {
+                const v = loc.metrics[def.metricKey as keyof LocationSummary["metrics"]] as number;
+                return (
+                  <span key={loc.restaurantId} className="text-[11px] text-[#555]">
+                    {loc.name}: <span className="text-[#777]">{v.toFixed(1)}%</span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Active pulse dot */}
+      {isActive && (
+        <div className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-[#3dbf8a]" />
+      )}
+    </button>
   );
 }
 
@@ -299,13 +366,11 @@ export function MultiLocationOverview() {
   const navigate = useNavigate();
   const ml       = t.multiLocation;
 
-  const [locations, setLocations] = useState<LocationSummary[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [showAll,   setShowAll]   = useState(false);
-
-  // Persist selected location across reloads.
-  // "all" = stay on this page; a restaurantId = navigate to that location's dashboard.
-  const [selected, setSelected] = useState<string>(readStoredLocation);
+  const [locations,        setLocations]        = useState<LocationSummary[]>([]);
+  const [loading,          setLoading]          = useState(true);
+  const [showAll,          setShowAll]          = useState(false);
+  const [selected,         setSelected]         = useState<string>(readStoredLocation);
+  const [highlightedMetric, setHighlightedMetric] = useState<HighlightMetric>(null);
 
   useEffect(() => {
     locationsApi.overview()
@@ -314,16 +379,14 @@ export function MultiLocationOverview() {
       .finally(() => setLoading(false));
   }, []);
 
-  // When a specific location is selected, navigate to the dashboard.
-  // "all" keeps the user on this page.
   function handleSelect(id: string) {
     writeStoredLocation(id);
     setSelected(id);
-    if (id !== "all") {
-      // Dashboard doesn't yet support location-specific context — navigate to
-      // the root dashboard. Location filtering will be wired in a future prompt.
-      navigate("/");
-    }
+    if (id !== "all") navigate("/");
+  }
+
+  function toggleHighlight(metric: HighlightMetric & string) {
+    setHighlightedMetric((prev) => (prev === metric ? null : metric));
   }
 
   if (loading) return <PageSpinner />;
@@ -332,33 +395,28 @@ export function MultiLocationOverview() {
   const overflow = locations.length - MAX_VISIBLE;
   const isSingle = locations.length === 1;
 
+  // Show benchmark section only when there's more than 1 location with any data,
+  // or always show (with missing-data notes) so the section isn't surprising.
+  const showBenchmarks = locations.length >= 1;
+
   return (
     <div className="p-6 sm:p-8 space-y-6">
 
-      {/* Header row: title + location switcher */}
+      {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-[22px] font-semibold text-white">{ml.title}</h1>
           <p className="text-[13px] text-[#555] mt-0.5">{ml.subtitle}</p>
         </div>
-
-        {/* Switcher — only render once locations are loaded */}
         {locations.length > 0 && (
-          <LocationSwitcher
-            locations={locations}
-            selected={selected}
-            onSelect={handleSelect}
-          />
+          <LocationSwitcher locations={locations} selected={selected} onSelect={handleSelect} />
         )}
       </div>
 
       {/* Single-location notice */}
       {isSingle && (
         <div className="flex items-start gap-3 px-4 py-3 rounded-[8px] bg-[#1a1a1a] border border-[#2a2a2a]">
-          <svg
-            className="w-4 h-4 text-[#3dbf8a] mt-0.5 shrink-0"
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
+          <svg className="w-4 h-4 text-[#3dbf8a] mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
@@ -366,14 +424,14 @@ export function MultiLocationOverview() {
         </div>
       )}
 
-      {/* Location cards — side-by-side */}
+      {/* Location cards */}
       <div className="flex flex-col sm:flex-row gap-4 items-stretch">
         {visible.map((loc) => (
-          <LocationCard key={loc.restaurantId} loc={loc} />
+          <LocationCard key={loc.restaurantId} loc={loc} highlightedMetric={highlightedMetric} />
         ))}
       </div>
 
-      {/* "+X more" button */}
+      {/* "+X more" */}
       {!showAll && overflow > 0 && (
         <div className="flex justify-center pt-2">
           <button
@@ -381,11 +439,35 @@ export function MultiLocationOverview() {
             className="inline-flex items-center gap-2 px-5 py-2 rounded-lg border border-[#2a2a2a] bg-[#0a0a0a] text-[13px] text-[#888] hover:text-white hover:border-[#3dbf8a] transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M12 4v16m8-8H4" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             +{overflow} {ml.moreLocations}
           </button>
+        </div>
+      )}
+
+      {/* ── Best Performers ──────────────────────────────────────────────────── */}
+      {showBenchmarks && (
+        <div className="space-y-3 pt-2">
+          <p className="text-[11px] font-semibold text-[#444] uppercase tracking-[0.12em]">
+            {ml.bestPerformers}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 relative">
+            {BENCHMARKS.map((def) => (
+              <BenchmarkCard
+                key={def.metricKey}
+                def={def}
+                locations={locations}
+                isActive={highlightedMetric === def.metricKey}
+                onToggle={() => toggleHighlight(def.metricKey)}
+              />
+            ))}
+          </div>
+          {highlightedMetric && (
+            <p className="text-center text-[11px] text-[#444] italic">
+              ↑ metric highlighted in location cards above · click again to clear
+            </p>
+          )}
         </div>
       )}
     </div>
