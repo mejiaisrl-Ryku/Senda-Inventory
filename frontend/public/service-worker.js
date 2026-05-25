@@ -1,5 +1,5 @@
 /* eslint-disable no-restricted-globals */
-const STATIC_CACHE = "senda-static-v1";
+const STATIC_CACHE = "kyru-static-v2";
 
 // Pre-cache the app shell at install time.
 self.addEventListener("install", (event) => {

@@ -1,12 +1,12 @@
 {
-  "name": "Senda Inventory",
-  "short_name": "Senda",
+  "name": "Kyru",
+  "short_name": "Kyru",
   "description": "Real-time inventory tracking for restaurants",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",
-  "theme_color": "#0ea5e9",
-  "background_color": "#0f172a",
+  "theme_color": "#3EBF8A",
+  "background_color": "#0a0a0a",
   "icons": [
     {
       "src": "favicon.ico",

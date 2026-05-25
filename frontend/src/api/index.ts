@@ -15,7 +15,10 @@ export const api = axios.create({
 // ── Request interceptor: attach access token ──────────────────────────────────
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    // Use .set() — the correct axios v1.x AxiosHeaders API.
+    config.headers.set("Authorization", `Bearer ${token}`);
+  }
   return config;
 });
 
@@ -35,6 +38,14 @@ function clearSession() {
   cachePurge();
 }
 
+function redirectToLogin() {
+  clearSession();
+  // Only redirect if we're not already on the login page to avoid redirect loops.
+  if (!window.location.pathname.startsWith("/login")) {
+    window.location.href = "/login";
+  }
+}
+
 function cacheKey(config: AxiosRequestConfig): string {
   return `${config.url}?${JSON.stringify(config.params ?? {})}`;
 }
@@ -47,9 +58,12 @@ api.interceptors.response.use(
     return r;
   },
   async (err) => {
-    const original: AxiosRequestConfig & { _retry?: boolean } = err.config ?? {};
+    // err.config is undefined for requests that never left the client (e.g. cancelled).
+    if (!err.config) return Promise.reject(err);
 
-    // Skip retry for auth endpoints themselves to prevent loops.
+    const original: AxiosRequestConfig & { _retry?: boolean } = err.config;
+
+    // Skip retry for auth endpoints themselves to prevent infinite loops.
     const isAuthEndpoint =
       original.url?.includes("/auth/login") ||
       original.url?.includes("/auth/register") ||
@@ -71,34 +85,38 @@ api.interceptors.response.use(
     const storedRefresh = localStorage.getItem("refreshToken");
 
     if (!storedRefresh) {
-      clearSession();
-      window.location.href = "/login";
+      redirectToLogin();
       return Promise.reject(err);
     }
 
     if (isRefreshing) {
       // Queue this request until the in-flight refresh resolves.
-      return new Promise((resolve, reject) => {
+      return new Promise<string>((resolve, reject) => {
         pendingQueue.push({ resolve, reject });
       }).then((newToken) => {
-        original.headers = { ...original.headers, Authorization: `Bearer ${newToken}` };
+        // The request interceptor will attach the new token from localStorage;
+        // also set it directly here so the retry doesn't need a round-trip.
+        original.headers = {
+          ...original.headers,
+          Authorization: `Bearer ${newToken}`,
+        };
         return api(original);
-      });
+      }).catch((queueErr) => Promise.reject(queueErr));
     }
 
     isRefreshing = true;
     try {
       const { data } = await axios.post(`${BASE}/auth/refresh`, { refreshToken: storedRefresh });
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("refreshToken", data.refreshToken);
-      if (data.user) localStorage.setItem("user", JSON.stringify(data.user));
-      drainQueue(null, data.token);
-      original.headers = { ...original.headers, Authorization: `Bearer ${data.token}` };
+      const { token: newToken, refreshToken: newRefresh, user } = data;
+      localStorage.setItem("token", newToken);
+      localStorage.setItem("refreshToken", newRefresh);
+      if (user) localStorage.setItem("user", JSON.stringify(user));
+      drainQueue(null, newToken);
+      // Retry the original request — request interceptor will attach the new token.
       return api(original);
     } catch (refreshErr) {
       drainQueue(refreshErr);
-      clearSession();
-      window.location.href = "/login";
+      redirectToLogin();
       return Promise.reject(refreshErr);
     } finally {
       isRefreshing = false;
