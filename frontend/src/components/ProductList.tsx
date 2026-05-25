@@ -403,7 +403,10 @@ function lineSubtotal(l: InvoiceLine) {
   return (parseFloat(l.qty) || 0) * (parseFloat(l.cost) || 0);
 }
 
-const INVOICE_CATEGORIES = ["", "Beer", "Liquor", "Wine", "Food", "Non Alcoholic", "Other"];
+const INVOICE_CATEGORIES = [
+  "", "Perishable Food", "Dry Food", "Beverages",
+  "Paper Goods", "Chemicals", "Office Supplies", "Miscellaneous",
+];
 const INVOICE_UNITS = ["KG", "LB", "OZ", "G", "LITERS", "PIECES", "EA", "DOZ", "CS"] as const;
 
 function InvoiceSpinner() {
@@ -656,7 +659,9 @@ function AddInvoiceForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: 
                         className={inputCls}
                       >
                         {INVOICE_CATEGORIES.map(c => (
-                          <option key={c} value={c}>{c || "—"}</option>
+                          <option key={c} value={c}>
+                            {c ? (t.categories[c] ?? c) : "—"}
+                          </option>
                         ))}
                       </select>
                     </div>

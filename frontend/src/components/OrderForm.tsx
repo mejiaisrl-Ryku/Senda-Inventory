@@ -12,7 +12,8 @@ const DEPT_VALUES = ["KITCHEN", "FOH", "BAR"] as const;
 type DeptValue = typeof DEPT_VALUES[number] | "";
 
 const CATEGORIES = [
-  "", "Beer", "Liquor", "Wine", "Food", "Non Alcoholic", "Other",
+  "", "Perishable Food", "Dry Food", "Beverages",
+  "Paper Goods", "Chemicals", "Office Supplies", "Miscellaneous",
 ];
 
 const UNIT_VALUES = ["KG", "LB", "OZ", "G", "LITERS", "PIECES", "EA", "DOZ", "CS"];
@@ -360,7 +361,9 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
                         className={inputCls}
                       >
                         {CATEGORIES.map(c => (
-                          <option key={c} value={c}>{c || "—"}</option>
+                          <option key={c} value={c}>
+                            {c ? (t.categories[c] ?? c) : "—"}
+                          </option>
                         ))}
                       </select>
                     </div>

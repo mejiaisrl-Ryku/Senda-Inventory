@@ -656,9 +656,9 @@ const es: typeof en = {
     "Beverages":         "Bebidas",
     "Paper Goods":       "Artículos de Papel",
     "Chemicals":         "Químicos",
-    "Office Supplies":   "Papelería",
-    "Miscellaneous":     "Misceláneos",
-    "Non-Food Supplies": "Misceláneos",
+    "Office Supplies":   "Artículos de Oficina",
+    "Miscellaneous":     "Varios",
+    "Non-Food Supplies": "Varios",
     "Other":             "Otro",
   } as Record<string, string>,
 
