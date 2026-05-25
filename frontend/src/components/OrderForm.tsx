@@ -4,21 +4,18 @@ import { formatCurrency } from "../utils/stock";
 import { Spinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
+import { useLanguage } from "../context/LanguageContext";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const DEPARTMENTS = [
-  { value: "",         label: "Todos" },
-  { value: "KITCHEN",  label: "Kitchen" },
-  { value: "FOH",      label: "FOH" },
-  { value: "BAR",      label: "Bar" },
-];
+const DEPT_VALUES = ["KITCHEN", "FOH", "BAR"] as const;
+type DeptValue = typeof DEPT_VALUES[number] | "";
 
 const CATEGORIES = [
   "", "Beer", "Liquor", "Wine", "Food", "Non Alcoholic", "Other",
 ];
 
-const UNITS = ["KG", "LB", "OZ", "G", "LITERS", "PIECES", "EA", "DOZ", "CS"];
+const UNIT_VALUES = ["KG", "LB", "OZ", "G", "LITERS", "PIECES", "EA", "DOZ", "CS"];
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -71,12 +68,21 @@ function lineTotal(l: LineItem) {
 
 export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
   const toast = useToast();
+  const { t } = useLanguage();
+  const f = t.orderForm;
+
+  // Department tab labels keyed by value
+  const deptLabels: Record<string, string> = {
+    KITCHEN: t.ui.kitchen,
+    FOH:     t.ui.foh,
+    BAR:     t.ui.bar,
+  };
 
   // ── Header fields ──────────────────────────────────────────────────────────
   const [purveyor,      setPurveyor]      = useState("");
   const [invoiceDate,   setInvoiceDate]   = useState(new Date().toISOString().slice(0, 10));
   const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [department,    setDepartment]    = useState("");
+  const [department,    setDepartment]    = useState<DeptValue>("");
 
   // ── Line items ─────────────────────────────────────────────────────────────
   const [lines,      setLines]      = useState<LineItem[]>([newLine(true)]);
@@ -126,15 +132,15 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
   function validate(): boolean {
     const errs: LineErrors[] = lines.map(l => {
       const e: LineErrors = {};
-      if (!l.productName.trim())                          e.productName = "Product name is required";
+      if (!l.productName.trim())                        e.productName = f.productRequired;
       const qty = parseFloat(l.quantity);
-      if (!l.quantity || isNaN(qty) || qty <= 0)          e.quantity    = "Enter a valid quantity";
+      if (!l.quantity || isNaN(qty) || qty <= 0)        e.quantity    = f.qtyInvalid;
       const price = parseFloat(l.unitPrice);
-      if (l.unitPrice && (isNaN(price) || price < 0))     e.unitPrice   = "Enter a valid price";
+      if (l.unitPrice && (isNaN(price) || price < 0))   e.unitPrice   = f.priceInvalid;
       return e;
     });
     setLineErrors(errs);
-    // Auto-expand rows that have errors so the user can see them.
+    // Auto-expand rows with errors so the user can see them.
     setLines(l =>
       l.map((item, i) => Object.keys(errs[i]).length > 0 ? { ...item, expanded: true } : item)
     );
@@ -146,7 +152,7 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setFormError("");
-    if (!purveyor.trim()) { setFormError("Purveyor name is required."); return; }
+    if (!purveyor.trim()) { setFormError(f.purveyorRequired); return; }
     if (!validate()) return;
 
     setSaving(true);
@@ -195,21 +201,24 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
 
       {/* ── Invoice Header ──────────────────────────────────────────────────── */}
       <div className="space-y-3">
+
+        {/* Purveyor — first, required */}
         <div>
           <label className={labelCls}>
-            Purveyor Name <span className="text-red-500">*</span>
+            {f.purveyorLabel} <span className="text-red-500">*</span>
           </label>
           <input
             value={purveyor}
             onChange={e => setPurveyor(e.target.value)}
-            placeholder="e.g. US Foods, Sysco, Local Farm…"
+            placeholder={f.purveyorHint}
             className={inputCls}
           />
         </div>
 
+        {/* Date + Invoice # */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelCls}>Invoice Date</label>
+            <label className={labelCls}>{f.invoiceDate}</label>
             <input
               type="date"
               value={invoiceDate}
@@ -218,7 +227,7 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
             />
           </div>
           <div>
-            <label className={labelCls}>Invoice #</label>
+            <label className={labelCls}>{f.invoiceNumber}</label>
             <input
               value={invoiceNumber}
               onChange={e => setInvoiceNumber(e.target.value)}
@@ -228,17 +237,28 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
           </div>
         </div>
 
+        {/* Department tabs */}
         <div>
-          <label className={labelCls}>Department</label>
-          <select
-            value={department}
-            onChange={e => setDepartment(e.target.value)}
-            className={inputCls}
-          >
-            {DEPARTMENTS.map(d => (
-              <option key={d.value} value={d.value}>{d.label}</option>
-            ))}
-          </select>
+          <label className={labelCls}>{f.department}</label>
+          <div className="flex gap-2">
+            {DEPT_VALUES.map(val => {
+              const active = department === val;
+              return (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setDepartment(active ? "" : val)}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                    active
+                      ? "bg-brand-500 border-brand-500 text-white"
+                      : "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-brand-400 hover:text-brand-600 dark:hover:text-brand-400"
+                  }`}
+                >
+                  {deptLabels[val]}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -247,13 +267,13 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
       {/* ── Line Items ──────────────────────────────────────────────────────── */}
       <div className="space-y-2">
         <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-          Line Items
+          {f.lineItems}
         </p>
 
         {lines.map((line, i) => {
-          const errs  = lineErrors[i] ?? {};
-          const total = lineTotal(line);
-          const hasErr = Object.keys(errs).length > 0;
+          const errs   = lineErrors[i] ?? {};
+          const lineTot = lineTotal(line);
+          const hasErr  = Object.keys(errs).length > 0;
 
           return (
             <div
@@ -264,7 +284,7 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
                   : "border-gray-200 dark:border-gray-700"
               }`}
             >
-              {/* ── Collapsed row header ────────────────────────────────────── */}
+              {/* ── Collapsed row header ──────────────────────────────────── */}
               <div
                 className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                 onClick={() => toggleExpanded(i)}
@@ -278,13 +298,13 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
 
                 <span className="flex-1 min-w-0 text-sm text-gray-900 dark:text-white truncate">
                   {line.productName || (
-                    <span className="text-gray-400 dark:text-gray-500 italic">New item</span>
+                    <span className="text-gray-400 dark:text-gray-500 italic">{f.newItem}</span>
                   )}
                 </span>
 
-                {total > 0 && (
+                {lineTot > 0 && (
                   <span className="text-sm font-medium text-gray-600 dark:text-gray-300 shrink-0">
-                    {formatCurrency(total)}
+                    {formatCurrency(lineTot)}
                   </span>
                 )}
 
@@ -302,18 +322,18 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
                 )}
               </div>
 
-              {/* ── Expanded detail ─────────────────────────────────────────── */}
+              {/* ── Expanded detail ───────────────────────────────────────── */}
               {line.expanded && (
                 <div className="px-3 pb-3 pt-1 border-t border-gray-100 dark:border-gray-700 space-y-3">
                   {/* Product name */}
                   <div>
                     <label className={labelCls}>
-                      Product Name <span className="text-red-500">*</span>
+                      {f.productName} <span className="text-red-500">*</span>
                     </label>
                     <input
                       value={line.productName}
                       onChange={e => updateLine(i, "productName", e.target.value)}
-                      placeholder="e.g. Roma Tomatoes, Chicken Breast…"
+                      placeholder={f.productHint}
                       className={`${inputCls} ${errs.productName ? errBorder : ""}`}
                     />
                     {errs.productName && (
@@ -324,7 +344,7 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
                   {/* SKU + Category */}
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className={labelCls}>SKU</label>
+                      <label className={labelCls}>{t.common.sku}</label>
                       <input
                         value={line.sku}
                         onChange={e => updateLine(i, "sku", e.target.value)}
@@ -333,14 +353,14 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
                       />
                     </div>
                     <div>
-                      <label className={labelCls}>Category</label>
+                      <label className={labelCls}>{t.common.category}</label>
                       <select
                         value={line.category}
                         onChange={e => updateLine(i, "category", e.target.value)}
                         className={inputCls}
                       >
                         {CATEGORIES.map(c => (
-                          <option key={c} value={c}>{c || "Select…"}</option>
+                          <option key={c} value={c}>{c || "—"}</option>
                         ))}
                       </select>
                     </div>
@@ -349,19 +369,23 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
                   {/* Unit + Quantity + Unit Price */}
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <label className={labelCls}>Unit</label>
+                      <label className={labelCls}>{t.common.unit}</label>
                       <select
                         value={line.unit}
                         onChange={e => updateLine(i, "unit", e.target.value)}
                         className={inputCls}
                       >
                         <option value="">—</option>
-                        {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                        {UNIT_VALUES.map(u => (
+                          <option key={u} value={u}>
+                            {(t.units as Record<string, string>)[u] ?? u}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>
                       <label className={labelCls}>
-                        Qty <span className="text-red-500">*</span>
+                        {t.common.qty} <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="number" min="0" step="0.001"
@@ -375,7 +399,7 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
                       )}
                     </div>
                     <div>
-                      <label className={labelCls}>Unit Price</label>
+                      <label className={labelCls}>{t.common.costUnit}</label>
                       <input
                         type="number" min="0" step="0.01"
                         value={line.unitPrice}
@@ -403,7 +427,7 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Add Item
+          {f.addItem}
         </button>
       </div>
 
@@ -411,10 +435,10 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
       <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700">
         <span className="text-sm text-gray-500 dark:text-gray-400">
           <span className="font-medium text-gray-700 dark:text-gray-300">{lines.length}</span>{" "}
-          {lines.length === 1 ? "item" : "items"}
+          {lines.length === 1 ? t.common.product : t.common.products}
         </span>
         <div className="text-right">
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">Total</p>
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">{t.common.total}</p>
           <p className="text-lg font-bold text-gray-900 dark:text-white">{formatCurrency(total)}</p>
         </div>
       </div>
@@ -426,7 +450,7 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
           onClick={onCancel}
           className="flex-1 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
         >
-          Cancel
+          {t.common.cancel}
         </button>
         <button
           type="submit"
@@ -434,7 +458,7 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
           className="flex-1 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
         >
           {saving && <Spinner size="sm" />}
-          Save Invoice
+          {f.saveInvoice}
         </button>
       </div>
     </form>

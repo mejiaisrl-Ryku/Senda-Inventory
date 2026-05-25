@@ -401,6 +401,38 @@ const en = {
     costPerServing: "Cost/serving",
   },
 
+  // ── Invoice / Order Form ─────────────────────────────────────────────────────
+  orderForm: {
+    purveyorLabel:    "Purveyor Name",
+    purveyorHint:     "e.g. US Foods, Sysco, Local Farm…",
+    invoiceDate:      "Invoice Date",
+    invoiceNumber:    "Invoice #",
+    department:       "Department",
+    lineItems:        "Line Items",
+    productName:      "Product Name",
+    productHint:      "e.g. Roma Tomatoes, Chicken Breast…",
+    newItem:          "New item",
+    addItem:          "Add Item",
+    saveInvoice:      "Save Invoice",
+    purveyorRequired: "Purveyor name is required.",
+    productRequired:  "Product name is required",
+    qtyInvalid:       "Enter a valid quantity",
+    priceInvalid:     "Enter a valid price",
+  },
+
+  // ── Unit labels (for form dropdowns) ─────────────────────────────────────────
+  units: {
+    KG:     "KG – Kilograms",
+    LB:     "LB – Pounds",
+    OZ:     "OZ – Ounces",
+    G:      "G – Grams",
+    LITERS: "L – Liters",
+    PIECES: "PCS – Pieces",
+    EA:     "EA – Each",
+    DOZ:    "DOZ – Dozen",
+    CS:     "CS – Case",
+  } as Record<string, string>,
+
   // ── Scan Invoice Modal ───────────────────────────────────────────────────────
   scan: {
     title:         "Scan Invoice",
@@ -440,7 +472,7 @@ const en = {
     // Departments
     kitchen:       "Kitchen",
     foh:           "FOH",
-    bar:           "BAR",
+    bar:           "Bar",
     both:          "Both",
     // Stock status
     adequate:      "Adequate",
@@ -834,6 +866,36 @@ const es: typeof en = {
     costPerServing:  "Costo/porción",
   },
 
+  orderForm: {
+    purveyorLabel:    "Nombre del Proveedor",
+    purveyorHint:     "ej. Sysco, La Costeña, Ranchos Pérez…",
+    invoiceDate:      "Fecha de Factura",
+    invoiceNumber:    "No. de Factura",
+    department:       "Departamento",
+    lineItems:        "Productos",
+    productName:      "Nombre del Producto",
+    productHint:      "ej. Jitomate Roma, Pechuga de Pollo…",
+    newItem:          "Nuevo artículo",
+    addItem:          "Agregar Producto",
+    saveInvoice:      "Guardar Factura",
+    purveyorRequired: "El nombre del proveedor es requerido.",
+    productRequired:  "El nombre del producto es requerido",
+    qtyInvalid:       "Ingresa una cantidad válida",
+    priceInvalid:     "Ingresa un precio válido",
+  },
+
+  units: {
+    KG:     "KG – Kilogramos",
+    LB:     "LB – Libras",
+    OZ:     "OZ – Onzas",
+    G:      "G – Gramos",
+    LITERS: "L – Litros",
+    PIECES: "PZA – Piezas",
+    EA:     "EA – Pieza",
+    DOZ:    "DOZ – Docena",
+    CS:     "CS – Caja",
+  } as Record<string, string>,
+
   scan: {
     title:             "Escanear Factura",
     scanning:          "Escaneando…",
@@ -867,7 +929,7 @@ const es: typeof en = {
     nothingHere: "Nada aquí todavía",
     kitchen:     "Cocina",
     foh:         "Sala",
-    bar:         "BAR",
+    bar:         "Bar",
     both:        "Ambos",
     adequate:    "Adecuado",
     low:         "Bajo",

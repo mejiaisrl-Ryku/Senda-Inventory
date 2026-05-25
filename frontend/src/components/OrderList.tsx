@@ -25,12 +25,7 @@ function itemDisplayName(item: Order["orderItems"][number]): string {
   return item.productName?.trim() || item.product?.name || "—";
 }
 
-/** Short department label for the badge. */
-const DEPT_LABELS: Record<string, string> = {
-  KITCHEN: "Kitchen",
-  FOH:     "FOH",
-  BAR:     "Bar",
-};
+/** Short department label for the badge — built inside component using t.ui. */
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -42,6 +37,12 @@ export function OrderList() {
     PENDING:   t.orders.pending,
     RECEIVED:  t.orders.received,
     CANCELLED: t.orders.cancelled,
+  };
+
+  const deptLabels: Record<string, string> = {
+    KITCHEN: t.ui.kitchen,
+    FOH:     t.ui.foh,
+    BAR:     t.ui.bar,
   };
 
   const [orders,       setOrders]       = useState<Order[]>([]);
@@ -100,8 +101,8 @@ export function OrderList() {
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-semibold text-white">Invoices</h1>
-          <p className="text-[13px] text-[#555]">{orders.length} invoice{orders.length !== 1 ? "s" : ""}</p>
+          <h1 className="text-[22px] font-semibold text-white">{t.invoices.title}</h1>
+          <p className="text-[13px] text-[#555]">{orders.length} {orders.length !== 1 ? t.common.invoices : t.common.invoice}</p>
         </div>
         <button
           onClick={() => setCreateOpen(true)}
@@ -110,7 +111,7 @@ export function OrderList() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Add Invoice
+          {t.invoices.addInvoice}
         </button>
       </div>
 
@@ -137,14 +138,14 @@ export function OrderList() {
         <PageSpinner />
       ) : orders.length === 0 ? (
         <EmptyState
-          title="No invoices yet"
-          description="Add your first purchase invoice to start tracking orders."
+          title={t.invoices.noInvoicesFound}
+          description={t.invoices.noInvoicesDesc}
           action={
             <button
               onClick={() => setCreateOpen(true)}
               className="px-4 py-2 bg-brand-500 text-white text-sm rounded-xl hover:bg-brand-600 transition-colors"
             >
-              Add Invoice
+              {t.invoices.addInvoice}
             </button>
           }
         />
@@ -153,7 +154,7 @@ export function OrderList() {
           {orders.map((order) => {
             const isExpanded = expanded === order.id;
             const itemCount  = order.orderItems.length;
-            const dept       = order.department ? DEPT_LABELS[order.department] : null;
+            const dept       = order.department ? deptLabels[order.department] : null;
 
             return (
               <div
@@ -199,7 +200,7 @@ export function OrderList() {
                       )}
                       <span className="text-gray-300 dark:text-gray-600">·</span>
                       <span className="text-xs text-gray-400 dark:text-gray-500">
-                        {itemCount} {itemCount === 1 ? "item" : "items"}
+                        {itemCount} {itemCount === 1 ? t.common.product : t.common.products}
                       </span>
                     </div>
                   </div>
@@ -224,11 +225,11 @@ export function OrderList() {
                     <div className="pt-3 space-y-1">
                       {/* Column headers */}
                       <div className="grid grid-cols-12 gap-2 text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wide pb-1">
-                        <span className="col-span-5">Product</span>
-                        <span className="col-span-2">SKU</span>
-                        <span className="col-span-1">Unit</span>
-                        <span className="col-span-2 text-right">Qty</span>
-                        <span className="col-span-2 text-right">Total</span>
+                        <span className="col-span-5">{t.invoices.product}</span>
+                        <span className="col-span-2">{t.common.sku}</span>
+                        <span className="col-span-1">{t.common.unit}</span>
+                        <span className="col-span-2 text-right">{t.common.qty}</span>
+                        <span className="col-span-2 text-right">{t.common.total}</span>
                       </div>
 
                       {order.orderItems.map((item) => {
@@ -265,7 +266,7 @@ export function OrderList() {
                       {/* Sub-total row */}
                       <div className="grid grid-cols-12 gap-2 pt-2">
                         <span className="col-span-10 text-xs text-right text-gray-400 dark:text-gray-500 font-medium">
-                          Invoice Total
+                          {t.invoices.invoiceTotal}
                         </span>
                         <span className="col-span-2 text-right font-bold text-gray-900 dark:text-white text-sm">
                           {formatCurrency(order.totalCost)}
@@ -281,14 +282,14 @@ export function OrderList() {
                           disabled={receiving === order.id}
                           className="flex-1 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white text-sm font-medium transition-colors"
                         >
-                          {receiving === order.id ? "Receiving…" : "Mark as Received"}
+                          {receiving === order.id ? t.common.loading : t.orders.markReceived}
                         </button>
                         {isAdmin && (
                           <button
                             onClick={() => setCancelTarget(order)}
                             className="px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                           >
-                            Cancel
+                            {t.common.cancel}
                           </button>
                         )}
                       </div>
@@ -305,7 +306,7 @@ export function OrderList() {
       <Modal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        title="Add Invoice"
+        title={t.invoices.addInvoice}
         maxWidth="max-w-xl"
       >
         <OrderForm
@@ -321,9 +322,9 @@ export function OrderList() {
       {/* Cancel confirmation */}
       <ConfirmDialog
         open={!!cancelTarget}
-        title="Cancel invoice"
-        message="This invoice will be marked as cancelled. This cannot be undone."
-        confirmLabel="Cancel Invoice"
+        title={t.orders.cancelConfirmTitle}
+        message={t.orders.cancelConfirmMsg}
+        confirmLabel={t.orders.cancelOrder}
         variant="warning"
         loading={cancelling}
         onConfirm={handleCancel}
