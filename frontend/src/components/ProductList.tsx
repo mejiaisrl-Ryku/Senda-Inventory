@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { Product, Department } from "../types";
+import React, { useEffect, useState, useCallback, useRef, useMemo, FormEvent } from "react";
+import { Product, Department, Unit } from "../types";
 import { productsApi } from "../api";
 import { useLanguage } from "../context/LanguageContext";
 import { unitLabel, formatCurrency } from "../utils/stock";
@@ -375,6 +375,390 @@ function PurveyorRow({
   );
 }
 
+// ── Add Invoice Form ──────────────────────────────────────────────────────────
+
+interface InvoiceLine {
+  _key:     string;
+  name:     string;
+  sku:      string;
+  category: string;
+  unit:     string;
+  qty:      string;
+  cost:     string;
+  expanded: boolean;
+}
+
+interface LineErr {
+  name?: string;
+  qty?:  string;
+  cost?: string;
+}
+
+let _lineSeq = 0;
+function newInvoiceLine(expanded = true): InvoiceLine {
+  return { _key: `il-${++_lineSeq}`, name: "", sku: "", category: "", unit: "", qty: "", cost: "", expanded };
+}
+
+function lineSubtotal(l: InvoiceLine) {
+  return (parseFloat(l.qty) || 0) * (parseFloat(l.cost) || 0);
+}
+
+const INVOICE_CATEGORIES = ["", "Beer", "Liquor", "Wine", "Food", "Non Alcoholic", "Other"];
+const INVOICE_UNITS = ["KG", "LB", "OZ", "G", "LITERS", "PIECES", "EA", "DOZ", "CS"] as const;
+
+function InvoiceSpinner() {
+  return (
+    <svg className="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+    </svg>
+  );
+}
+
+function AddInvoiceForm({ onSaved, onCancel }: { onSaved: () => void; onCancel: () => void }) {
+  const toast   = useToast();
+  const { t }   = useLanguage();
+  const f       = t.orderForm;
+
+  const [purveyor,    setPurveyor]    = useState("");
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
+  const [dept,        setDept]        = useState<"BOH" | "FOH" | "BAR" | "">("");
+  const [lines,       setLines]       = useState<InvoiceLine[]>([newInvoiceLine(true)]);
+  const [lineErrs,    setLineErrs]    = useState<LineErr[]>([{}]);
+  const [formErr,     setFormErr]     = useState("");
+  const [saving,      setSaving]      = useState(false);
+
+  const deptTabs = [
+    { value: "BOH" as const, label: t.ui.kitchen },
+    { value: "FOH" as const, label: t.ui.foh },
+    { value: "BAR" as const, label: t.ui.bar },
+  ];
+
+  const total = lines.reduce((s, l) => s + lineSubtotal(l), 0);
+
+  function addLine() {
+    setLines(ls => [...ls, newInvoiceLine(true)]);
+    setLineErrs(es => [...es, {}]);
+  }
+
+  function removeLine(i: number) {
+    if (lines.length <= 1) return;
+    setLines(ls => ls.filter((_, idx) => idx !== i));
+    setLineErrs(es => es.filter((_, idx) => idx !== i));
+  }
+
+  function updateLine(i: number, field: keyof Omit<InvoiceLine, "_key" | "expanded">, value: string) {
+    setLines(ls => { const n = [...ls]; n[i] = { ...n[i], [field]: value }; return n; });
+    setLineErrs(es => { const n = [...es]; n[i] = { ...n[i], [field]: undefined }; return n; });
+  }
+
+  function toggleExpanded(i: number) {
+    setLines(ls => { const n = [...ls]; n[i] = { ...n[i], expanded: !n[i].expanded }; return n; });
+  }
+
+  function validate(): boolean {
+    const errs: LineErr[] = lines.map(l => {
+      const e: LineErr = {};
+      if (!l.name.trim()) e.name = f.productRequired;
+      const q = parseFloat(l.qty);
+      if (!l.qty || isNaN(q) || q <= 0) e.qty = f.qtyInvalid;
+      const c = parseFloat(l.cost);
+      if (l.cost && (isNaN(c) || c < 0)) e.cost = f.priceInvalid;
+      return e;
+    });
+    setLineErrs(errs);
+    // Auto-expand rows with errors so user can see them
+    setLines(ls => ls.map((l, i) => Object.keys(errs[i]).length > 0 ? { ...l, expanded: true } : l));
+    return errs.every(e => Object.keys(e).length === 0);
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setFormErr("");
+    if (!purveyor.trim()) { setFormErr(f.purveyorRequired); return; }
+    if (!validate()) return;
+
+    setSaving(true);
+    try {
+      await Promise.all(
+        lines.map(l =>
+          productsApi.create({
+            name:         l.name.trim(),
+            sku:          l.sku.trim() || undefined,
+            category:     l.category  || undefined,
+            unit:         (l.unit as Unit) || "PIECES",
+            costPerUnit:  parseFloat(l.cost) || 0,
+            currentStock: parseFloat(l.qty),
+            minimumStock: 0,
+            purveyor:     purveyor.trim(),
+            invoiceDate:  invoiceDate || undefined,
+            department:   (dept as Department) || "BOH",
+          })
+        )
+      );
+      onSaved();
+    } catch (err) {
+      toast.error(getApiError(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls = "w-full px-3 py-2 rounded-lg border border-[#2a2a2a] bg-[#0a0a0a] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors";
+  const labelCls = "block text-[10px] font-semibold text-[#555] uppercase tracking-wider mb-1";
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+
+      {formErr && (
+        <p className="text-sm text-red-400 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2">
+          {formErr}
+        </p>
+      )}
+
+      {/* ── Invoice header ───────────────────────────────────────────────── */}
+      <div className="space-y-3">
+
+        {/* Purveyor — required, first field */}
+        <div>
+          <label className={labelCls}>
+            {f.purveyorLabel} <span className="text-red-500">*</span>
+          </label>
+          <input
+            value={purveyor}
+            onChange={e => setPurveyor(e.target.value)}
+            placeholder={f.purveyorHint}
+            className={inputCls}
+          />
+        </div>
+
+        {/* Invoice Date */}
+        <div>
+          <label className={labelCls}>{f.invoiceDate}</label>
+          <input
+            type="date"
+            value={invoiceDate}
+            onChange={e => setInvoiceDate(e.target.value)}
+            className={inputCls}
+          />
+        </div>
+
+        {/* Department tabs */}
+        <div>
+          <label className={labelCls}>{f.department}</label>
+          <div className="flex gap-2">
+            {deptTabs.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setDept(dept === value ? "" : value)}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                  dept === value
+                    ? "bg-[#3dbf8a] border-[#3dbf8a] text-white"
+                    : "bg-[#0a0a0a] border-[#2a2a2a] text-[#666] hover:border-[#3dbf8a]/50 hover:text-[#888]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-[#1a1a1a]" />
+
+      {/* ── Line items ───────────────────────────────────────────────────── */}
+      <div className="space-y-2">
+        <p className="text-[10px] font-semibold text-[#555] uppercase tracking-wider">
+          {f.lineItems}
+        </p>
+
+        {lines.map((line, i) => {
+          const errs   = lineErrs[i] ?? {};
+          const sub    = lineSubtotal(line);
+          const hasErr = Object.keys(errs).length > 0;
+
+          return (
+            <div
+              key={line._key}
+              className={`rounded-xl border overflow-hidden ${hasErr ? "border-red-600" : "border-[#1a1a1a]"}`}
+            >
+              {/* Collapsed header — click anywhere to expand */}
+              <div
+                className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none hover:bg-[#0f0f0f] transition-colors"
+                onClick={() => toggleExpanded(i)}
+              >
+                <svg
+                  className={`w-3.5 h-3.5 text-[#444] shrink-0 transition-transform ${line.expanded ? "rotate-90" : ""}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+
+                <span className="flex-1 min-w-0 text-sm text-white truncate">
+                  {line.name || <span className="text-[#444] italic">{f.newItem}</span>}
+                </span>
+
+                {sub > 0 && (
+                  <span className="text-sm font-medium text-[#3dbf8a] shrink-0">
+                    {formatCurrency(sub)}
+                  </span>
+                )}
+
+                {lines.length > 1 && (
+                  <button
+                    type="button"
+                    aria-label="Remove item"
+                    onClick={e => { e.stopPropagation(); removeLine(i); }}
+                    className="shrink-0 ml-1 text-[#333] hover:text-red-400 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Expanded row detail */}
+              {line.expanded && (
+                <div className="px-3 pb-3 pt-1 border-t border-[#111] space-y-3">
+
+                  {/* Product name */}
+                  <div>
+                    <label className={labelCls}>
+                      {f.productName} <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      value={line.name}
+                      onChange={e => updateLine(i, "name", e.target.value)}
+                      placeholder={f.productHint}
+                      className={`${inputCls} ${errs.name ? "border-red-600" : ""}`}
+                    />
+                    {errs.name && <p className="mt-0.5 text-xs text-red-400">{errs.name}</p>}
+                  </div>
+
+                  {/* SKU + Category */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className={labelCls}>{t.common.sku}</label>
+                      <input
+                        value={line.sku}
+                        onChange={e => updateLine(i, "sku", e.target.value)}
+                        placeholder="SKU-001"
+                        className={inputCls}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelCls}>{t.common.category}</label>
+                      <select
+                        value={line.category}
+                        onChange={e => updateLine(i, "category", e.target.value)}
+                        className={inputCls}
+                      >
+                        {INVOICE_CATEGORIES.map(c => (
+                          <option key={c} value={c}>{c || "—"}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Unit + Qty + Cost per unit */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className={labelCls}>{t.common.unit}</label>
+                      <select
+                        value={line.unit}
+                        onChange={e => updateLine(i, "unit", e.target.value)}
+                        className={inputCls}
+                      >
+                        <option value="">—</option>
+                        {INVOICE_UNITS.map(u => (
+                          <option key={u} value={u}>
+                            {(t.units as Record<string, string>)[u] ?? u}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className={labelCls}>
+                        {t.common.qty} <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number" min="0" step="0.001"
+                        value={line.qty}
+                        onChange={e => updateLine(i, "qty", e.target.value)}
+                        placeholder="0"
+                        className={`${inputCls} ${errs.qty ? "border-red-600" : ""}`}
+                      />
+                      {errs.qty && <p className="mt-0.5 text-xs text-red-400">{errs.qty}</p>}
+                    </div>
+                    <div>
+                      <label className={labelCls}>{t.common.costUnit}</label>
+                      <input
+                        type="number" min="0" step="0.01"
+                        value={line.cost}
+                        onChange={e => updateLine(i, "cost", e.target.value)}
+                        placeholder="0.00"
+                        className={`${inputCls} ${errs.cost ? "border-red-600" : ""}`}
+                      />
+                      {errs.cost && <p className="mt-0.5 text-xs text-red-400">{errs.cost}</p>}
+                    </div>
+                  </div>
+
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Add item button */}
+        <button
+          type="button"
+          onClick={addLine}
+          className="flex items-center gap-1.5 text-sm text-[#3dbf8a] hover:text-[#35a87a] font-medium py-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          {f.addItem}
+        </button>
+      </div>
+
+      {/* ── Footer: running total ────────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-3 py-3 rounded-xl bg-[#0a0a0a] border border-[#1a1a1a]">
+        <span className="text-sm text-[#555]">
+          <span className="font-semibold text-white">{lines.length}</span>{" "}
+          {lines.length === 1 ? t.common.product : t.common.products.toLowerCase()}
+        </span>
+        <div className="text-right">
+          <p className="text-[10px] text-[#444] uppercase tracking-wider">{t.common.total}</p>
+          <p className="text-[18px] font-bold text-[#3dbf8a]">{formatCurrency(total)}</p>
+        </div>
+      </div>
+
+      {/* ── Actions ─────────────────────────────────────────────────────── */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 py-2.5 rounded-xl border border-[#2a2a2a] text-sm text-[#666] hover:text-white hover:border-[#444] transition-colors"
+        >
+          {t.common.cancel}
+        </button>
+        <button
+          type="submit"
+          disabled={saving}
+          className="flex-1 py-2.5 rounded-xl bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+        >
+          {saving && <InvoiceSpinner />}
+          {f.saveInvoice}
+        </button>
+      </div>
+
+    </form>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ProductList() {
@@ -678,7 +1062,7 @@ export function ProductList() {
 
       {/* Add invoice */}
       <Modal open={addOpen} onClose={() => setAddOpen(false)} title={t.invoices.addInvoice}>
-        <ProductForm onSaved={onProductSaved} onCancel={() => setAddOpen(false)} />
+        <AddInvoiceForm onSaved={() => { setAddOpen(false); load(); }} onCancel={() => setAddOpen(false)} />
       </Modal>
 
       {/* Edit invoice */}
