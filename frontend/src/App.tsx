@@ -19,6 +19,7 @@ import { CountSessionDetail } from "./components/CountSessionDetail";
 import { CountReportView } from "./components/CountReportView";
 import { RecipesPage } from "./components/RecipesPage";
 import { MultiLocationOverview } from "./components/MultiLocationOverview";
+import { ProfilePage } from "./components/ProfilePage";
 import { ResetPassword } from "./components/ResetPassword";
 import { PartnerSetup } from "./components/PartnerSetup";
 import { SuperAdminLogin } from "./components/superadmin/SuperAdminLogin";
@@ -104,6 +105,7 @@ function AppRoutes() {
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="multi-location" element={<MultiLocationOverview />} />
+            <Route path="profile" element={<ProfilePage />} />
             <Route path="products" element={<ProductList />} />
             <Route path="stock" element={<StockPage />} />
             <Route path="orders" element={<OrderList />} />
