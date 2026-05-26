@@ -430,6 +430,9 @@ function RecipeLocationCard({ entry, rank, bestCost }: {
   rank:     "best" | "worst" | "mid";
   bestCost: number | null;
 }) {
+  const { t } = useLanguage();
+  const ml = t.multiLocation;
+
   const borderCls =
     rank === "best"  ? "border-[#3dbf8a]/50" :
     rank === "worst" ? "border-[#ef4444]/30"  :
@@ -450,15 +453,15 @@ function RecipeLocationCard({ entry, rank, bestCost }: {
         {entry.isTest && (
           <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">TEST</span>
         )}
-        <p className="text-[12px] text-[#333] mt-1 italic">Recipe not offered</p>
+        <p className="text-[12px] text-[#333] mt-1 italic">{ml.rcNotOffered}</p>
       </div>
     );
   }
 
   const rankBadge =
-    rank === "best"  ? <span className="text-[10px] font-bold text-[#3dbf8a]">✓ Best</span>  :
-    rank === "worst" ? <span className="text-[10px] font-bold text-[#ef4444]">↑ High</span> :
-                       <span className="text-[10px] text-[#555]">• Mid</span>;
+    rank === "best"  ? <span className="text-[10px] font-bold text-[#3dbf8a]">{ml.rcBest}</span>  :
+    rank === "worst" ? <span className="text-[10px] font-bold text-[#ef4444]">{ml.rcHigh}</span> :
+                       <span className="text-[10px] text-[#555]">{ml.rcMid}</span>;
 
   const costColor =
     rank === "best"  ? "text-[#3dbf8a]" :
@@ -486,7 +489,7 @@ function RecipeLocationCard({ entry, rank, bestCost }: {
       {/* Cost summary */}
       <div className="space-y-2">
         <div className="flex justify-between items-baseline">
-          <span className="text-[11px] text-[#555] uppercase tracking-wider">Recipe Cost</span>
+          <span className="text-[11px] text-[#555] uppercase tracking-wider">{ml.rcCost}</span>
           <div className="flex items-baseline gap-1.5">
             {dollarGap !== null && dollarGap > 0 && (
               <span className="text-[10px] text-[#ef4444]">+${dollarGap.toFixed(2)}</span>
@@ -495,24 +498,24 @@ function RecipeLocationCard({ entry, rank, bestCost }: {
           </div>
         </div>
         <div className="flex justify-between items-baseline">
-          <span className="text-[11px] text-[#555] uppercase tracking-wider">Cost %</span>
+          <span className="text-[11px] text-[#555] uppercase tracking-wider">{ml.rcCostPct}</span>
           <span className={`text-[15px] font-bold ${costColor}`}>{entry.costPct!.toFixed(1)}%</span>
         </div>
         <div className="flex justify-between items-baseline">
-          <span className="text-[11px] text-[#555] uppercase tracking-wider">Selling Price</span>
+          <span className="text-[11px] text-[#555] uppercase tracking-wider">{ml.rcSellPrice}</span>
           <span className="text-[13px] text-[#777]">${entry.sellingPrice!.toFixed(2)}</span>
         </div>
         {entry.hasInvoiceData && (
           <div className="flex items-center gap-1 pt-0.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[#3dbf8a] shrink-0" />
-            <span className="text-[10px] text-[#3dbf8a]/70">Priced from recent invoices</span>
+            <span className="text-[10px] text-[#3dbf8a]/70">{ml.rcFromInvoice}</span>
           </div>
         )}
       </div>
 
       {/* Ingredients */}
       <div className="border-t border-[#111] pt-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#333] mb-2">Ingredients</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#333] mb-2">{ml.rcIngredients}</p>
         <div className="space-y-2">
           {entry.ingredients!.map((ing, i) => (
             <div key={i}>
@@ -541,6 +544,8 @@ function RecipeLocationCard({ entry, rank, bestCost }: {
 }
 
 function RecipeComparisonTab() {
+  const { t } = useLanguage();
+  const ml = t.multiLocation;
   const [comparisons, setComparisons] = useState<RecipeComparison[]>([]);
   const [loading,     setLoading]     = useState(true);
   const [selected,    setSelected]    = useState<string | null>(null);
@@ -581,8 +586,8 @@ function RecipeComparisonTab() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
             d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
         </svg>
-        <p className="text-[14px] text-[#555]">No recipes found across locations.</p>
-        <p className="text-[12px] text-[#333]">Add recipes to your locations to compare costs here.</p>
+        <p className="text-[14px] text-[#555]">{ml.rcEmpty}</p>
+        <p className="text-[12px] text-[#333]">{ml.rcEmptyHint}</p>
       </div>
     );
   }
@@ -603,7 +608,7 @@ function RecipeComparisonTab() {
     <div className="space-y-6">
       {/* Recipe selector */}
       <div className="flex items-center gap-3 flex-wrap">
-        <p className="text-[12px] text-[#444] uppercase tracking-wider font-semibold shrink-0">Select recipe:</p>
+        <p className="text-[12px] text-[#444] uppercase tracking-wider font-semibold shrink-0">{ml.rcSelectLabel}</p>
         <div ref={dropRef} className="relative flex-1 min-w-[240px] max-w-sm">
           <button
             onClick={() => setDropOpen((v) => !v)}
@@ -621,7 +626,7 @@ function RecipeComparisonTab() {
                 <span className="flex-1 truncate">{selected}</span>
               </>
             ) : (
-              <span className="flex-1 truncate text-[#555]">Choose a recipe…</span>
+              <span className="flex-1 truncate text-[#555]">{ml.rcSelectHint}</span>
             )}
             <svg className={`w-3.5 h-3.5 shrink-0 transition-transform ${dropOpen ? "rotate-180 text-[#3dbf8a]" : "text-[#555]"}`}
               fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -664,7 +669,7 @@ function RecipeComparisonTab() {
               const allSame = prices.length > 0 && prices.every((p) => p === prices[0]);
               return allSame ? (
                 <span className="text-[13px] text-[#555]">
-                  Selling price: <span className="text-white font-semibold">${prices[0]!.toFixed(2)}</span>
+                  {ml.rcSellPrefix} <span className="text-white font-semibold">${prices[0]!.toFixed(2)}</span>
                 </span>
               ) : null;
             })()}
@@ -690,13 +695,13 @@ function RecipeComparisonTab() {
               </svg>
               <p className="text-[12px] text-[#888]">
                 <span className="text-[#3dbf8a] font-semibold">{sorted[0].locationName}</span>
-                {" "}makes this recipe for{" "}
+                {" "}{ml.rcMakes}{" "}
                 <span className="text-white font-semibold">${bestCost.toFixed(2)}</span>
                 {" "}—{" "}
                 <span className="text-[#3dbf8a] font-semibold">
-                  ${(worstCost - bestCost).toFixed(2)} cheaper ({((worstCost - bestCost) / worstCost * 100).toFixed(1)}%)
+                  ${(worstCost - bestCost).toFixed(2)} {ml.rcCheaper} ({((worstCost - bestCost) / worstCost * 100).toFixed(1)}%)
                 </span>
-                {" "}than{" "}
+                {" "}{ml.rcCheaperThan}{" "}
                 <span className="text-[#aaa]">{sorted[sorted.length - 1].locationName}</span>
                 {" "}(${worstCost.toFixed(2)}).
               </p>
@@ -737,6 +742,8 @@ function VendorLocationCard({
   loc:  import("../api").LocationVendorPrice;
   item: ProductVendorComparison;
 }) {
+  const { t } = useLanguage();
+  const ml = t.multiLocation;
   const rank = vendorRank(loc.bestNormalizedCost, item.minCost, item.maxCost);
 
   const borderCls =
@@ -748,9 +755,9 @@ function VendorLocationCard({
     rank === "worst" ? "bg-[#ef4444]/[0.04]"  :
                        "bg-[#0a0a0a]";
   const rankLabel =
-    rank === "best"  ? <span className="text-[10px] font-bold text-[#3dbf8a]">✓ Best</span>  :
-    rank === "worst" ? <span className="text-[10px] font-bold text-[#ef4444]">↑ Highest</span> :
-                       <span className="text-[10px] text-[#555]">• Mid</span>;
+    rank === "best"  ? <span className="text-[10px] font-bold text-[#3dbf8a]">{ml.rcBest}</span>  :
+    rank === "worst" ? <span className="text-[10px] font-bold text-[#ef4444]">{ml.vpHighest}</span> :
+                       <span className="text-[10px] text-[#555]">{ml.rcMid}</span>;
 
   if (!loc.hasPurchases) {
     return (
@@ -762,7 +769,7 @@ function VendorLocationCard({
           <p className="text-[13px] font-semibold text-[#444] truncate">{loc.locationName}</p>
           {loc.isTest && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">TEST</span>}
         </div>
-        <p className="text-[11px] text-[#333] italic shrink-0">No recent purchases</p>
+        <p className="text-[11px] text-[#333] italic shrink-0">{ml.vpNoRecentPurch}</p>
       </div>
     );
   }
@@ -788,8 +795,8 @@ function VendorLocationCard({
 
       {/* Volume summary */}
       <div className="flex items-center justify-between text-[11px] text-[#444] px-0.5">
-        <span>{fmtQty(loc.totalQty30d)} {item.canonicalUnit}/month</span>
-        <span>${fmt$(loc.totalQty30d * (loc.bestNormalizedCost ?? 0))}/month spend</span>
+        <span>{fmtQty(loc.totalQty30d)} {item.canonicalUnit}{ml.vpMo}</span>
+        <span>${fmt$(loc.totalQty30d * (loc.bestNormalizedCost ?? 0))}/{ml.vpMonthSpend}</span>
       </div>
 
       {/* Purveyor rows */}
@@ -839,12 +846,12 @@ function VendorLocationCard({
                     </p>
                     {annualLocSavings > 0 && (
                       <p className="text-[9px] text-[#555]">
-                        +${annualLocSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}/yr vs cheapest here
+                        +${annualLocSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}{ml.vpYrCheapest}
                       </p>
                     )}
                   </>
                 ) : (
-                  <p className="text-[10px] text-[#3dbf8a] font-semibold">Best price</p>
+                  <p className="text-[10px] text-[#3dbf8a] font-semibold">{ml.vpBestPrice}</p>
                 )}
               </div>
             </div>
@@ -859,10 +866,10 @@ function VendorLocationCard({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p className="text-[10px] text-[#888]">
-            Switching to best vendor saves{" "}
-            <span className="text-[#ef4444] font-semibold">${fmt$(annualSavings / 12)}/month</span>
+            {ml.vpSwitchSaves}{" "}
+            <span className="text-[#ef4444] font-semibold">${fmt$(annualSavings / 12)}{ml.vpMo}</span>
             {" · "}
-            <span className="text-[#ef4444] font-semibold">${annualSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}/year</span>
+            <span className="text-[#ef4444] font-semibold">${annualSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}{ml.vpYr}</span>
           </p>
         </div>
       )}
@@ -871,6 +878,8 @@ function VendorLocationCard({
 }
 
 function VendorPricingTab() {
+  const { t } = useLanguage();
+  const ml = t.multiLocation;
   const [data,     setData]     = useState<ProductVendorComparison[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
@@ -910,8 +919,8 @@ function VendorPricingTab() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
             d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
-        <p className="text-[14px] text-[#555]">No invoice data found.</p>
-        <p className="text-[12px] text-[#333]">Import invoices with product names to see vendor price comparison.</p>
+        <p className="text-[14px] text-[#555]">{ml.vpNoData}</p>
+        <p className="text-[12px] text-[#333]">{ml.vpNoDataHint}</p>
       </div>
     );
   }
@@ -945,21 +954,21 @@ function VendorPricingTab() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <p className="text-[11px] text-[#444] uppercase tracking-wider font-semibold">Total Savings Opportunity</p>
+              <p className="text-[11px] text-[#444] uppercase tracking-wider font-semibold">{ml.vpTotalSavings}</p>
               <p className="text-[16px] font-bold text-[#3dbf8a]">
-                ${totalSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}<span className="text-[11px] font-normal text-[#3dbf8a]/70">/year</span>
+                ${totalSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}<span className="text-[11px] font-normal text-[#3dbf8a]/70">{ml.vpYr}</span>
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <div>
-              <p className="text-[11px] text-[#444] uppercase tracking-wider font-semibold">Monthly Spend (all items)</p>
+              <p className="text-[11px] text-[#444] uppercase tracking-wider font-semibold">{ml.vpMonthlySpend}</p>
               <p className="text-[14px] font-bold text-white">${fmt$(totalSpend)}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <div>
-              <p className="text-[11px] text-[#444] uppercase tracking-wider font-semibold">Items compared</p>
+              <p className="text-[11px] text-[#444] uppercase tracking-wider font-semibold">{ml.vpItemsCompared}</p>
               <p className="text-[14px] font-bold text-white">{multiItems.length}</p>
             </div>
           </div>
@@ -968,7 +977,7 @@ function VendorPricingTab() {
 
       {/* ── Item selector ──────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 flex-wrap">
-        <p className="text-[12px] text-[#444] uppercase tracking-wider font-semibold shrink-0">Select item:</p>
+        <p className="text-[12px] text-[#444] uppercase tracking-wider font-semibold shrink-0">{ml.vpSelectLabel}</p>
         <div ref={dropRef} className="relative flex-1 min-w-[260px] max-w-sm">
           <button
             onClick={() => setDropOpen((v) => !v)}
@@ -978,7 +987,7 @@ function VendorPricingTab() {
                 : "border-[#2a2a2a] bg-[#0a0a0a] text-[#aaa] hover:border-[#3a3a3a] hover:text-white"
             }`}
           >
-            <span className="flex-1 truncate">{item ? item.productName : "Choose an item…"}</span>
+            <span className="flex-1 truncate">{item ? item.productName : ml.vpSelectHint}</span>
             {item && item.maxAnnualSavings > 0 && (
               <span className="shrink-0 text-[10px] font-bold text-[#3dbf8a] bg-[#3dbf8a]/10 px-1.5 py-0.5 rounded">
                 ${item.maxAnnualSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}/yr
@@ -995,7 +1004,7 @@ function VendorPricingTab() {
               {/* Multi-location items */}
               {multiItems.length > 0 && (
                 <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-[#333] border-b border-[#111]">
-                  Cross-location · sorted by savings
+                  {ml.vpCrossLoc}
                 </div>
               )}
               {multiItems.map((d) => (
@@ -1020,7 +1029,7 @@ function VendorPricingTab() {
               {singleItems.length > 0 && (
                 <>
                   <div className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wider text-[#333] border-t border-b border-[#111]">
-                    Single location
+                    {ml.vpSingleLoc}
                   </div>
                   {singleItems.map((d) => (
                     <button
@@ -1050,13 +1059,13 @@ function VendorPricingTab() {
             <div>
               <h3 className="text-[18px] font-bold text-white">{item.productName}</h3>
               <p className="text-[12px] text-[#555] mt-0.5">
-                {fmtQty(item.totalQty30d)} {item.canonicalUnit}/month total across {item.purchasingLocationCount} location{item.purchasingLocationCount !== 1 ? "s" : ""}
-                {" · "}${fmt$(item.totalSpend30d)}/month spend
+                {fmtQty(item.totalQty30d)} {item.canonicalUnit}{ml.vpMo} {ml.vpTotalAcross} {item.purchasingLocationCount} {item.purchasingLocationCount !== 1 ? ml.vpLocations : ml.vpLocation}
+                {" · "}${fmt$(item.totalSpend30d)}/{ml.vpMonthSpend}
               </p>
             </div>
             {item.purchasingLocationCount > 1 && item.priceDelta > 0 && (
               <div className="text-right shrink-0">
-                <p className="text-[11px] text-[#444] uppercase tracking-wider font-semibold">Price gap</p>
+                <p className="text-[11px] text-[#444] uppercase tracking-wider font-semibold">{ml.vpPriceGap}</p>
                 <p className="text-[15px] font-bold text-[#ef4444]">
                   ${fmt$(item.priceDelta, 3)} <span className="text-[12px]">({item.priceDeltaPct.toFixed(1)}%)</span>
                 </p>
@@ -1072,11 +1081,11 @@ function VendorPricingTab() {
               </svg>
               <div>
                 <p className="text-[12px] text-[#888] leading-relaxed">
-                  You buy <span className="text-white font-semibold">{fmtQty(item.totalQty30d)} {item.canonicalUnit}/month</span> total across all locations.
-                  {" "}Consolidating to the cheapest vendor price saves{" "}
-                  <span className="text-[#3dbf8a] font-bold">${fmt$(item.monthlySavings)}/month</span>
+                  {ml.vpYouBuy} <span className="text-white font-semibold">{fmtQty(item.totalQty30d)} {item.canonicalUnit}{ml.vpMonthTotalAll}</span>
+                  {" "}{ml.vpConsolidates}{" "}
+                  <span className="text-[#3dbf8a] font-bold">${fmt$(item.monthlySavings)}{ml.vpMo}</span>
                   {" "}·{" "}
-                  <span className="text-[#3dbf8a] font-bold">${item.maxAnnualSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}/year</span>.
+                  <span className="text-[#3dbf8a] font-bold">${item.maxAnnualSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}{ml.vpYr}</span>.
                 </p>
               </div>
             </div>
@@ -1088,7 +1097,7 @@ function VendorPricingTab() {
               <svg className="w-3.5 h-3.5 text-[#f59e0b] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-[11px] text-[#f59e0b]/80">Unit mismatch detected — {item.conversionNote}</p>
+              <p className="text-[11px] text-[#f59e0b]/80">{ml.vpUnitMismatch} {item.conversionNote}</p>
             </div>
           )}
 
@@ -1099,8 +1108,8 @@ function VendorPricingTab() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p className="text-[12px] text-[#555]">
-                Only purchased at <span className="text-[#888] font-semibold">{item.locations.find(l => l.hasPurchases)?.locationName}</span>.
-                {" "}Check whether other locations buy this item under a different name.
+                {ml.vpOnlyAt} <span className="text-[#888] font-semibold">{item.locations.find(l => l.hasPurchases)?.locationName}</span>.
+                {" "}{ml.vpOnlyAtCheck}
               </p>
             </div>
           )}
@@ -1115,7 +1124,7 @@ function VendorPricingTab() {
       )}
 
       <p className="text-[10px] text-[#2a2a2a] italic text-center pt-2">
-        Last 30 days · Savings = monthly volume × price gap × 12 · Prices normalized to {item?.canonicalUnit ?? "common unit"}
+        {ml.vpFootnote} {item?.canonicalUnit ?? "common unit"}
       </p>
     </div>
   );
@@ -1237,7 +1246,7 @@ export function MultiLocationOverview() {
           <LocationSwitcher locations={locations} selected={selected} onSelect={handleSelect} />
         )}
         {(activeTab === "recipes" || activeTab === "vendor") && (
-          <span className="text-[11px] text-[#333] italic">All locations · last 30 days</span>
+          <span className="text-[11px] text-[#333] italic">{ml.allLocSubtitle}</span>
         )}
       </div>
 
@@ -1253,7 +1262,7 @@ export function MultiLocationOverview() {
                 : "text-[#555] hover:text-[#888]"
             }`}
           >
-            {tab === "overview" ? "Overview" : tab === "recipes" ? "Recipe Comparison" : "Vendor Pricing"}
+            {tab === "overview" ? ml.tabOverview : tab === "recipes" ? ml.tabRecipes : ml.tabVendor}
           </button>
         ))}
       </div>
