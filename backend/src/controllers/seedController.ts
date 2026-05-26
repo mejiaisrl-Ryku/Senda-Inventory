@@ -68,9 +68,9 @@ const LABOR_OFFSETS  = [28, 21, 14, 7];
 
 // ── Seed one location ─────────────────────────────────────────────────────────
 
-async function seedOne(cfg: LocationConfig) {
+async function seedOne(cfg: LocationConfig, groupId: string) {
   const restaurant = await prisma.restaurant.create({
-    data: { name: cfg.name },
+    data: { name: cfg.name, groupId },
   });
 
   // Products
@@ -182,12 +182,14 @@ export async function seedTestLocations(
   next: NextFunction
 ) {
   try {
-    // Idempotent: wipe existing test restaurants (cascades all related data)
+    const groupId = req.user.restaurantId;
+
+    // Idempotent: wipe any existing branch locations for this partner
     await prisma.restaurant.deleteMany({
-      where: { name: { startsWith: "TEST_" } },
+      where: { groupId },
     });
 
-    await Promise.all(LOCATIONS.map(seedOne));
+    await Promise.all(LOCATIONS.map((cfg) => seedOne(cfg, groupId)));
 
     res.json({
       ok:     true,
@@ -204,10 +206,16 @@ export async function clearTestLocations(
   next: NextFunction
 ) {
   try {
-    const { count } = await prisma.restaurant.deleteMany({
-      where: { name: { startsWith: "TEST_" } },
-    });
-    res.json({ ok: true, deleted: count });
+    const groupId = req.user.restaurantId;
+
+    // Delete branches belonging to this partner (new format)
+    // Also sweep legacy TEST_ restaurants (old format, groupId = null)
+    const [byGroup, byName] = await Promise.all([
+      prisma.restaurant.deleteMany({ where: { groupId } }),
+      prisma.restaurant.deleteMany({ where: { name: { startsWith: "TEST_" }, groupId: null } }),
+    ]);
+
+    res.json({ ok: true, deleted: byGroup.count + byName.count });
   } catch (err) {
     next(err);
   }

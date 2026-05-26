@@ -106,6 +106,13 @@ model Restaurant {
   suspendedAt          DateTime?
   onboardingDismissed  Boolean   @default(false)
   locationCount        Int       @default(1)  // 1 = single-location, 2-10 = multi-location group
+
+  // Multi-location grouping: branch restaurants point to the group's primary restaurant.
+  // null = standalone (single location or group HQ).
+  groupId  String?
+  group    Restaurant?  @relation("RestaurantGroup", fields: [groupId], references: [id], onDelete: SetNull)
+  branches Restaurant[] @relation("RestaurantGroup")
+
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -117,6 +124,7 @@ model Restaurant {
   countSessions CountSession[]
   recipes       Recipe[]
 
+  @@index([groupId])
   @@map("restaurants")
 }
 

@@ -158,15 +158,15 @@ export async function getLocationsOverview(
     const now30 = daysAgo(30);
     const now60 = daysAgo(60);
 
-    // Fetch the user's real restaurant and any TEST_ locations in parallel
-    const [userRestaurant, testRestaurants] = await Promise.all([
+    // Fetch the user's primary restaurant + any branch locations in this partner group
+    const [userRestaurant, branches] = await Promise.all([
       prisma.restaurant.findUnique({
         where:  { id: restaurantId },
         select: { id: true, name: true, logo: true },
       }),
       prisma.restaurant.findMany({
-        where:  { name: { startsWith: "TEST_" } },
-        select: { id: true, name: true, logo: true },
+        where:   { groupId: restaurantId },
+        select:  { id: true, name: true, logo: true },
         orderBy: { name: "asc" },
       }),
     ]);
@@ -175,10 +175,10 @@ export async function getLocationsOverview(
 
     const allRestaurants = [
       { ...userRestaurant, isTest: false },
-      ...testRestaurants.map((r) => ({
+      ...branches.map((r) => ({
         ...r,
         isTest: true,
-        // Strip the prefix for display
+        // Strip the TEST_ prefix if present (legacy seeded names)
         name: r.name.replace(/^TEST_/, ""),
       })),
     ];
@@ -227,13 +227,13 @@ export async function getLocationsRecipes(
     const restaurantId = req.user.restaurantId;
     const now30 = daysAgo(30);
 
-    const [userRestaurant, testRestaurants] = await Promise.all([
+    const [userRestaurant, branches] = await Promise.all([
       prisma.restaurant.findUnique({
         where:  { id: restaurantId },
         select: { id: true, name: true },
       }),
       prisma.restaurant.findMany({
-        where:   { name: { startsWith: "TEST_" } },
+        where:   { groupId: restaurantId },
         select:  { id: true, name: true },
         orderBy: { name: "asc" },
       }),
@@ -243,7 +243,7 @@ export async function getLocationsRecipes(
 
     const allRestaurants = [
       { id: userRestaurant.id, name: userRestaurant.name, isTest: false },
-      ...testRestaurants.map((r) => ({
+      ...branches.map((r) => ({
         id:     r.id,
         name:   r.name.replace(/^TEST_/, ""),
         isTest: true,
@@ -459,13 +459,13 @@ export async function getLocationsPricing(
     const restaurantId = req.user.restaurantId;
     const now30 = daysAgo(30);
 
-    const [userRestaurant, testRestaurants] = await Promise.all([
+    const [userRestaurant, branches] = await Promise.all([
       prisma.restaurant.findUnique({
         where:  { id: restaurantId },
         select: { id: true, name: true },
       }),
       prisma.restaurant.findMany({
-        where:   { name: { startsWith: "TEST_" } },
+        where:   { groupId: restaurantId },
         select:  { id: true, name: true },
         orderBy: { name: "asc" },
       }),
@@ -475,7 +475,7 @@ export async function getLocationsPricing(
 
     const allRestaurants = [
       { id: userRestaurant.id, name: userRestaurant.name, isTest: false },
-      ...testRestaurants.map((r) => ({
+      ...branches.map((r) => ({
         id:     r.id,
         name:   r.name.replace(/^TEST_/, ""),
         isTest: true,
