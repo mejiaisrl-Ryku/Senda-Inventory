@@ -451,3 +451,10 @@ export const partnerSetupApi = {
       )
       .then((r) => r.data),
 };
+
+// ── Feedback / suggestions ────────────────────────────────────────────────────
+
+export const feedbackApi = {
+  submit: (message: string) =>
+    api.post<{ ok: boolean }>("/feedback", { message }).then((r) => r.data),
+};
