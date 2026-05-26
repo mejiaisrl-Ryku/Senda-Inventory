@@ -30,7 +30,7 @@ const safeUser = {
   email: true,
   role: true,
   restaurantId: true,
-  restaurant: { select: { name: true, logo: true } },
+  restaurant: { select: { name: true, logo: true, locationCount: true } },
 } as const;
 
 type SafeUserResult = {
@@ -39,16 +39,17 @@ type SafeUserResult = {
   email: string;
   role: string;
   restaurantId: string | null;
-  restaurant: { name: string; logo: string | null } | null;
+  restaurant: { name: string; logo: string | null; locationCount: number } | null;
 };
 
-/** Flatten the nested restaurant relation into top-level restaurantName + restaurantLogo fields. */
+/** Flatten the nested restaurant relation into top-level fields. */
 function toUserResponse(u: SafeUserResult) {
   const { restaurant, ...rest } = u;
   return {
     ...rest,
-    restaurantName: restaurant?.name ?? null,
-    restaurantLogo: restaurant?.logo ?? null,
+    restaurantName:  restaurant?.name          ?? null,
+    restaurantLogo:  restaurant?.logo          ?? null,
+    locationCount:   restaurant?.locationCount ?? 1,
   };
 }
 

@@ -110,7 +110,8 @@ function UsersSection({
   const toast = useToast();
   const [sendingReset, setSendingReset] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
-  const [inviteName, setInviteName] = useState("");
+  const [inviteFirstName, setInviteFirstName] = useState("");
+  const [inviteLastName,  setInviteLastName]  = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState("");
@@ -132,9 +133,10 @@ function UsersSection({
     setInviteError("");
     setInviteLoading(true);
     try {
-      await superAdminApi.inviteAdmin({ name: inviteName, email: inviteEmail, restaurantId });
+      await superAdminApi.inviteAdmin({ firstName: inviteFirstName, lastName: inviteLastName, email: inviteEmail, restaurantId });
       toast.success(`Invite sent to ${inviteEmail}`);
-      setInviteName("");
+      setInviteFirstName("");
+      setInviteLastName("");
       setInviteEmail("");
       setShowInvite(false);
     } catch (err: any) {
@@ -175,9 +177,16 @@ function UsersSection({
           <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-3">
             <input
               required
-              value={inviteName}
-              onChange={(e) => setInviteName(e.target.value)}
-              placeholder="Name"
+              value={inviteFirstName}
+              onChange={(e) => setInviteFirstName(e.target.value)}
+              placeholder="First name"
+              className={inputCls}
+            />
+            <input
+              required
+              value={inviteLastName}
+              onChange={(e) => setInviteLastName(e.target.value)}
+              placeholder="Last name"
               className={inputCls}
             />
             <input

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { stockApi } from "../api";
 import { StockReport } from "../types";
 import { formatCurrency } from "../utils/stock";
@@ -39,9 +40,17 @@ function StatCard({
 export function Dashboard() {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const pageTitle = user?.restaurantName ? `${user.restaurantName} ${t.dashboard.title}` : t.dashboard.title;
   const [report, setReport] = useState<StockReport | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Multi-location partners land on the group overview instead of the single dashboard.
+  useEffect(() => {
+    if (user?.locationCount && user.locationCount > 1) {
+      navigate("/multi-location", { replace: true });
+    }
+  }, [user, navigate]);
 
   const loadReport = useCallback(() => {
     stockApi.report().then(setReport).catch(() => {});

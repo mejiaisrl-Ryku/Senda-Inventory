@@ -116,10 +116,10 @@ export const superAdminApi = {
     saApi.post(`/super-admin/users/${userId}/send-reset-email`),
 
   // -- Invite --
-  inviteAdmin: (data: { name: string; email: string; restaurantId: string }) =>
+  inviteAdmin: (data: { firstName: string; lastName: string; email: string; restaurantId: string }) =>
     saApi.post("/super-admin/invite", data),
 
   // -- Partner invites (new-partner onboarding flow) --
-  createPartnerInvite: (data: { firstName: string; lastName: string; email: string }) =>
+  createPartnerInvite: (data: { firstName: string; lastName: string; email: string; locationCount: number }) =>
     saApi.post<SAPartnerInvite>("/super-admin/partner-invites", data).then((r) => r.data),
 };

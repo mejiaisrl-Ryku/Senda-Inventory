@@ -207,12 +207,14 @@ function RestaurantsTable({
 // ── Create Partner (invite) form ──────────────────────────────────────────────
 
 function AddRestaurantForm() {
-  const [firstName, setFirstName] = useState("");
-  const [lastName,  setLastName]  = useState("");
-  const [email,     setEmail]     = useState("");
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState("");
-  const [sentTo,    setSentTo]    = useState("");   // non-empty = success state
+  const [firstName,    setFirstName]    = useState("");
+  const [lastName,     setLastName]     = useState("");
+  const [email,        setEmail]        = useState("");
+  const [locType,      setLocType]      = useState<"single" | "multi">("single");
+  const [locationCount, setLocationCount] = useState(2);
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
+  const [sentTo,       setSentTo]       = useState("");   // non-empty = success state
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -220,15 +222,23 @@ function AddRestaurantForm() {
     setSentTo("");
     setLoading(true);
     try {
-      await superAdminApi.createPartnerInvite({ firstName, lastName, email });
+      const count = locType === "single" ? 1 : locationCount;
+      await superAdminApi.createPartnerInvite({ firstName, lastName, email, locationCount: count });
       setSentTo(email);
-      setFirstName(""); setLastName(""); setEmail("");
+      setFirstName(""); setLastName(""); setEmail(""); setLocType("single"); setLocationCount(2);
     } catch (err: any) {
       setError(err?.response?.data?.error ?? "Failed to send invite.");
     } finally {
       setLoading(false);
     }
   }
+
+  const toggleBtn = (active: boolean) =>
+    `flex-1 py-2 rounded-[7px] text-[13px] font-medium transition-colors ${
+      active
+        ? "bg-[#3dbf8a] text-white"
+        : "bg-transparent text-[#555] hover:text-white"
+    }`;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
@@ -243,6 +253,35 @@ function AddRestaurantForm() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           Invite sent to <span className="font-medium ml-1">{sentTo}</span>. They'll receive a setup link valid for 72 hours.
+        </div>
+      )}
+
+      {/* Single / Multi toggle */}
+      <div>
+        <label className={labelCls}>Location type</label>
+        <div className="flex gap-1 p-1 rounded-[8px] bg-[#111] border border-[#1a1a1a]">
+          <button type="button" onClick={() => setLocType("single")} className={toggleBtn(locType === "single")}>
+            Single location
+          </button>
+          <button type="button" onClick={() => setLocType("multi")}  className={toggleBtn(locType === "multi")}>
+            Multi-location
+          </button>
+        </div>
+      </div>
+
+      {/* How many locations? — only shown for multi */}
+      {locType === "multi" && (
+        <div>
+          <label className={labelCls}>How many locations?</label>
+          <input
+            type="number"
+            min={2}
+            max={10}
+            required
+            value={locationCount}
+            onChange={(e) => setLocationCount(Math.max(2, Math.min(10, Number(e.target.value))))}
+            className={inputCls}
+          />
         </div>
       )}
 
@@ -297,11 +336,12 @@ function AddRestaurantForm() {
 
 function InviteAdminForm({ restaurants }: { restaurants: SARestaurant[] }) {
   const [restaurantId, setRestaurantId] = useState("");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [firstName,    setFirstName]    = useState("");
+  const [lastName,     setLastName]     = useState("");
+  const [email,        setEmail]        = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState("");
+  const [success,      setSuccess]      = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -309,9 +349,9 @@ function InviteAdminForm({ restaurants }: { restaurants: SARestaurant[] }) {
     setSuccess("");
     setLoading(true);
     try {
-      await superAdminApi.inviteAdmin({ name, email, restaurantId });
+      await superAdminApi.inviteAdmin({ firstName, lastName, email, restaurantId });
       setSuccess(`Invite sent to ${email}.`);
-      setName(""); setEmail(""); setRestaurantId("");
+      setFirstName(""); setLastName(""); setEmail(""); setRestaurantId("");
     } catch (err: any) {
       setError(err?.response?.data?.error ?? "Failed to send invite.");
     } finally {
@@ -341,20 +381,29 @@ function InviteAdminForm({ restaurants }: { restaurants: SARestaurant[] }) {
           ))}
         </select>
       </div>
+
+      {/* First name | Last name */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>Admin name</label>
-          <input required value={name} onChange={(e) => setName(e.target.value)} placeholder="María García" className={inputCls} />
+          <label className={labelCls}>First name</label>
+          <input required value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="María" className={inputCls} />
         </div>
         <div>
-          <label className={labelCls}>Admin email</label>
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="maria@restaurant.com" className={inputCls} />
+          <label className={labelCls}>Last name</label>
+          <input required value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="García" className={inputCls} />
         </div>
       </div>
+
+      {/* Email — full width */}
+      <div>
+        <label className={labelCls}>Admin email</label>
+        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="maria@restaurant.com" className={inputCls} />
+      </div>
+
       <button
         type="submit"
         disabled={loading || restaurants.length === 0}
-        className="w-full py-2.5 rounded-[8px] bg-[#1a1a1a] hover:bg-[#222] disabled:opacity-60 text-white text-[13px] font-semibold border border-[#2a2a2a] hover:border-[#3dbf8a] transition-colors flex items-center justify-center gap-2"
+        className="w-full py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-[13px] font-semibold transition-colors flex items-center justify-center gap-2"
       >
         {loading && <Spinner size="sm" />}
         Send Invite Email

@@ -29,14 +29,16 @@ export const completePartnerSetupSchema = z.object({
 });
 
 export const createPartnerInviteSchema = z.object({
-  firstName: z.string().min(1, "First name is required").max(100).trim(),
-  lastName:  z.string().min(1, "Last name is required").max(100).trim(),
-  email:     z.string().email("Invalid email address"),
+  firstName:     z.string().min(1, "First name is required").max(100).trim(),
+  lastName:      z.string().min(1, "Last name is required").max(100).trim(),
+  email:         z.string().email("Invalid email address"),
+  locationCount: z.number().int().min(1).max(10).default(1),
 });
 
 export const inviteAdminSchema = z.object({
-  name: z.string().min(1, "Name is required").max(255).trim(),
-  email: z.string().email("Invalid email address"),
+  firstName:    z.string().min(1, "First name is required").max(255).trim(),
+  lastName:     z.string().min(1, "Last name is required").max(255).trim(),
+  email:        z.string().email("Invalid email address"),
   restaurantId: z.string().min(1, "Restaurant ID is required"),
 });
 
@@ -114,7 +116,8 @@ export async function completePartnerSetup(req: Request, res: Response, next: Ne
     const user = await prisma.$transaction(async (tx) => {
       const restaurant = await tx.restaurant.create({
         data: {
-          name: restaurantName.trim(),
+          name:          restaurantName.trim(),
+          locationCount: invite.locationCount ?? 1,
           ...(logo ? { logo } : {}),
         },
       });
@@ -347,10 +350,11 @@ export async function listAllUsers(req: AuthRequest, res: Response, next: NextFu
  */
 export async function createPartnerInvite(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { firstName, lastName, email } = req.body as {
+    const { firstName, lastName, email, locationCount = 1 } = req.body as {
       firstName: string;
       lastName: string;
       email: string;
+      locationCount?: number;
     };
 
     console.log(`[createPartnerInvite] Invite requested for email="${email}" name="${firstName} ${lastName}"`);
@@ -376,9 +380,9 @@ export async function createPartnerInvite(req: AuthRequest, res: Response, next:
 
     // Upsert so a previously expired invite for the same email gets replaced.
     const invite = await prisma.partnerInvite.upsert({
-      where: { email },
-      create: { email, firstName, lastName, token, status: "pending", expiresAt },
-      update: { firstName, lastName, token, status: "pending", expiresAt },
+      where:  { email },
+      create: { email, firstName, lastName, token, status: "pending", expiresAt, locationCount },
+      update: { firstName, lastName, token, status: "pending", expiresAt, locationCount },
     });
 
     const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
@@ -411,11 +415,13 @@ export async function createPartnerInvite(req: AuthRequest, res: Response, next:
  */
 export async function inviteAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { name, email, restaurantId } = req.body as {
-      name: string;
+    const { firstName, lastName, email, restaurantId } = req.body as {
+      firstName: string;
+      lastName: string;
       email: string;
       restaurantId: string;
     };
+    const name = `${firstName} ${lastName}`.trim();
 
     console.log(`[inviteAdmin] Invite requested: email="${email}" restaurant="${restaurantId}"`);
 

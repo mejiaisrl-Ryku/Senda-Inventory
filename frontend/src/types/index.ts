@@ -6,6 +6,7 @@ export interface User {
   restaurantId: string;
   restaurantName?: string;
   restaurantLogo?: string | null;
+  locationCount?: number;  // 1 = single-location, 2+ = multi-location group
 }
 
 export type Unit = "KG" | "LITERS" | "PIECES" | "LB" | "OZ" | "G" | "EA" | "DOZ" | "CS";

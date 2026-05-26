@@ -105,6 +105,7 @@ model Restaurant {
   suspended            Boolean   @default(false)
   suspendedAt          DateTime?
   onboardingDismissed  Boolean   @default(false)
+  locationCount        Int       @default(1)  // 1 = single-location, 2-10 = multi-location group
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -315,14 +316,15 @@ model Recipe {
 // The onboarding flow claims the invite by presenting the token and sets
 // status to "accepted" when the partner completes setup.
 model PartnerInvite {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  firstName String
-  lastName  String
-  token     String   @unique
-  status    String   @default("pending")  // "pending" | "accepted"
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  email         String   @unique
+  firstName     String
+  lastName      String
+  token         String   @unique
+  status        String   @default("pending")  // "pending" | "accepted"
+  locationCount Int      @default(1)          // carried through to restaurant on setup
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
 
   @@index([token])
   @@map("partner_invites")
