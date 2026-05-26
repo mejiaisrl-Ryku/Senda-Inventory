@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { useLanguage } from "../context/LanguageContext";
 import { teamApi, feedbackApi } from "../api";
 import { TeamMember } from "../types";
 import { Spinner } from "./shared/Spinner";
@@ -272,6 +273,8 @@ export function ProfilePage() {
   const { user, isAdmin } = useAuth();
   const navigate = useNavigate();
   const toast    = useToast();
+  const { t }    = useLanguage();
+  const p        = t.profile;
 
   // Role derivation
   const isOwner   = isAdmin && (user?.locationCount ?? 1) > 1;
@@ -353,14 +356,14 @@ export function ProfilePage() {
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Back
+          {p.back}
         </button>
         <span className="text-[#2a2a2a]">/</span>
-        <h1 className="text-[18px] font-semibold text-white">Profile</h1>
+        <h1 className="text-[18px] font-semibold text-white">{p.title}</h1>
       </div>
 
       {/* ── BOX 1: Profile info ──────────────────────────────────────────── */}
-      <Card title="Profile">
+      <Card title={p.title}>
         {/* Avatar + name row */}
         <div className="flex items-center gap-3 mb-4 pb-4 border-b border-[#1a1a1a]">
           <div className="w-12 h-12 rounded-full bg-[#3dbf8a] flex items-center justify-center text-white text-[18px] font-bold flex-shrink-0">
@@ -377,15 +380,15 @@ export function ProfilePage() {
         {/* Detail rows */}
         <div className="divide-y divide-[#1a1a1a]">
           <div className={rowCls}>
-            <span className={keyC}>Name</span>
+            <span className={keyC}>{p.name}</span>
             <span className={valC}>{user?.name ?? "—"}</span>
           </div>
           <div className={rowCls}>
-            <span className={keyC}>Email</span>
+            <span className={keyC}>{p.email}</span>
             <span className={valC}>{user?.email}</span>
           </div>
           <div className={rowCls}>
-            <span className={keyC}>Role</span>
+            <span className={keyC}>{p.role}</span>
             <span className={`${valC} inline-flex items-center`}>
               <span className="px-2 py-0.5 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] text-[11px] text-[#3dbf8a]">
                 {roleTag}
@@ -393,12 +396,12 @@ export function ProfilePage() {
             </span>
           </div>
           <div className={rowCls}>
-            <span className={keyC}>Position</span>
+            <span className={keyC}>{p.position}</span>
             <span className={valC}>{roleLabel}</span>
           </div>
           {user?.restaurantName && (
             <div className={rowCls}>
-              <span className={keyC}>Restaurant</span>
+              <span className={keyC}>{p.restaurant}</span>
               <span className={valC}>{user.restaurantName}</span>
             </div>
           )}
@@ -407,7 +410,7 @@ export function ProfilePage() {
 
       {/* ── BOX 2: Pending Invites (admin only) ─────────────────────────── */}
       {isAdmin && (
-        <Card title="Pending Invites">
+        <Card title={p.pendingInvites}>
           <div className="flex flex-col items-center py-4 text-center gap-2">
             <div className="w-8 h-8 rounded-full bg-[#1a1a1a] flex items-center justify-center mb-1">
               <svg className="w-4 h-4 text-[#333]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -415,10 +418,8 @@ export function ProfilePage() {
                   d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
-            <p className="text-[13px] text-[#555]">No pending invites</p>
-            <p className="text-[11px] text-[#333]">
-              Sent invites will appear here once invite tracking is enabled.
-            </p>
+            <p className="text-[13px] text-[#555]">{p.noPendingInvites}</p>
+            <p className="text-[11px] text-[#333]">{p.inviteTrackingNote}</p>
           </div>
         </Card>
       )}
@@ -426,10 +427,10 @@ export function ProfilePage() {
       {/* ── BOX 3: Team Management (admin only) ─────────────────────────── */}
       {isAdmin && (
         <Card
-          title="Team"
+          title={p.team}
           action={
             <span className="text-[11px] text-[#444]">
-              {!loadingTeam && `${members.length} member${members.length !== 1 ? "s" : ""}`}
+              {!loadingTeam && `${members.length} ${members.length !== 1 ? p.members : p.member}`}
             </span>
           }
         >
@@ -443,7 +444,7 @@ export function ProfilePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
-              Invite by Email
+              {p.inviteByEmail}
             </button>
             <button
               onClick={() => setCreateOpen(true)}
@@ -453,35 +454,36 @@ export function ProfilePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                   d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
-              Create Directly
+              {p.createDirectly}
             </button>
           </div>
 
-          {/* Member list */}
+          {/* Member list — CSS grid for pixel-perfect column alignment */}
           {loadingTeam ? (
             <div className="flex items-center justify-center py-8">
               <Spinner size="lg" />
             </div>
           ) : members.length === 0 ? (
             <div className="py-6 text-center">
-              <p className="text-[13px] text-[#555]">No team members yet.</p>
+              <p className="text-[13px] text-[#555]">{p.noMembers}</p>
             </div>
           ) : (
-            <div className="space-y-0 -mx-5 border-t border-[#1a1a1a]">
+            <div className="-mx-5 border-t border-[#1a1a1a]">
               {members.map((m) => {
                 const isSelf = m.id === user?.id;
                 return (
                   <div
                     key={m.id}
-                    className="flex items-center gap-3 px-5 py-3 border-b border-[#1a1a1a] last:border-0 hover:bg-[#0a0a0a] transition-colors"
+                    className="grid items-center gap-x-3 px-5 py-3 border-b border-[#1a1a1a] last:border-0 hover:bg-[#0a0a0a] transition-colors"
+                    style={{ gridTemplateColumns: "28px 1fr 52px 28px" }}
                   >
-                    {/* Avatar */}
-                    <div className="w-7 h-7 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center text-white text-[11px] font-bold flex-shrink-0">
+                    {/* Col 1 — Avatar */}
+                    <div className="w-7 h-7 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center text-white text-[11px] font-bold">
                       {(m.name ?? m.email)[0].toUpperCase()}
                     </div>
 
-                    {/* Info — takes remaining space */}
-                    <div className="flex-1 min-w-0">
+                    {/* Col 2 — Name + email */}
+                    <div className="min-w-0">
                       <p className="text-[13px] font-medium text-white truncate">
                         {m.name ?? "—"}
                         {isSelf && (
@@ -491,10 +493,10 @@ export function ProfilePage() {
                       <p className="text-[11px] text-[#555] truncate">{m.email}</p>
                     </div>
 
-                    {/* Role pill — fixed width so badges align vertically */}
-                    <div className="w-14 flex justify-end flex-shrink-0">
+                    {/* Col 3 — Role pill, right-aligned */}
+                    <div className="flex justify-end">
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${
                           m.role === "ADMIN"
                             ? "bg-[#3dbf8a]/10 text-[#3dbf8a] border border-[#3dbf8a]/20"
                             : "bg-[#1a1a1a] text-[#555] border border-[#2a2a2a]"
@@ -504,9 +506,9 @@ export function ProfilePage() {
                       </span>
                     </div>
 
-                    {/* Remove — fixed width so icon aligns vertically */}
-                    <div className="w-7 flex justify-end flex-shrink-0">
-                      {!isSelf && (
+                    {/* Col 4 — Remove button */}
+                    <div className="flex justify-end">
+                      {!isSelf ? (
                         <button
                           onClick={() => setRemoveTarget(m)}
                           title="Remove from team"
@@ -517,7 +519,7 @@ export function ProfilePage() {
                               d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
                           </svg>
                         </button>
-                      )}
+                      ) : <span />}
                     </div>
                   </div>
                 );
@@ -528,22 +530,22 @@ export function ProfilePage() {
       )}
 
       {/* ── BOX 4: Suggestions ──────────────────────────────────────────── */}
-      <Card title="Have a suggestion? Let us know!">
-        <p className="text-[12px] text-[#555] mb-3">Your feedback goes directly to Israel.</p>
+      <Card title={p.suggestions}>
+        <p className="text-[12px] text-[#555] mb-3">{p.suggestionsNote}</p>
 
         {suggSent ? (
           <div className="flex items-center gap-2 px-3.5 py-3 rounded-[8px] bg-[#3dbf8a]/10 border border-[#3dbf8a]/20 text-[#3dbf8a] text-[13px]">
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            Thank you! Your suggestion was sent.
+            {p.sent}
           </div>
         ) : (
           <div className="space-y-2">
             <textarea
               value={suggestion}
               onChange={(e) => setSuggestion(e.target.value)}
-              placeholder="Share an idea or report an issue…"
+              placeholder={p.suggestionsPlaceholder}
               rows={3}
               className="w-full px-3 py-2.5 rounded-[8px] border border-[#1e1e1e] bg-[#0a0a0a] text-white text-[13px] placeholder-[#333] focus:outline-none focus:border-[#3dbf8a]/50 transition-colors resize-none"
             />
@@ -552,7 +554,7 @@ export function ProfilePage() {
               disabled={!suggestion.trim() || suggBusy}
               className="w-full py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-40 text-[13px] font-semibold text-white transition-colors"
             >
-              {suggBusy ? "Sending…" : "Send to Israel"}
+              {suggBusy ? p.sending : p.sendToIsrael}
             </button>
           </div>
         )}
