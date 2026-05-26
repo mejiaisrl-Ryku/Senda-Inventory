@@ -43,6 +43,13 @@ const RATING_DOT: Record<NonNullable<ColorRating>, string> = {
   red:    "bg-[#ef4444]",
 };
 
+// Solid badge backgrounds — used to wrap the metric value itself
+const RATING_BADGE_BG: Record<NonNullable<ColorRating>, string> = {
+  green:  "bg-[#3EBF8A]",   // teal green  — matches brand palette
+  yellow: "bg-[#d97706]",   // amber-600   — dark enough for white text contrast
+  red:    "bg-[#ef4444]",   // red-500
+};
+
 // ── Location switcher dropdown ────────────────────────────────────────────────
 
 function LocationSwitcher({
@@ -206,9 +213,17 @@ function MetricRow({
           {label}
         </p>
         {hasValue ? (
-          <p className="mt-0.5 text-[18px] font-bold text-white leading-none">
-            {isCurrency ? formatCurrency(value!) : `${value!.toFixed(1)}%`}
-          </p>
+          // Rated percentage metrics get a solid colored badge; currency rows stay plain
+          rating && !isCurrency ? (
+            <span className={`mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[5px] text-[14px] font-bold text-white leading-none ${RATING_BADGE_BG[rating]}`}>
+              {value!.toFixed(1)}%
+              <span className="opacity-60 text-[9px]">●</span>
+            </span>
+          ) : (
+            <p className="mt-0.5 text-[18px] font-bold text-white leading-none">
+              {isCurrency ? formatCurrency(value!) : `${value!.toFixed(1)}%`}
+            </p>
+          )
         ) : (
           <>
             <p className="mt-0.5 text-[18px] font-bold text-[#333] leading-none">{noData}</p>
@@ -218,7 +233,9 @@ function MetricRow({
       </div>
       {hasValue && (
         <div className="shrink-0 mt-1 flex items-center gap-1.5">
-          {rating && (
+          {/* Dot is now inside the badge for rated metrics; keep it here only for
+              currency rows that don't use the badge */}
+          {rating && isCurrency && (
             <span className={`w-2 h-2 rounded-full shrink-0 ${RATING_DOT[rating]}`} />
           )}
           <TrendArrow trend={trend} />
