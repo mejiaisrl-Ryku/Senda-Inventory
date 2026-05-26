@@ -204,6 +204,7 @@ model Order {
   orderItems OrderItem[]
 
   @@index([restaurantId])
+  @@index([restaurantId, createdAt])   // date-range queries in getLocationsOverview / getLocationsPricing
   @@map("orders")
 }
 
@@ -242,6 +243,7 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productId])
+  @@index([orderId, productName])      // product-name grouping in getLocationsPricing
   @@map("order_items")
 }
 
@@ -278,6 +280,7 @@ model CountSession {
 
   @@index([restaurantId])
   @@index([restaurantId, date])
+  @@index([restaurantId, status])      // quickly find latest CLOSED session per location
   @@map("count_sessions")
 }
 
@@ -316,6 +319,7 @@ model Recipe {
   ingredients RecipeIngredient[]
 
   @@index([restaurantId])
+  @@index([restaurantId, name])        // name-based recipe lookups across locations
   @@map("recipes")
 }
 
