@@ -11,6 +11,7 @@ import { AuthRequest } from "../types";
 export const inviteSchema = z.object({
   name: z.string().min(1, "Name is required").max(255).trim(),
   email: z.string().email(),
+  role: z.enum(["ADMIN", "STAFF"]).default("STAFF"),
 });
 
 export const createMemberSchema = z.object({
@@ -54,7 +55,7 @@ export async function listTeam(req: AuthRequest, res: Response, next: NextFuncti
 /** POST /api/team/invite — send an invite email */
 export async function inviteTeamMember(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { name, email } = req.body as { name: string; email: string };
+    const { name, email, role = "STAFF" } = req.body as { name: string; email: string; role?: "ADMIN" | "STAFF" };
 
     // Guard: don't invite someone already in this restaurant.
     const existing = await prisma.user.findFirst({
@@ -72,7 +73,7 @@ export async function inviteTeamMember(req: AuthRequest, res: Response, next: Ne
     const token = signInviteToken({
       restaurantId: req.user.restaurantId,
       restaurantName: restaurant.name,
-      role: "STAFF",
+      role,
       email,
     });
 
