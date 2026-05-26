@@ -342,7 +342,7 @@ export function ProfilePage() {
   const valC   = "text-[13px] text-white font-medium";
 
   return (
-    <div className="p-6 lg:p-8 space-y-4 max-w-2xl mx-auto">
+    <div className="p-6 lg:p-8 space-y-4 max-w-3xl mx-auto">
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 pb-2">
@@ -480,7 +480,7 @@ export function ProfilePage() {
                       {(m.name ?? m.email)[0].toUpperCase()}
                     </div>
 
-                    {/* Info */}
+                    {/* Info — takes remaining space */}
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-medium text-white truncate">
                         {m.name ?? "—"}
@@ -491,30 +491,34 @@ export function ProfilePage() {
                       <p className="text-[11px] text-[#555] truncate">{m.email}</p>
                     </div>
 
-                    {/* Role pill */}
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[11px] font-medium flex-shrink-0 ${
-                        m.role === "ADMIN"
-                          ? "bg-[#3dbf8a]/10 text-[#3dbf8a] border border-[#3dbf8a]/20"
-                          : "bg-[#1a1a1a] text-[#555] border border-[#2a2a2a]"
-                      }`}
-                    >
-                      {m.role === "ADMIN" ? "Admin" : "User"}
-                    </span>
-
-                    {/* Remove */}
-                    {!isSelf && (
-                      <button
-                        onClick={() => setRemoveTarget(m)}
-                        title="Remove from team"
-                        className="w-7 h-7 rounded-[6px] text-[#333] hover:text-red-400 hover:bg-red-950/30 flex items-center justify-center flex-shrink-0 transition-colors"
+                    {/* Role pill — fixed width so badges align vertically */}
+                    <div className="w-14 flex justify-end flex-shrink-0">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                          m.role === "ADMIN"
+                            ? "bg-[#3dbf8a]/10 text-[#3dbf8a] border border-[#3dbf8a]/20"
+                            : "bg-[#1a1a1a] text-[#555] border border-[#2a2a2a]"
+                        }`}
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
-                        </svg>
-                      </button>
-                    )}
+                        {m.role === "ADMIN" ? "Admin" : "User"}
+                      </span>
+                    </div>
+
+                    {/* Remove — fixed width so icon aligns vertically */}
+                    <div className="w-7 flex justify-end flex-shrink-0">
+                      {!isSelf && (
+                        <button
+                          onClick={() => setRemoveTarget(m)}
+                          title="Remove from team"
+                          className="w-7 h-7 rounded-[6px] text-[#333] hover:text-red-400 hover:bg-red-950/30 flex items-center justify-center transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
