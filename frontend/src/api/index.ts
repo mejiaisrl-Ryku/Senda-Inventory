@@ -416,7 +416,36 @@ export interface LocationSummary {
 export const locationsApi = {
   overview: () =>
     api.get<LocationSummary[]>("/locations/overview").then((r) => r.data),
+  recipes: () =>
+    api.get<RecipeComparison[]>("/locations/recipes").then((r) => r.data),
 };
+
+// ── Recipe comparison types ───────────────────────────────────────────────────
+
+export interface LocationRecipeIngredient {
+  name:        string;
+  quantity:    number;
+  unit:        string;
+  costPerUnit: number;
+  lineTotal:   number;
+}
+
+export interface LocationRecipeEntry {
+  restaurantId: string;
+  locationName: string;
+  isTest:       boolean;
+  hasRecipe:    boolean;
+  sellingPrice?: number;
+  recipeCost?:   number;
+  costPct?:      number;
+  ingredients?:  LocationRecipeIngredient[];
+}
+
+export interface RecipeComparison {
+  recipeName: string;
+  department: string;
+  locations:  LocationRecipeEntry[];
+}
 
 export const seedApi = {
   seedTestLocations: () =>

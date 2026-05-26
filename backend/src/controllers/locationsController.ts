@@ -2,6 +2,21 @@ import { Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 
+// ── Shared unit-conversion helper (mirrors recipeController logic) ────────────
+
+function autoConversionFactor(recipeUnit: string, purchaseUnit: string): number | null {
+  const aliases: Record<string, string> = { PIECES: "PCS", LITERS: "L" };
+  const r = aliases[recipeUnit]  ?? recipeUnit;
+  const p = aliases[purchaseUnit] ?? purchaseUnit;
+  if (r === p) return 1;
+  const table: Record<string, Record<string, number>> = {
+    G:  { KG: 1000  }, KG: { G: 0.001  },
+    OZ: { LB: 16    }, LB: { OZ: 0.0625 },
+    ML: { L: 1000   }, L:  { ML: 0.001  },
+  };
+  return table[r]?.[p] ?? null;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function daysAgo(n: number): Date {
@@ -188,6 +203,139 @@ export async function getLocationsOverview(
     );
 
     res.json(results);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * GET /api/locations/recipes
+ *
+ * Returns all recipes across all known locations (user's restaurant + TEST_
+ * restaurants), grouped by recipe name.  Each group contains one entry per
+ * location — those that don't offer the recipe get `hasRecipe: false`.
+ */
+export async function getLocationsRecipes(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const restaurantId = req.user.restaurantId;
+
+    const [userRestaurant, testRestaurants] = await Promise.all([
+      prisma.restaurant.findUnique({
+        where:  { id: restaurantId },
+        select: { id: true, name: true },
+      }),
+      prisma.restaurant.findMany({
+        where:   { name: { startsWith: "TEST_" } },
+        select:  { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+
+    if (!userRestaurant) return res.status(404).json({ error: "Restaurant not found" });
+
+    const allRestaurants = [
+      { id: userRestaurant.id, name: userRestaurant.name, isTest: false },
+      ...testRestaurants.map((r) => ({
+        id:     r.id,
+        name:   r.name.replace(/^TEST_/, ""),
+        isTest: true,
+      })),
+    ];
+
+    const allIds = allRestaurants.map((r) => r.id);
+
+    // One query for all recipes across all locations
+    const allRecipes = await (prisma as any).recipe.findMany({
+      where:   { restaurantId: { in: allIds } },
+      orderBy: [{ name: "asc" }],
+      include: {
+        ingredients: {
+          include: {
+            product: {
+              select: { id: true, name: true, unit: true, costPerUnit: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Group by normalised recipe name → Map<restaurantId, recipe>
+    const byName = new Map<string, Map<string, any>>();
+    for (const recipe of allRecipes) {
+      const key = recipe.name.toLowerCase().trim();
+      if (!byName.has(key)) byName.set(key, new Map());
+      byName.get(key)!.set(recipe.restaurantId, recipe);
+    }
+
+    function n(v: unknown): number {
+      return typeof v === "object" ? parseFloat(String(v)) : Number(v);
+    }
+
+    const result = Array.from(byName.values())
+      .map((recipeByRestaurant) => {
+        const firstRecipe = recipeByRestaurant.values().next().value;
+
+        const locations = allRestaurants.map((restaurant) => {
+          const recipe = recipeByRestaurant.get(restaurant.id);
+          if (!recipe) {
+            return {
+              restaurantId: restaurant.id,
+              locationName: restaurant.name,
+              isTest:       restaurant.isTest,
+              hasRecipe:    false,
+            };
+          }
+
+          const sp          = n(recipe.sellingPrice);
+          const ingredients = recipe.ingredients.map((ing: any) => {
+            const qty         = n(ing.quantity);
+            const costPerUnit = n(ing.product.costPerUnit);
+            const factor      = autoConversionFactor(ing.unit, ing.product.unit);
+            let lineTotal = 0;
+            if (factor !== null) {
+              lineTotal = (qty / factor) * costPerUnit;
+            } else if (ing.conversionFactor) {
+              lineTotal = (qty / n(ing.conversionFactor)) * costPerUnit;
+            }
+            return {
+              name:        ing.product.name,
+              quantity:    Math.round(qty * 1000)      / 1000,
+              unit:        ing.unit,
+              costPerUnit: Math.round(costPerUnit * 1000) / 1000,
+              lineTotal:   Math.round(lineTotal * 100)    / 100,
+            };
+          });
+
+          const recipeCost = Math.round(
+            ingredients.reduce((s: number, i: any) => s + i.lineTotal, 0) * 100
+          ) / 100;
+          const costPct = sp > 0 ? Math.round((recipeCost / sp) * 1000) / 10 : 0;
+
+          return {
+            restaurantId: restaurant.id,
+            locationName: restaurant.name,
+            isTest:       restaurant.isTest,
+            hasRecipe:    true,
+            sellingPrice: Math.round(sp * 100) / 100,
+            recipeCost,
+            costPct,
+            ingredients,
+          };
+        });
+
+        return {
+          recipeName: firstRecipe.name as string,
+          department: firstRecipe.department as string,
+          locations,
+        };
+      })
+      .sort((a, b) => a.recipeName.localeCompare(b.recipeName));
+
+    res.json(result);
   } catch (err) {
     next(err);
   }

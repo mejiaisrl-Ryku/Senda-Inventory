@@ -1,10 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { locationsApi, seedApi, LocationSummary, MetricTrend } from "../api";
+import {
+  locationsApi, seedApi,
+  LocationSummary, MetricTrend,
+  RecipeComparison,
+} from "../api";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
 import { formatCurrency } from "../utils/stock";
-import { PageSpinner } from "./shared/Spinner";
+import { PageSpinner, Spinner } from "./shared/Spinner";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -411,6 +415,224 @@ function BenchmarkCard({
   );
 }
 
+// ── Recipe Comparison ─────────────────────────────────────────────────────────
+
+/** Rank a location entry relative to its siblings for this recipe. */
+function recipeRank(entry: { costPct?: number; restaurantId: string }, sorted: { restaurantId: string }[]): "best" | "worst" | "mid" {
+  if (sorted.length <= 1) return "best";
+  if (entry.restaurantId === sorted[0].restaurantId) return "best";
+  if (entry.restaurantId === sorted[sorted.length - 1].restaurantId) return "worst";
+  return "mid";
+}
+
+function RecipeLocationCard({ entry, rank }: { entry: import("../api").LocationRecipeEntry; rank: "best" | "worst" | "mid" }) {
+  const borderCls =
+    rank === "best"  ? "border-[#3dbf8a]/40" :
+    rank === "worst" ? "border-[#f59e0b]/30"  :
+                       "border-[#1a1a1a]";
+
+  if (!entry.hasRecipe) {
+    return (
+      <div className="flex-1 min-w-[220px] bg-[#0a0a0a] border border-[#1a1a1a] rounded-[10px] p-5 flex flex-col items-center justify-center gap-2 min-h-[220px]">
+        <div className="w-7 h-7 rounded-full bg-[#1a1a1a] flex items-center justify-center">
+          <span className="text-[#333] text-[12px] font-bold">{entry.locationName[0].toUpperCase()}</span>
+        </div>
+        <p className="text-[13px] font-semibold text-white">{entry.locationName}</p>
+        {entry.isTest && (
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">TEST</span>
+        )}
+        <p className="text-[12px] text-[#333] mt-1 italic">Recipe not offered</p>
+      </div>
+    );
+  }
+
+  const rankBadge =
+    rank === "best"  ? <span className="text-[10px] font-bold text-[#3dbf8a]">✓ Best</span>  :
+    rank === "worst" ? <span className="text-[10px] font-bold text-[#f59e0b]">⚠ High</span> :
+                       <span className="text-[10px] text-[#555]">• Mid</span>;
+
+  const costColor =
+    rank === "best"  ? "text-[#3dbf8a]" :
+    rank === "worst" ? "text-[#f59e0b]"  :
+                       "text-white";
+
+  return (
+    <div className={`flex-1 min-w-[220px] bg-[#0a0a0a] border ${borderCls} rounded-[10px] p-5 space-y-4`}>
+      {/* Card header */}
+      <div className="flex items-center gap-2 pb-3 border-b border-[#111]">
+        <div className="w-6 h-6 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center flex-shrink-0">
+          <span className="text-white text-[10px] font-bold">{entry.locationName[0].toUpperCase()}</span>
+        </div>
+        <p className="text-[13px] font-semibold text-white flex-1 truncate">{entry.locationName}</p>
+        {entry.isTest && (
+          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20 shrink-0">TEST</span>
+        )}
+        {rankBadge}
+      </div>
+
+      {/* Cost summary */}
+      <div className="space-y-2">
+        <div className="flex justify-between items-baseline">
+          <span className="text-[11px] text-[#555] uppercase tracking-wider">Recipe Cost</span>
+          <span className="text-[15px] font-bold text-white">${entry.recipeCost!.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between items-baseline">
+          <span className="text-[11px] text-[#555] uppercase tracking-wider">Cost %</span>
+          <span className={`text-[15px] font-bold ${costColor}`}>{entry.costPct!.toFixed(1)}%</span>
+        </div>
+        <div className="flex justify-between items-baseline">
+          <span className="text-[11px] text-[#555] uppercase tracking-wider">Selling Price</span>
+          <span className="text-[13px] text-[#777]">${entry.sellingPrice!.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Ingredients */}
+      <div className="border-t border-[#111] pt-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#333] mb-2">Ingredients</p>
+        <div className="space-y-2">
+          {entry.ingredients!.map((ing, i) => (
+            <div key={i}>
+              <div className="flex justify-between text-[12px]">
+                <span className="text-[#aaa] truncate pr-2">{ing.name}</span>
+                <span className="text-[#666] shrink-0">{ing.quantity} {ing.unit}</span>
+              </div>
+              <div className="flex justify-between text-[10px] text-[#444]">
+                <span>@ ${ing.costPerUnit.toFixed(3)}/{ing.unit}</span>
+                <span className="text-[#555]">= ${ing.lineTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecipeComparisonTab() {
+  const [comparisons, setComparisons] = useState<RecipeComparison[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [selected,    setSelected]    = useState<string | null>(null);
+
+  useEffect(() => {
+    locationsApi.recipes()
+      .then((data) => {
+        setComparisons(data);
+        if (data.length > 0) setSelected(data[0].recipeName);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (comparisons.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+        <svg className="w-8 h-8 text-[#2a2a2a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        <p className="text-[14px] text-[#555]">No recipes found across locations.</p>
+        <p className="text-[12px] text-[#333]">Add recipes to your locations to compare costs here.</p>
+      </div>
+    );
+  }
+
+  const comparison = comparisons.find((c) => c.recipeName === selected);
+
+  // For the selected recipe, sort the entries that have the recipe by costPct
+  const sorted = comparison
+    ? [...comparison.locations]
+        .filter((l) => l.hasRecipe)
+        .sort((a, b) => (a.costPct ?? 0) - (b.costPct ?? 0))
+    : [];
+
+  return (
+    <div className="space-y-6">
+      {/* Recipe chip selector */}
+      <div className="flex flex-wrap gap-2">
+        {comparisons.map((c) => (
+          <button
+            key={c.recipeName}
+            onClick={() => setSelected(c.recipeName)}
+            className={`px-3 py-1.5 rounded-full text-[12px] font-medium border transition-colors ${
+              selected === c.recipeName
+                ? "bg-[#3dbf8a] border-[#3dbf8a] text-white"
+                : "border-[#2a2a2a] bg-[#0a0a0a] text-[#666] hover:text-white hover:border-[#3a3a3a]"
+            }`}
+          >
+            {c.recipeName}
+            <span className={`ml-1.5 text-[10px] ${selected === c.recipeName ? "opacity-70" : "text-[#444]"}`}>
+              {c.department === "BAR" ? "🍹" : "🍳"}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Comparison cards */}
+      {comparison && (
+        <div className="space-y-4">
+          {/* Recipe header */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-[18px] font-bold text-white tracking-wide">{comparison.recipeName}</h2>
+            <span className="px-2 py-0.5 rounded-[4px] bg-[#1a1a1a] border border-[#2a2a2a] text-[10px] font-semibold uppercase tracking-wider text-[#555]">
+              {comparison.department}
+            </span>
+            {/* Show common selling price if all locations agree */}
+            {(() => {
+              const prices = comparison.locations.filter((l) => l.hasRecipe).map((l) => l.sellingPrice);
+              const allSame = prices.length > 0 && prices.every((p) => p === prices[0]);
+              return allSame ? (
+                <span className="text-[13px] text-[#555]">
+                  Selling price: <span className="text-white font-semibold">${prices[0]!.toFixed(2)}</span>
+                </span>
+              ) : null;
+            })()}
+          </div>
+
+          {/* Cards row */}
+          <div className="flex flex-col sm:flex-row gap-4 items-stretch flex-wrap">
+            {comparison.locations.map((entry) => (
+              <RecipeLocationCard
+                key={entry.restaurantId}
+                entry={entry}
+                rank={entry.hasRecipe ? recipeRank(entry, sorted) : "mid"}
+              />
+            ))}
+          </div>
+
+          {/* Gap callout */}
+          {sorted.length >= 2 && (
+            <div className="flex items-center gap-2 px-4 py-2.5 rounded-[8px] bg-[#3dbf8a]/5 border border-[#3dbf8a]/10">
+              <svg className="w-3.5 h-3.5 text-[#3dbf8a] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-[12px] text-[#888]">
+                <span className="text-[#3dbf8a] font-semibold">{sorted[0].locationName}</span>
+                {" "}has the lowest cost at{" "}
+                <span className="text-white font-semibold">{sorted[0].costPct!.toFixed(1)}%</span>
+                {" "}— that's{" "}
+                <span className="text-[#3dbf8a] font-semibold">
+                  {(sorted[sorted.length - 1].costPct! - sorted[0].costPct!).toFixed(1)}%
+                </span>
+                {" "}less than{" "}
+                <span className="text-[#aaa]">{sorted[sorted.length - 1].locationName}</span>
+                {" "}({sorted[sorted.length - 1].costPct!.toFixed(1)}%).
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 const MAX_VISIBLE = 3;
@@ -428,6 +650,7 @@ export function MultiLocationOverview() {
   const [selected,          setSelected]          = useState<string>(readStoredLocation);
   const [highlightedMetric, setHighlightedMetric] = useState<HighlightMetric>(null);
   const [seeding,           setSeeding]           = useState(false);
+  const [activeTab,         setActiveTab]         = useState<"overview" | "recipes">("overview");
 
   useEffect(() => {
     locationsApi.overview()
@@ -522,10 +745,33 @@ export function MultiLocationOverview() {
           <h1 className="text-[22px] font-semibold text-white">{ml.title}</h1>
           <p className="text-[13px] text-[#555] mt-0.5">{ml.subtitle}</p>
         </div>
-        {locations.length > 0 && (
+        {activeTab === "overview" && locations.length > 0 && (
           <LocationSwitcher locations={locations} selected={selected} onSelect={handleSelect} />
         )}
       </div>
+
+      {/* Tab switcher */}
+      <div className="flex gap-1 bg-[#0a0a0a] border border-[#1a1a1a] rounded-[8px] p-1 w-fit">
+        {(["overview", "recipes"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-1.5 rounded-[6px] text-[12px] font-medium transition-colors ${
+              activeTab === tab
+                ? "bg-[#1a1a1a] text-white shadow-sm"
+                : "text-[#555] hover:text-[#888]"
+            }`}
+          >
+            {tab === "overview" ? "Overview" : "Recipe Comparison"}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Recipe Comparison tab ──────────────────────────────────────────── */}
+      {activeTab === "recipes" && <RecipeComparisonTab />}
+
+      {/* ── Overview tab ───────────────────────────────────────────────────── */}
+      {activeTab === "overview" && <>
 
       {/* Single-location notice */}
       {isSingle && (
@@ -584,6 +830,8 @@ export function MultiLocationOverview() {
           )}
         </div>
       )}
+
+      </> /* end overview tab */}
 
       {/* Admin-only seed / clear buttons */}
       {isAdmin && (
