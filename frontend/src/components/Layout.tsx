@@ -3,45 +3,9 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage, LangToggle } from "../context/LanguageContext";
 import { useToast } from "../context/ToastContext";
-import { feedbackApi, teamApi } from "../api";
+import { teamApi } from "../api";
 
-// ── Profile slide-up modal ────────────────────────────────────────────────────
-
-/** One row in the navigation menu inside the modal */
-function NavItem({
-  icon,
-  label,
-  shortcut,
-  danger,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  shortcut?: string;
-  danger?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-[8px] text-[13px] font-medium transition-colors text-left group
-        ${danger
-          ? "text-[#555] hover:text-red-400 hover:bg-red-950/30"
-          : "text-[#888] hover:text-white hover:bg-[#1a1a1a]"
-        }`}
-    >
-      <span className={`w-4 h-4 flex-shrink-0 ${danger ? "group-hover:text-red-400" : "group-hover:text-[#3dbf8a]"}`}>
-        {icon}
-      </span>
-      <span className="flex-1">{label}</span>
-      {shortcut && (
-        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#1a1a1a] text-[#444] border border-[#2a2a2a]">
-          {shortcut}
-        </span>
-      )}
-    </button>
-  );
-}
+// ── Sidebar mini-popup (slides up from the sidebar bottom) ───────────────────
 
 // ── Add Team Members modal ────────────────────────────────────────────────────
 
@@ -199,9 +163,7 @@ function AddTeamMembersModal({
   );
 }
 
-// ── Profile slide-up modal ────────────────────────────────────────────────────
-
-function ProfileModal({
+function SidebarPopup({
   open,
   onClose,
   onLogout,
@@ -210,237 +172,88 @@ function ProfileModal({
   onClose: () => void;
   onLogout: () => void;
 }) {
-  const { user, isAdmin } = useAuth();
-  const navigate    = useNavigate();
-  const toast       = useToast();
+  const navigate = useNavigate();
+  const toast    = useToast();
 
-  const [suggestion,    setSuggestion]    = useState("");
-  const [suggSent,      setSuggSent]      = useState(false);
-  const [suggBusy,      setSuggBusy]      = useState(false);
-  const [addTeamOpen,   setAddTeamOpen]   = useState(false);
-
-  // Role tier
-  const isOwner   = isAdmin && (user?.locationCount ?? 1) > 1;
-  const isGM      = isAdmin && !isOwner;
-  const roleLabel = isOwner ? "Owner" : isGM ? "General Manager" : "Staff";
-
-  // ── Nav actions ────────────────────────────────────────────────────────────
   function go(path: string) { onClose(); navigate(path); }
 
+  // Toggle theme stays open (in-place action per spec)
   function handleToggleTheme() {
-    onClose();
     toast.success("Light theme coming soon — dark mode is the default for now");
   }
 
-  // ── Suggestions ────────────────────────────────────────────────────────────
-  async function handleSendSuggestion() {
-    if (!suggestion.trim() || suggBusy) return;
-    setSuggBusy(true);
-    try {
-      await feedbackApi.submit(suggestion.trim());
-      setSuggSent(true);
-      setSuggestion("");
-      toast.success("Thank you! Your suggestion was sent.");
-      setTimeout(() => setSuggSent(false), 5000);
-    } catch {
-      toast.error("Couldn't send suggestion — please try again.");
-    } finally {
-      setSuggBusy(false);
-    }
-  }
-
-  const initial = (user?.name ?? user?.email ?? "?")[0].toUpperCase();
+  const item =
+    "flex items-center gap-3 w-full px-3 py-2.5 rounded-[8px] text-[13px] font-medium transition-colors text-left group text-[#888] hover:text-white hover:bg-[#1a1a1a]";
+  const danger =
+    "flex items-center gap-3 w-full px-3 py-2.5 rounded-[8px] text-[13px] font-medium transition-colors text-left group text-[#555] hover:text-red-400 hover:bg-red-950/30";
+  const icon  = "w-4 h-4 flex-shrink-0 group-hover:text-[#3dbf8a]";
+  const dicon = "w-4 h-4 flex-shrink-0 group-hover:text-red-400";
 
   return (
-    <div
-      className={`fixed inset-0 z-50 flex items-end transition-opacity duration-300 ${
-        open ? "opacity-100" : "opacity-0 pointer-events-none"
-      }`}
-      onClick={onClose}
-    >
+    <>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60" />
-
-      {/* Add Team Members modal — z-[60] sits above this modal's z-50 */}
-      <AddTeamMembersModal open={addTeamOpen} onClose={() => setAddTeamOpen(false)} />
-
-      {/* Sheet — 65 vh */}
       <div
-        className={`relative w-full bg-[#0d0d0d] border-t border-[#1e1e1e] rounded-t-[20px] flex flex-col transform transition-transform duration-300 ${
-          open ? "translate-y-0" : "translate-y-full"
+        className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-200 ${
+          open ? "opacity-100" : "opacity-0 pointer-events-none"
         }`}
-        style={{ height: "65vh" }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={onClose}
+      />
+
+      {/* Popup — anchored bottom-left, sidebar width, slides up */}
+      <div
+        className={`fixed bottom-0 left-0 z-50 w-[220px] bg-[#0d0d0d] border-t border-r border-[#1e1e1e] rounded-tr-[16px] transform transition-transform duration-200 ${
+          open ? "translate-y-0" : "translate-y-full"
+        } ${!open && "pointer-events-none"}`}
       >
-        {/* ── Handle + close ─────────────────────────────────────────────── */}
-        <div className="flex-shrink-0 flex items-center px-5 pt-4 pb-2">
-          <div className="flex-1" />
-          <div className="w-10 h-1 rounded-full bg-[#2a2a2a]" />
-          <div className="flex-1 flex justify-end">
-            <button
-              onClick={onClose}
-              aria-label="Close"
-              className="w-7 h-7 rounded-full bg-[#1a1a1a] hover:bg-[#252525] flex items-center justify-center text-[#555] hover:text-white transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        <div className="py-2 px-2 space-y-0.5">
+
+          {/* My Profile */}
+          <button onClick={() => go("/profile")} className={item}>
+            <span className={icon}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-            </button>
-          </div>
-        </div>
+            </span>
+            My Profile
+          </button>
 
-        {/* ── Scrollable body ─────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto pb-8">
+          {/* Toggle Theme */}
+          <button onClick={handleToggleTheme} className={item}>
+            <span className={icon}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            </span>
+            Toggle theme
+          </button>
 
-          {/* ── Profile header ──────────────────────────────────────────── */}
-          <div className="px-5 pt-2 pb-4 border-b border-[#1a1a1a]">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-[#3dbf8a] flex items-center justify-center text-white text-[17px] font-bold flex-shrink-0">
-                {initial}
-              </div>
-              <div className="min-w-0">
-                <p className="text-[15px] font-semibold text-white leading-snug truncate">
-                  {user?.name ?? user?.email}
-                </p>
-                <p className="text-[12px] text-[#555] truncate">{user?.email}</p>
-              </div>
-            </div>
+          {/* Homepage */}
+          <button onClick={() => go("/")} className={item}>
+            <span className={icon}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+              </svg>
+            </span>
+            Homepage
+          </button>
 
-            {/* Role + restaurant pills */}
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              <span className="px-2 py-0.5 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] text-[11px] text-[#888]">
-                {roleLabel}
-              </span>
-              {user?.restaurantName && (
-                <span className="px-2 py-0.5 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] text-[11px] text-[#888] truncate max-w-[160px]">
-                  {user.restaurantName}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* ── Admin action buttons ──────────────────────────────────────── */}
-          {isAdmin && (
-            <div className="px-5 pt-3 pb-3 border-b border-[#1a1a1a] flex gap-2">
-              <button
-                className="flex-1 py-2 rounded-[8px] border border-[#2a2a2a] text-[12px] font-medium text-[#888] hover:text-white hover:border-[#3a3a3a] transition-colors"
-                onClick={() => toast.success("Settings coming soon")}
-              >
-                Settings
-              </button>
-              <button
-                className="flex-1 py-2 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] text-[12px] font-semibold text-white transition-colors"
-                onClick={() => setAddTeamOpen(true)}
-              >
-                Add Team Members
-              </button>
-            </div>
-          )}
-
-          {/* ── Navigation menu ──────────────────────────────────────────── */}
-          <div className="px-3 py-3 border-b border-[#1a1a1a] space-y-0.5">
-            {/* My profile */}
-            <NavItem
-              label="My profile"
-              icon={
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              }
-              onClick={() => { onClose(); toast.success("Profile page coming soon"); }}
-            />
-
-            {/* Toggle theme */}
-            <NavItem
-              label="Toggle theme"
-              shortcut="M"
-              icon={
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              }
-              onClick={handleToggleTheme}
-            />
-
-            {/* Homepage */}
-            <NavItem
-              label="Homepage"
-              icon={
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-              }
-              onClick={() => go("/")}
-            />
-
-            {/* Onboarding */}
-            <NavItem
-              label="Onboarding"
-              icon={
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                </svg>
-              }
-              onClick={() => go("/")}
-            />
-
-            {/* Log out */}
-            <NavItem
-              label="Log out"
-              danger
-              icon={
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-4 h-4">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              }
-              onClick={onLogout}
-            />
-          </div>
-
-          {/* ── Suggestions box ───────────────────────────────────────────── */}
-          <div className="px-5 pt-5 pb-2">
-            <p className="text-[13px] font-semibold text-white mb-0.5">
-              Have a suggestion? Let us know!
-            </p>
-            <p className="text-[11px] text-[#555] mb-3">
-              Your feedback goes directly to Israel.
-            </p>
-
-            {suggSent ? (
-              <div className="flex items-center gap-2 px-3.5 py-3 rounded-[8px] bg-[#3dbf8a]/10 border border-[#3dbf8a]/20 text-[#3dbf8a] text-[13px]">
-                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Thank you! Your suggestion was sent.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <textarea
-                  value={suggestion}
-                  onChange={(e) => setSuggestion(e.target.value)}
-                  placeholder="Share an idea or report an issue…"
-                  rows={3}
-                  className="w-full px-3 py-2.5 rounded-[8px] border border-[#1e1e1e] bg-[#0a0a0a] text-white text-[13px] placeholder-[#333] focus:outline-none focus:border-[#3dbf8a]/50 transition-colors resize-none"
-                />
-                <button
-                  onClick={handleSendSuggestion}
-                  disabled={!suggestion.trim() || suggBusy}
-                  className="w-full py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-40 text-[13px] font-semibold text-white transition-colors"
-                >
-                  {suggBusy ? "Sending…" : "Send to Israel"}
-                </button>
-              </div>
-            )}
-          </div>
+          {/* Log Out */}
+          <button onClick={onLogout} className={danger}>
+            <span className={dicon}>
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" className="w-4 h-4">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </span>
+            Log out
+          </button>
 
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -617,10 +430,10 @@ function SidebarContent({ onNavClick, collapsed = false, onToggleCollapse }: Sid
   const { user, logout, isAdmin } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const [profileOpen, setProfileOpen] = useState(false);
+  const [popupOpen, setPopupOpen] = useState(false);
 
   function handleLogout() {
-    setProfileOpen(false);
+    setPopupOpen(false);
     logout();
     navigate("/login");
   }
@@ -709,7 +522,7 @@ function SidebarContent({ onNavClick, collapsed = false, onToggleCollapse }: Sid
 
         {/* User row — avatar + first name, clickable → profile modal */}
         <button
-          onClick={() => setProfileOpen(true)}
+          onClick={() => setPopupOpen(true)}
           className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2.5 pl-[10px] pr-3'} w-full py-2 rounded-[6px] text-[#888] hover:text-white hover:bg-[#111] transition-colors`}
         >
           <div className="w-5 h-5 rounded-full bg-[#3dbf8a] flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
@@ -730,10 +543,10 @@ function SidebarContent({ onNavClick, collapsed = false, onToggleCollapse }: Sid
         )}
       </div>
 
-      {/* Profile modal */}
-      <ProfileModal
-        open={profileOpen}
-        onClose={() => setProfileOpen(false)}
+      {/* Sidebar mini-popup */}
+      <SidebarPopup
+        open={popupOpen}
+        onClose={() => setPopupOpen(false)}
         onLogout={handleLogout}
       />
     </div>
