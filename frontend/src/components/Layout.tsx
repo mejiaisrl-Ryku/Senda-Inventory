@@ -3,6 +3,84 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage, LangToggle } from "../context/LanguageContext";
 
+// ── Profile slide-up modal ────────────────────────────────────────────────────
+
+function ProfileModal({
+  open,
+  onClose,
+  onLogout,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onLogout: () => void;
+}) {
+  const { user } = useAuth();
+  const { t } = useLanguage();
+
+  const roleLabel =
+    user?.role === "ADMIN" ? t.ui.adminRole : t.ui.userRole;
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex items-end transition-opacity duration-300 ${
+        open ? "opacity-100" : "opacity-0 pointer-events-none"
+      }`}
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60" />
+
+      {/* Sheet */}
+      <div
+        className={`relative w-full bg-[#0a0a0a] border-t border-[#1a1a1a] rounded-t-[16px] p-6 transform transition-transform duration-300 ${
+          open ? "translate-y-0" : "translate-y-full"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Drag handle */}
+        <div className="w-10 h-1 bg-[#2a2a2a] rounded-full mx-auto mb-6" />
+
+        {/* Avatar + name */}
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-full bg-[#3dbf8a] flex items-center justify-center text-white text-[15px] font-bold flex-shrink-0">
+            {(user?.name ?? user?.email ?? "?")[0].toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[15px] font-semibold text-white truncate">
+              {user?.name ?? user?.email}
+            </p>
+            <p className="text-[12px] text-[#555] truncate">{user?.email}</p>
+          </div>
+        </div>
+
+        {/* Info pills */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          <span className="px-2.5 py-1 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] text-[11px] text-[#888]">
+            {roleLabel}
+          </span>
+          {user?.restaurantName && (
+            <span className="px-2.5 py-1 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] text-[11px] text-[#888] truncate max-w-[180px]">
+              {user.restaurantName}
+            </span>
+          )}
+        </div>
+
+        {/* Logout */}
+        <button
+          onClick={onLogout}
+          className="w-full py-2.5 rounded-[8px] border border-[#2a2a2a] text-[13px] text-[#888] hover:text-red-400 hover:border-red-800/50 hover:bg-red-900/10 transition-colors flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          {t.nav.logOut}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Nav structure ─────────────────────────────────────────────────────────────
 
 interface NavItem {
@@ -175,10 +253,11 @@ interface SidebarContentProps {
 function SidebarContent({ onNavClick, collapsed = false, onToggleCollapse }: SidebarContentProps) {
   const { user, logout, isAdmin } = useAuth();
   const { t } = useLanguage();
-  const restaurantLogo = user?.restaurantLogo ?? null;
   const navigate = useNavigate();
+  const [profileOpen, setProfileOpen] = useState(false);
 
   function handleLogout() {
+    setProfileOpen(false);
     logout();
     navigate("/login");
   }
@@ -192,7 +271,7 @@ function SidebarContent({ onNavClick, collapsed = false, onToggleCollapse }: Sid
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className={`${collapsed ? 'px-2 flex justify-center' : 'px-5'} pt-8 pb-6 border-b border-[#1a1a1a]`}>
+      <div className={`${collapsed ? 'px-2 flex justify-center' : 'px-5 flex justify-center'} pt-8 pb-6 border-b border-[#1a1a1a]`}>
         {collapsed ? (
           <img
             src={process.env.PUBLIC_URL + '/kyru-logo-icon.svg'}
@@ -201,21 +280,12 @@ function SidebarContent({ onNavClick, collapsed = false, onToggleCollapse }: Sid
             style={{ width: '32px', height: 'auto' }}
           />
         ) : (
-          <div className="flex flex-col gap-3">
-            <img
-              src={process.env.PUBLIC_URL + '/kyru-logo-horizontal.svg'}
-              alt="Kyru"
-              className="object-contain"
-              style={{ width: '140px', height: 'auto' }}
-            />
-            {restaurantLogo && (
-              <img
-                src={restaurantLogo}
-                alt={user?.restaurantName ?? "Restaurant logo"}
-                className="h-10 w-auto object-contain flex-shrink-0"
-              />
-            )}
-          </div>
+          <img
+            src={process.env.PUBLIC_URL + '/kyru-logo-horizontal.svg'}
+            alt="Kyru"
+            className="object-contain"
+            style={{ width: '140px', height: 'auto' }}
+          />
         )}
       </div>
 
@@ -252,9 +322,9 @@ function SidebarContent({ onNavClick, collapsed = false, onToggleCollapse }: Sid
         })}
       </nav>
 
-      {/* Bottom: collapse toggle + logout + user */}
+      {/* Bottom: collapse toggle + user + lang toggle */}
       <div className={`${collapsed ? 'px-1.5' : 'px-3'} py-3 border-t border-[#1a1a1a] space-y-0.5`}>
-        {/* Collapse toggle — desktop only, hidden on mobile overlay */}
+        {/* Collapse toggle — desktop only */}
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
@@ -274,36 +344,35 @@ function SidebarContent({ onNavClick, collapsed = false, onToggleCollapse }: Sid
           </button>
         )}
 
-        {/* Log out */}
+        {/* User row — avatar + first name, clickable → profile modal */}
         <button
-          onClick={handleLogout}
-          className={collapsed ? collapsedNavItemClass(false) : navItemClass(false)}
+          onClick={() => setProfileOpen(true)}
+          className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2.5 pl-[10px] pr-3'} w-full py-2 rounded-[6px] text-[#888] hover:text-white hover:bg-[#111] transition-colors`}
         >
-          <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          {!collapsed && t.nav.logOut}
-        </button>
-
-        {/* User row + language toggle */}
-        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2.5'} px-3 py-2 mt-1`}>
-          <div className="w-6 h-6 rounded-full bg-[#3dbf8a] flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+          <div className="w-5 h-5 rounded-full bg-[#3dbf8a] flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">
             {(user?.name ?? user?.email ?? "?")[0].toUpperCase()}
           </div>
           {!collapsed && (
-            <>
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-medium text-white truncate">
-                  {user?.name ? user.name.split(" ")[0] : user?.email}
-                </p>
-              </div>
-              {/* Language toggle — bottom-left near user */}
-              <LangToggle />
-            </>
+            <span className="text-[13px] font-medium text-white truncate">
+              {user?.name ? user.name.split(" ")[0] : user?.email}
+            </span>
           )}
-        </div>
+        </button>
+
+        {/* Language toggle — below the user name */}
+        {!collapsed && (
+          <div className="pl-[10px] pt-1 pb-0.5">
+            <LangToggle />
+          </div>
+        )}
       </div>
+
+      {/* Profile modal */}
+      <ProfileModal
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        onLogout={handleLogout}
+      />
     </div>
   );
 }
