@@ -456,26 +456,41 @@ export interface RecipeComparison {
 
 // ── Vendor pricing types ──────────────────────────────────────────────────────
 
+export interface PurveyorEntry {
+  purveyor:       string;
+  originalUnit:   string;
+  originalCost:   number;
+  normalizedCost: number;  // cost in canonicalUnit
+  invoiceDate:    string | null;
+  qty30d:         number;  // quantity in canonicalUnit
+  isConverted:    boolean;
+}
+
 export interface LocationVendorPrice {
-  restaurantId: string;
-  locationName: string;
-  isTest:       boolean;
-  hasPurchases: boolean;
-  unitCost?:    number;
-  unit?:        string;
-  purveyor?:    string | null;
-  invoiceDate?: string | null;
-  totalQty30d?: number;
+  restaurantId:       string;
+  locationName:       string;
+  isTest:             boolean;
+  hasPurchases:       boolean;
+  purveyors:          PurveyorEntry[];
+  bestNormalizedCost: number | null;
+  totalQty30d:        number;
 }
 
 export interface ProductVendorComparison {
-  productName:      string;
-  unit:             string;
-  minCost:          number;
-  maxCost:          number;
-  priceDelta:       number;
-  maxAnnualSavings: number;
-  locations:        LocationVendorPrice[];
+  productName:             string;
+  canonicalUnit:           string;
+  hasUnitMismatch:         boolean;
+  conversionNote:          string | null;
+  totalQty30d:             number;
+  totalSpend30d:           number;
+  minCost:                 number;
+  maxCost:                 number;
+  priceDelta:              number;
+  priceDeltaPct:           number;
+  monthlySavings:          number;
+  maxAnnualSavings:        number;
+  purchasingLocationCount: number;
+  locations:               LocationVendorPrice[];
 }
 
 export const seedApi = {

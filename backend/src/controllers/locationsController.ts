@@ -441,14 +441,51 @@ export async function getLocationsRecipes(
   }
 }
 
+// ── Unit-normalization helpers ─────────────────────────────────────────────────
+
+// Prefer larger, more human-readable units when choosing a canonical unit.
+const UNIT_PRIORITY: Record<string, number> = {
+  LB: 10, KG: 9, L: 9, CS: 8, DOZ: 7, LITERS: 9,
+  OZ: 3,  G: 2,  ML: 1,
+};
+
+function pickCanonicalUnit(units: string[]): string {
+  if (units.length === 0) return "UNIT";
+  const counts = new Map<string, number>();
+  for (const u of units) counts.set(u, (counts.get(u) ?? 0) + 1);
+  const sorted = [...counts.entries()].sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];                          // most frequent first
+    return (UNIT_PRIORITY[b[0]] ?? 5) - (UNIT_PRIORITY[a[0]] ?? 5); // then highest priority
+  });
+  return sorted[0][0];
+}
+
+// Convert a unit cost from `fromUnit` to `toUnit`.
+// Returns null when no conversion path exists (incompatible dimensions).
+function convertCostPerUnit(cost: number, fromUnit: string, toUnit: string): number | null {
+  if (fromUnit === toUnit) return cost;
+  const factor = autoConversionFactor(fromUnit, toUnit);
+  if (factor === null) return null;
+  // factor = "X fromUnits per 1 toUnit", so: costPerToUnit = costPerFromUnit * factor
+  return cost * factor;
+}
+
+// Convert a quantity from `fromUnit` to `toUnit`.
+function convertQty(qty: number, fromUnit: string, toUnit: string): number | null {
+  if (fromUnit === toUnit) return qty;
+  const factor = autoConversionFactor(fromUnit, toUnit);
+  if (factor === null) return null;
+  return qty / factor;
+}
+
 /**
  * GET /api/locations/vendor-pricing
  *
- * Returns all products purchased in the last 30 days across all known
- * locations, grouped by (normalized product name + unit).  For each group
- * every location gets one entry with the most-recent unit cost and the
- * 30-day purchase volume.  Annual savings opportunity is computed relative
- * to the cheapest location.
+ * Returns all products purchased in the last 30 days across this partner's
+ * locations, grouped by normalized product name.  Handles unit mismatches
+ * (e.g. OZ vs LB) by converting everything to a canonical unit.  Each product
+ * group exposes all purveyors per location so users can compare and identify
+ * consolidation opportunities.
  */
 export async function getLocationsPricing(
   req: AuthRequest,
@@ -484,22 +521,20 @@ export async function getLocationsPricing(
 
     const allIds = allRestaurants.map((r) => r.id);
 
-    // One batch query — all order items across all locations in last 30 days
-    // where we have a linked product (productId not null).
+    // One batch query — every order item in the last 30 days across all locations.
+    // We use ALL items (not just productId-linked ones) so real invoice data is included.
     const items = await (prisma as any).orderItem.findMany({
       where: {
-        productId: { not: null },
         order: {
           restaurantId: { in: allIds },
           createdAt:    { gte: now30 },
         },
       },
       select: {
-        productId:   true,
+        productName: true,
         quantity:    true,
         unitCost:    true,
         unit:        true,
-        productName: true,
         order: {
           select: {
             restaurantId: true,
@@ -516,123 +551,183 @@ export async function getLocationsPricing(
       return typeof v === "object" ? parseFloat(String(v)) : Number(v);
     }
 
-    // Build: groupKey (name+unit) → restaurantId → { mostRecent, totalQty }
-    // groupKey: normalized product name + unit
-    type LocData = {
-      restaurantId: string;
-      unitCost:     number;
-      unit:         string;
-      purveyor:     string | null;
-      invoiceDate:  string | null;
-      totalQty30d:  number;
-      entryCount:   number;
+    // ── Phase 1: Group raw items ───────────────────────────────────────────────
+    //
+    // Structure: productName(lower) → locId → purveyorKey → { mostRecentCost, unit, qty30d, date }
+
+    type PurveyorRaw = {
+      unitCost:    number;
+      unit:        string;
+      invoiceDate: string;
+      qty30d:      number;
+      isMostRecent: boolean; // price locked on first (most recent) encounter
     };
 
-    const groupMap = new Map<string, { displayName: string; unit: string; byLoc: Map<string, LocData> }>();
+    type ProductGroup = {
+      displayName: string;
+      byLocByPurveyor: Map<string, Map<string, PurveyorRaw>>; // locId → purveyor → data
+    };
+
+    const groupMap = new Map<string, ProductGroup>();
 
     for (const item of items) {
-      const rawName  = (item.productName ?? "Unknown") as string;
-      const rawUnit  = (item.unit ?? "") as string;
-      const groupKey = `${rawName.toLowerCase().trim()}::${rawUnit.toLowerCase().trim()}`;
+      const rawName = ((item.productName ?? "") as string).trim();
+      if (!rawName || rawName.toLowerCase() === "unknown") continue;
+
+      const groupKey = rawName.toLowerCase();
+      const rawUnit  = ((item.unit ?? "UNIT") as string).trim().toUpperCase();
+      const locId    = item.order.restaurantId as string;
+      const purveyor = ((item.order.purveyor ?? "Unknown vendor") as string).trim();
+      const cost     = n(item.unitCost);
+      const qty      = n(item.quantity);
+      const invDate  = item.order.invoiceDate
+        ? (item.order.invoiceDate as Date).toISOString().slice(0, 10)
+        : (item.order.createdAt  as Date).toISOString().slice(0, 10);
 
       if (!groupMap.has(groupKey)) {
-        groupMap.set(groupKey, {
-          displayName: rawName,
-          unit:        rawUnit,
-          byLoc:       new Map(),
-        });
+        groupMap.set(groupKey, { displayName: rawName, byLocByPurveyor: new Map() });
       }
+      const group = groupMap.get(groupKey)!;
 
-      const group   = groupMap.get(groupKey)!;
-      const locId   = item.order.restaurantId as string;
-      const qty     = n(item.quantity);
-      const cost    = n(item.unitCost);
-      const invDate = item.order.invoiceDate
-        ? (item.order.invoiceDate as Date).toISOString().slice(0, 10)
-        : (item.order.createdAt as Date).toISOString().slice(0, 10);
+      if (!group.byLocByPurveyor.has(locId)) {
+        group.byLocByPurveyor.set(locId, new Map());
+      }
+      const byPurveyor = group.byLocByPurveyor.get(locId)!;
 
-      if (!group.byLoc.has(locId)) {
-        // First (most recent) entry for this location
-        group.byLoc.set(locId, {
-          restaurantId: locId,
-          unitCost:     cost,
-          unit:         rawUnit,
-          purveyor:     item.order.purveyor ?? null,
-          invoiceDate:  invDate,
-          totalQty30d:  qty,
-          entryCount:   1,
-        });
+      if (!byPurveyor.has(purveyor)) {
+        // First encounter = most recent price (items sorted desc)
+        byPurveyor.set(purveyor, { unitCost: cost, unit: rawUnit, invoiceDate: invDate, qty30d: qty, isMostRecent: true });
       } else {
-        // Accumulate quantity (items already sorted desc so first = most recent)
-        const existing = group.byLoc.get(locId)!;
-        existing.totalQty30d += qty;
-        existing.entryCount  += 1;
+        // Accumulate 30-day volume; keep most-recent price
+        byPurveyor.get(purveyor)!.qty30d += qty;
       }
     }
 
-    // Build result — only include groups where at least 2 locations have data
-    // (single-location products are uninteresting for comparison)
-    const restaurantById = new Map(allRestaurants.map((r) => [r.id, r]));
+    // ── Phase 2: Build result entries ─────────────────────────────────────────
 
-    const result = Array.from(groupMap.entries())
-      .map(([, group]) => {
-        const locationEntries = allRestaurants.map((restaurant) => {
-          const locData = group.byLoc.get(restaurant.id);
-          if (!locData) {
-            return {
-              restaurantId: restaurant.id,
-              locationName: restaurant.name,
-              isTest:       restaurant.isTest,
-              hasPurchases: false,
-            };
-          }
+    const result: any[] = [];
+
+    for (const [, group] of groupMap) {
+      // Collect all units used across this product's locations/purveyors
+      const allUnits: string[] = [];
+      for (const byPurveyor of group.byLocByPurveyor.values()) {
+        for (const pData of byPurveyor.values()) {
+          allUnits.push(pData.unit);
+        }
+      }
+      const canonicalUnit  = pickCanonicalUnit(allUnits);
+      const uniqueUnits    = new Set(allUnits);
+      const hasUnitMismatch = uniqueUnits.size > 1;
+
+      // Build per-location entries
+      const locationEntries = allRestaurants.map((restaurant) => {
+        const byPurveyor = group.byLocByPurveyor.get(restaurant.id);
+        if (!byPurveyor || byPurveyor.size === 0) {
           return {
             restaurantId: restaurant.id,
             locationName: restaurant.name,
             isTest:       restaurant.isTest,
-            hasPurchases: true,
-            unitCost:     Math.round(locData.unitCost * 1000)   / 1000,
-            unit:         locData.unit,
-            purveyor:     locData.purveyor,
-            invoiceDate:  locData.invoiceDate,
-            totalQty30d:  Math.round(locData.totalQty30d * 100) / 100,
+            hasPurchases: false,
+            purveyors:    [] as any[],
+            bestNormalizedCost: null as number | null,
+            totalQty30d:  0,
           };
-        });
-
-        // Compute best/worst among locations that have purchases
-        const activeEntries = locationEntries.filter((e) => e.hasPurchases);
-        if (activeEntries.length < 2) return null; // skip single-location
-
-        const costs    = activeEntries.map((e) => (e as any).unitCost as number);
-        const minCost  = Math.min(...costs);
-        const maxCost  = Math.max(...costs);
-
-        // Annual savings: how much the worst-case location could save if it
-        // paid the best price, based on its 30-day volume × 12.
-        let maxAnnualSavings = 0;
-        for (const entry of activeEntries) {
-          if (!(entry as any).hasPurchases) continue;
-          const e = entry as any;
-          const gap = e.unitCost - minCost;
-          if (gap > 0) {
-            const annualQty = e.totalQty30d * 12;
-            const savings   = Math.round(gap * annualQty * 100) / 100;
-            if (savings > maxAnnualSavings) maxAnnualSavings = savings;
-          }
         }
 
+        const purveyorEntries: any[] = [];
+        for (const [purveyorName, pData] of byPurveyor) {
+          const fromUnit       = pData.unit;
+          const normalizedCost = convertCostPerUnit(pData.unitCost, fromUnit, canonicalUnit) ?? pData.unitCost;
+          const normalizedQty  = convertQty(pData.qty30d, fromUnit, canonicalUnit) ?? pData.qty30d;
+          const isConverted    = fromUnit !== canonicalUnit && convertCostPerUnit(pData.unitCost, fromUnit, canonicalUnit) !== null;
+
+          purveyorEntries.push({
+            purveyor:       purveyorName,
+            originalUnit:   fromUnit,
+            originalCost:   Math.round(pData.unitCost    * 1000) / 1000,
+            normalizedCost: Math.round(normalizedCost    * 1000) / 1000,
+            invoiceDate:    pData.invoiceDate,
+            qty30d:         Math.round(normalizedQty     * 100)  / 100,
+            isConverted,
+          });
+        }
+
+        // Sort cheapest first so UI can highlight best purveyor at this location
+        purveyorEntries.sort((a, b) => a.normalizedCost - b.normalizedCost);
+
+        const bestNormalizedCost = purveyorEntries[0]?.normalizedCost ?? null;
+        const totalQty30d = purveyorEntries.reduce((s, p) => s + p.qty30d, 0);
+
         return {
-          productName:      group.displayName,
-          unit:             group.unit,
-          minCost:          Math.round(minCost * 1000) / 1000,
-          maxCost:          Math.round(maxCost * 1000) / 1000,
-          priceDelta:       Math.round((maxCost - minCost) * 1000) / 1000,
-          maxAnnualSavings,
-          locations:        locationEntries,
+          restaurantId:       restaurant.id,
+          locationName:       restaurant.name,
+          isTest:             restaurant.isTest,
+          hasPurchases:       true,
+          purveyors:          purveyorEntries,
+          bestNormalizedCost: bestNormalizedCost !== null ? Math.round(bestNormalizedCost * 1000) / 1000 : null,
+          totalQty30d:        Math.round(totalQty30d * 100) / 100,
         };
-      })
-      .filter(Boolean)
-      .sort((a, b) => (b as any).maxAnnualSavings - (a as any).maxAnnualSavings);
+      });
+
+      const activeEntries = locationEntries.filter((e) => e.hasPurchases);
+      if (activeEntries.length === 0) continue;
+
+      // Cross-location price comparison (using each location's cheapest purveyor)
+      const bestCosts = activeEntries
+        .map((e) => e.bestNormalizedCost)
+        .filter((c): c is number => c !== null);
+
+      const minCost     = bestCosts.length > 0 ? Math.min(...bestCosts) : 0;
+      const maxCost     = bestCosts.length > 0 ? Math.max(...bestCosts) : 0;
+      const priceDelta  = Math.round((maxCost - minCost) * 1000) / 1000;
+      const priceDeltaPct = maxCost > 0 ? Math.round((priceDelta / maxCost) * 1000) / 10 : 0;
+
+      // Total volume & spend (across all locations, using their best purveyor's price)
+      const totalQty30d   = activeEntries.reduce((s, e) => s + e.totalQty30d, 0);
+      const totalSpend30d = activeEntries.reduce((s, e) => {
+        return s + (e.bestNormalizedCost ?? 0) * e.totalQty30d;
+      }, 0);
+
+      // Monthly savings: worst location's qty × price gap (if it bought at best price)
+      const worstEntry    = activeEntries.find((e) => e.bestNormalizedCost === maxCost);
+      const monthlySavings = (worstEntry && priceDelta > 0)
+        ? Math.round(priceDelta * worstEntry.totalQty30d * 100) / 100
+        : 0;
+      const maxAnnualSavings = Math.round(monthlySavings * 12 * 100) / 100;
+
+      // Conversion note for UI
+      let conversionNote: string | null = null;
+      if (hasUnitMismatch) {
+        const foreignUnits = [...uniqueUnits].filter((u) => u !== canonicalUnit);
+        conversionNote = `${foreignUnits.join(", ")} → ${canonicalUnit} (converted for comparison)`;
+      }
+
+      result.push({
+        productName:           group.displayName,
+        canonicalUnit,
+        hasUnitMismatch,
+        conversionNote,
+        totalQty30d:           Math.round(totalQty30d * 100)   / 100,
+        totalSpend30d:         Math.round(totalSpend30d * 100)  / 100,
+        minCost:               Math.round(minCost * 1000)       / 1000,
+        maxCost:               Math.round(maxCost * 1000)       / 1000,
+        priceDelta,
+        priceDeltaPct,
+        monthlySavings,
+        maxAnnualSavings,
+        purchasingLocationCount: activeEntries.length,
+        locations:             locationEntries,
+      });
+    }
+
+    // Sort: multi-location (actionable) first by savings, then single-location by spend
+    result.sort((a, b) => {
+      const aMulti = a.purchasingLocationCount > 1;
+      const bMulti = b.purchasingLocationCount > 1;
+      if (aMulti && !bMulti) return -1;
+      if (!aMulti && bMulti) return 1;
+      return b.maxAnnualSavings - a.maxAnnualSavings || b.totalSpend30d - a.totalSpend30d;
+    });
 
     res.json(result);
   } catch (err) {
