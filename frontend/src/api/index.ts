@@ -418,33 +418,64 @@ export const locationsApi = {
     api.get<LocationSummary[]>("/locations/overview").then((r) => r.data),
   recipes: () =>
     api.get<RecipeComparison[]>("/locations/recipes").then((r) => r.data),
+  vendorPricing: () =>
+    api.get<ProductVendorComparison[]>("/locations/vendor-pricing").then((r) => r.data),
 };
 
 // ── Recipe comparison types ───────────────────────────────────────────────────
 
 export interface LocationRecipeIngredient {
-  name:        string;
-  quantity:    number;
-  unit:        string;
-  costPerUnit: number;
-  lineTotal:   number;
+  name:          string;
+  quantity:      number;
+  unit:          string;
+  costPerUnit:   number;
+  lineTotal:     number;
+  fromInvoice:   boolean;
+  purveyor:      string | null;
+  invoiceDate:   string | null;
+  pricingSource: "invoice" | "catalog";
 }
 
 export interface LocationRecipeEntry {
-  restaurantId: string;
-  locationName: string;
-  isTest:       boolean;
-  hasRecipe:    boolean;
-  sellingPrice?: number;
-  recipeCost?:   number;
-  costPct?:      number;
-  ingredients?:  LocationRecipeIngredient[];
+  restaurantId:    string;
+  locationName:    string;
+  isTest:          boolean;
+  hasRecipe:       boolean;
+  sellingPrice?:   number;
+  recipeCost?:     number;
+  costPct?:        number;
+  hasInvoiceData?: boolean;
+  ingredients?:    LocationRecipeIngredient[];
 }
 
 export interface RecipeComparison {
   recipeName: string;
   department: string;
   locations:  LocationRecipeEntry[];
+}
+
+// ── Vendor pricing types ──────────────────────────────────────────────────────
+
+export interface LocationVendorPrice {
+  restaurantId: string;
+  locationName: string;
+  isTest:       boolean;
+  hasPurchases: boolean;
+  unitCost?:    number;
+  unit?:        string;
+  purveyor?:    string | null;
+  invoiceDate?: string | null;
+  totalQty30d?: number;
+}
+
+export interface ProductVendorComparison {
+  productName:      string;
+  unit:             string;
+  minCost:          number;
+  maxCost:          number;
+  priceDelta:       number;
+  maxAnnualSavings: number;
+  locations:        LocationVendorPrice[];
 }
 
 export const seedApi = {

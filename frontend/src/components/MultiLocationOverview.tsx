@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   locationsApi, seedApi,
   LocationSummary, MetricTrend,
-  RecipeComparison,
+  RecipeComparison, ProductVendorComparison,
 } from "../api";
 import { useLanguage } from "../context/LanguageContext";
 import { useAuth } from "../context/AuthContext";
@@ -425,11 +425,20 @@ function recipeRank(entry: { costPct?: number; restaurantId: string }, sorted: {
   return "mid";
 }
 
-function RecipeLocationCard({ entry, rank }: { entry: import("../api").LocationRecipeEntry; rank: "best" | "worst" | "mid" }) {
+function RecipeLocationCard({ entry, rank, bestCost }: {
+  entry:    import("../api").LocationRecipeEntry;
+  rank:     "best" | "worst" | "mid";
+  bestCost: number | null;
+}) {
   const borderCls =
-    rank === "best"  ? "border-[#3dbf8a]/40" :
-    rank === "worst" ? "border-[#f59e0b]/30"  :
+    rank === "best"  ? "border-[#3dbf8a]/50" :
+    rank === "worst" ? "border-[#ef4444]/30"  :
                        "border-[#1a1a1a]";
+
+  const bgCls =
+    rank === "best"  ? "bg-[#3dbf8a]/[0.05]" :
+    rank === "worst" ? "bg-[#ef4444]/[0.04]"  :
+                       "bg-[#0a0a0a]";
 
   if (!entry.hasRecipe) {
     return (
@@ -448,16 +457,20 @@ function RecipeLocationCard({ entry, rank }: { entry: import("../api").LocationR
 
   const rankBadge =
     rank === "best"  ? <span className="text-[10px] font-bold text-[#3dbf8a]">✓ Best</span>  :
-    rank === "worst" ? <span className="text-[10px] font-bold text-[#f59e0b]">⚠ High</span> :
+    rank === "worst" ? <span className="text-[10px] font-bold text-[#ef4444]">↑ High</span> :
                        <span className="text-[10px] text-[#555]">• Mid</span>;
 
   const costColor =
     rank === "best"  ? "text-[#3dbf8a]" :
-    rank === "worst" ? "text-[#f59e0b]"  :
+    rank === "worst" ? "text-[#ef4444]"  :
                        "text-white";
 
+  const dollarGap = (bestCost !== null && entry.recipeCost !== undefined && rank !== "best")
+    ? Math.round((entry.recipeCost - bestCost) * 100) / 100
+    : null;
+
   return (
-    <div className={`flex-1 min-w-[220px] bg-[#0a0a0a] border ${borderCls} rounded-[10px] p-5 space-y-4`}>
+    <div className={`flex-1 min-w-[220px] ${bgCls} border ${borderCls} rounded-[10px] p-5 space-y-4`}>
       {/* Card header */}
       <div className="flex items-center gap-2 pb-3 border-b border-[#111]">
         <div className="w-6 h-6 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center flex-shrink-0">
@@ -474,7 +487,12 @@ function RecipeLocationCard({ entry, rank }: { entry: import("../api").LocationR
       <div className="space-y-2">
         <div className="flex justify-between items-baseline">
           <span className="text-[11px] text-[#555] uppercase tracking-wider">Recipe Cost</span>
-          <span className="text-[15px] font-bold text-white">${entry.recipeCost!.toFixed(2)}</span>
+          <div className="flex items-baseline gap-1.5">
+            {dollarGap !== null && dollarGap > 0 && (
+              <span className="text-[10px] text-[#ef4444]">+${dollarGap.toFixed(2)}</span>
+            )}
+            <span className="text-[15px] font-bold text-white">${entry.recipeCost!.toFixed(2)}</span>
+          </div>
         </div>
         <div className="flex justify-between items-baseline">
           <span className="text-[11px] text-[#555] uppercase tracking-wider">Cost %</span>
@@ -484,6 +502,12 @@ function RecipeLocationCard({ entry, rank }: { entry: import("../api").LocationR
           <span className="text-[11px] text-[#555] uppercase tracking-wider">Selling Price</span>
           <span className="text-[13px] text-[#777]">${entry.sellingPrice!.toFixed(2)}</span>
         </div>
+        {entry.hasInvoiceData && (
+          <div className="flex items-center gap-1 pt-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#3dbf8a] shrink-0" />
+            <span className="text-[10px] text-[#3dbf8a]/70">Priced from recent invoices</span>
+          </div>
+        )}
       </div>
 
       {/* Ingredients */}
@@ -497,9 +521,17 @@ function RecipeLocationCard({ entry, rank }: { entry: import("../api").LocationR
                 <span className="text-[#666] shrink-0">{ing.quantity} {ing.unit}</span>
               </div>
               <div className="flex justify-between text-[10px] text-[#444]">
-                <span>@ ${ing.costPerUnit.toFixed(3)}/{ing.unit}</span>
+                <span className="flex items-center gap-1">
+                  @ ${ing.costPerUnit.toFixed(3)}/{ing.unit}
+                  {ing.fromInvoice && (
+                    <span className="px-1 rounded bg-[#3dbf8a]/10 text-[#3dbf8a] text-[9px] font-semibold">INV</span>
+                  )}
+                </span>
                 <span className="text-[#555]">= ${ing.lineTotal.toFixed(2)}</span>
               </div>
+              {ing.fromInvoice && ing.purveyor && (
+                <p className="text-[9px] text-[#333] mt-0.5">{ing.purveyor}{ing.invoiceDate ? ` · ${ing.invoiceDate}` : ""}</p>
+              )}
             </div>
           ))}
         </div>
@@ -546,12 +578,15 @@ function RecipeComparisonTab() {
 
   const comparison = comparisons.find((c) => c.recipeName === selected);
 
-  // For the selected recipe, sort the entries that have the recipe by costPct
+  // For the selected recipe, sort the entries that have the recipe by recipeCost
   const sorted = comparison
     ? [...comparison.locations]
         .filter((l) => l.hasRecipe)
-        .sort((a, b) => (a.costPct ?? 0) - (b.costPct ?? 0))
+        .sort((a, b) => (a.recipeCost ?? 0) - (b.recipeCost ?? 0))
     : [];
+
+  const bestCost  = sorted.length > 0 ? (sorted[0].recipeCost ?? null) : null;
+  const worstCost = sorted.length > 1 ? (sorted[sorted.length - 1].recipeCost ?? null) : null;
 
   return (
     <div className="space-y-6">
@@ -603,32 +638,204 @@ function RecipeComparisonTab() {
                 key={entry.restaurantId}
                 entry={entry}
                 rank={entry.hasRecipe ? recipeRank(entry, sorted) : "mid"}
+                bestCost={bestCost}
               />
             ))}
           </div>
 
           {/* Gap callout */}
-          {sorted.length >= 2 && (
+          {sorted.length >= 2 && bestCost !== null && worstCost !== null && (
             <div className="flex items-center gap-2 px-4 py-2.5 rounded-[8px] bg-[#3dbf8a]/5 border border-[#3dbf8a]/10">
               <svg className="w-3.5 h-3.5 text-[#3dbf8a] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p className="text-[12px] text-[#888]">
                 <span className="text-[#3dbf8a] font-semibold">{sorted[0].locationName}</span>
-                {" "}has the lowest cost at{" "}
-                <span className="text-white font-semibold">{sorted[0].costPct!.toFixed(1)}%</span>
+                {" "}makes this recipe for{" "}
+                <span className="text-white font-semibold">${bestCost.toFixed(2)}</span>
                 {" "}— that's{" "}
                 <span className="text-[#3dbf8a] font-semibold">
-                  {(sorted[sorted.length - 1].costPct! - sorted[0].costPct!).toFixed(1)}%
+                  ${(worstCost - bestCost).toFixed(2)} cheaper
                 </span>
-                {" "}less than{" "}
+                {" "}than{" "}
                 <span className="text-[#aaa]">{sorted[sorted.length - 1].locationName}</span>
-                {" "}({sorted[sorted.length - 1].costPct!.toFixed(1)}%).
+                {" "}(${worstCost.toFixed(2)}).
               </p>
             </div>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Vendor Pricing Tab ────────────────────────────────────────────────────────
+
+function VendorPricingTab() {
+  const [data,     setData]    = useState<ProductVendorComparison[]>([]);
+  const [loading,  setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  useEffect(() => {
+    locationsApi.vendorPricing()
+      .then((d) => { setData(d); })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  if (data.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center gap-2">
+        <svg className="w-8 h-8 text-[#2a2a2a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+            d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <p className="text-[14px] text-[#555]">No cross-location purchase data found.</p>
+        <p className="text-[12px] text-[#333]">Invoice items need to be linked to products to appear here.</p>
+      </div>
+    );
+  }
+
+  // Summary stat
+  const totalSavings = data.reduce((s, d) => s + d.maxAnnualSavings, 0);
+
+  return (
+    <div className="space-y-5">
+
+      {/* Summary banner */}
+      {totalSavings > 0 && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-[8px] bg-[#3dbf8a]/[0.06] border border-[#3dbf8a]/20">
+          <svg className="w-4 h-4 text-[#3dbf8a] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-[13px] text-[#888]">
+            Across <span className="text-white font-semibold">{data.length} products</span>, standardizing to the best vendor price could save up to{" "}
+            <span className="text-[#3dbf8a] font-bold">${totalSavings.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}/year</span>.
+          </p>
+        </div>
+      )}
+
+      {/* Column headers */}
+      <div className="hidden sm:grid text-[10px] font-semibold uppercase tracking-wider text-[#333] px-4"
+        style={{ gridTemplateColumns: "1fr 80px 80px 80px 100px 24px" }}>
+        <span>Product</span>
+        <span className="text-right">Best Price</span>
+        <span className="text-right">Highest</span>
+        <span className="text-right">Gap</span>
+        <span className="text-right">Annual Savings</span>
+        <span />
+      </div>
+
+      {/* Product rows */}
+      <div className="space-y-1">
+        {data.map((item) => {
+          const isOpen = expanded === item.productName;
+          const savingsColor = item.maxAnnualSavings > 1000 ? "text-[#3dbf8a]" : item.maxAnnualSavings > 200 ? "text-[#f59e0b]" : "text-[#555]";
+
+          return (
+            <div key={item.productName} className="rounded-[8px] border border-[#1a1a1a] overflow-hidden">
+              {/* Row */}
+              <button
+                onClick={() => setExpanded(isOpen ? null : item.productName)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#0d0d0d] transition-colors text-left"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-white truncate">{item.productName}</p>
+                  <p className="text-[10px] text-[#444]">{item.unit || "—"}</p>
+                </div>
+                <div className="hidden sm:grid shrink-0 gap-3 text-right"
+                  style={{ gridTemplateColumns: "80px 80px 80px 100px" }}>
+                  <span className="text-[13px] font-bold text-[#3dbf8a]">${item.minCost.toFixed(2)}</span>
+                  <span className="text-[13px] text-[#ef4444]">${item.maxCost.toFixed(2)}</span>
+                  <span className="text-[12px] text-[#666]">${item.priceDelta.toFixed(2)}</span>
+                  <span className={`text-[13px] font-bold ${savingsColor}`}>
+                    {item.maxAnnualSavings > 0 ? `$${item.maxAnnualSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}/yr` : "—"}
+                  </span>
+                </div>
+                {/* Mobile: show savings only */}
+                <div className="sm:hidden shrink-0 text-right">
+                  <p className="text-[12px] text-[#3dbf8a] font-semibold">${item.minCost.toFixed(2)}–${item.maxCost.toFixed(2)}</p>
+                  <p className={`text-[10px] ${savingsColor}`}>
+                    {item.maxAnnualSavings > 0 ? `Save $${item.maxAnnualSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}/yr` : "No savings"}
+                  </p>
+                </div>
+                <svg
+                  className={`w-4 h-4 shrink-0 text-[#444] transition-transform duration-150 ${isOpen ? "rotate-180" : ""}`}
+                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Expanded location breakdown */}
+              {isOpen && (
+                <div className="border-t border-[#111] bg-[#060606] px-4 py-3 space-y-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-[#333] mb-3">Price by location (last 30 days)</p>
+                  {item.locations.map((loc) => {
+                    if (!loc.hasPurchases) {
+                      return (
+                        <div key={loc.restaurantId} className="flex items-center gap-3 py-1.5">
+                          <div className="w-5 h-5 rounded-full bg-[#1a1a1a] flex items-center justify-center flex-shrink-0">
+                            <span className="text-[#333] text-[9px] font-bold">{loc.locationName[0].toUpperCase()}</span>
+                          </div>
+                          <span className="text-[12px] text-[#444] flex-1">{loc.locationName}</span>
+                          {loc.isTest && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">TEST</span>}
+                          <span className="text-[11px] text-[#333] italic">No purchases</span>
+                        </div>
+                      );
+                    }
+
+                    const isMin = loc.unitCost === item.minCost;
+                    const isMax = loc.unitCost === item.maxCost;
+                    const dotCls = isMin ? "bg-[#3dbf8a]" : isMax ? "bg-[#ef4444]" : "bg-[#f59e0b]";
+                    const costCls = isMin ? "text-[#3dbf8a]" : isMax ? "text-[#ef4444]" : "text-[#f59e0b]";
+
+                    // Annual savings for this location vs best
+                    const annualSavings = isMin ? 0 : Math.round((loc.unitCost! - item.minCost) * (loc.totalQty30d ?? 0) * 12 * 100) / 100;
+
+                    return (
+                      <div key={loc.restaurantId} className="flex items-center gap-3 py-1.5">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${dotCls}`} />
+                        <div className="w-5 h-5 rounded-full bg-[#1a1a1a] flex items-center justify-center flex-shrink-0">
+                          <span className="text-white text-[9px] font-bold">{loc.locationName[0].toUpperCase()}</span>
+                        </div>
+                        <span className="text-[12px] text-[#aaa] flex-1 min-w-0 truncate">{loc.locationName}</span>
+                        {loc.isTest && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20 shrink-0">TEST</span>}
+                        <div className="shrink-0 text-right space-y-0.5">
+                          <p className={`text-[13px] font-bold ${costCls}`}>
+                            ${loc.unitCost!.toFixed(2)}/{loc.unit}
+                          </p>
+                          <p className="text-[10px] text-[#444]">
+                            {loc.purveyor ?? "Unknown vendor"}
+                            {loc.invoiceDate ? ` · ${loc.invoiceDate}` : ""}
+                          </p>
+                          {!isMin && annualSavings > 0 && (
+                            <p className="text-[10px] text-[#ef4444]">
+                              ~${annualSavings.toLocaleString("en-US", { maximumFractionDigits: 0 })}/yr savings opportunity
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-[10px] text-[#333] italic text-center pt-2">
+        Based on invoices from the last 30 days · Savings estimated at 12× monthly volume × price gap
+      </p>
     </div>
   );
 }
@@ -650,7 +857,7 @@ export function MultiLocationOverview() {
   const [selected,          setSelected]          = useState<string>(readStoredLocation);
   const [highlightedMetric, setHighlightedMetric] = useState<HighlightMetric>(null);
   const [seeding,           setSeeding]           = useState(false);
-  const [activeTab,         setActiveTab]         = useState<"overview" | "recipes">("overview");
+  const [activeTab,         setActiveTab]         = useState<"overview" | "recipes" | "vendor">("overview");
 
   useEffect(() => {
     locationsApi.overview()
@@ -748,27 +955,33 @@ export function MultiLocationOverview() {
         {activeTab === "overview" && locations.length > 0 && (
           <LocationSwitcher locations={locations} selected={selected} onSelect={handleSelect} />
         )}
+        {(activeTab === "recipes" || activeTab === "vendor") && (
+          <span className="text-[11px] text-[#333] italic">All locations · last 30 days</span>
+        )}
       </div>
 
       {/* Tab switcher */}
       <div className="flex gap-1 bg-[#0a0a0a] border border-[#1a1a1a] rounded-[8px] p-1 w-fit">
-        {(["overview", "recipes"] as const).map((tab) => (
+        {(["overview", "recipes", "vendor"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-4 py-1.5 rounded-[6px] text-[12px] font-medium transition-colors ${
+            className={`px-4 py-1.5 rounded-[6px] text-[12px] font-medium transition-colors whitespace-nowrap ${
               activeTab === tab
                 ? "bg-[#1a1a1a] text-white shadow-sm"
                 : "text-[#555] hover:text-[#888]"
             }`}
           >
-            {tab === "overview" ? "Overview" : "Recipe Comparison"}
+            {tab === "overview" ? "Overview" : tab === "recipes" ? "Recipe Comparison" : "Vendor Pricing"}
           </button>
         ))}
       </div>
 
       {/* ── Recipe Comparison tab ──────────────────────────────────────────── */}
       {activeTab === "recipes" && <RecipeComparisonTab />}
+
+      {/* ── Vendor Pricing tab ────────────────────────────────────────────── */}
+      {activeTab === "vendor" && <VendorPricingTab />}
 
       {/* ── Overview tab ───────────────────────────────────────────────────── */}
       {activeTab === "overview" && <>
