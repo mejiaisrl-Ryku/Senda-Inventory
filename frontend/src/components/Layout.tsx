@@ -421,6 +421,9 @@ function SidebarContent({ onNavClick, collapsed = false, onToggleCollapse }: Sid
   const navigate = useNavigate();
   const [popupOpen, setPopupOpen] = useState(false);
 
+  // Primary multi-location owner: locationCount > 1 AND groupId is null/undefined (not a branch).
+  const isMultiLocationOwner = (user?.locationCount ?? 1) > 1 && !user?.groupId;
+
   function handleLogout() {
     setPopupOpen(false);
     logout();
@@ -428,7 +431,12 @@ function SidebarContent({ onNavClick, collapsed = false, onToggleCollapse }: Sid
   }
 
   function filterItems(items: NavItem[]) {
-    return items.filter(({ adminOnly }) => !adminOnly || isAdmin);
+    return items.filter(({ adminOnly, to }) => {
+      if (adminOnly && !isAdmin) return false;
+      // Multi-location overview is only meaningful for the primary group owner.
+      if (to === "/multi-location" && !isMultiLocationOwner) return false;
+      return true;
+    });
   }
 
   const navT = t.nav as Record<string, string>;

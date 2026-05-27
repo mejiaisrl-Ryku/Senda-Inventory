@@ -45,9 +45,10 @@ export function Dashboard() {
   const [report, setReport] = useState<StockReport | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Multi-location partners land on the group overview instead of the single dashboard.
+  // Primary multi-location owners land on the group overview instead of the single dashboard.
+  // Branch members (groupId != null) are NOT redirected — they get their own location's dashboard.
   useEffect(() => {
-    if (user?.locationCount && user.locationCount > 1) {
+    if (user?.locationCount && user.locationCount > 1 && !user.groupId) {
       navigate("/multi-location", { replace: true });
     }
   }, [user, navigate]);

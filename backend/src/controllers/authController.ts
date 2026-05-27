@@ -30,7 +30,7 @@ const safeUser = {
   email: true,
   role: true,
   restaurantId: true,
-  restaurant: { select: { name: true, logo: true, locationCount: true } },
+  restaurant: { select: { name: true, logo: true, locationCount: true, groupId: true } },
 } as const;
 
 type SafeUserResult = {
@@ -39,7 +39,7 @@ type SafeUserResult = {
   email: string;
   role: string;
   restaurantId: string | null;
-  restaurant: { name: string; logo: string | null; locationCount: number } | null;
+  restaurant: { name: string; logo: string | null; locationCount: number; groupId: string | null } | null;
 };
 
 /** Flatten the nested restaurant relation into top-level fields. */
@@ -50,6 +50,9 @@ function toUserResponse(u: SafeUserResult) {
     restaurantName:  restaurant?.name          ?? null,
     restaurantLogo:  restaurant?.logo          ?? null,
     locationCount:   restaurant?.locationCount ?? 1,
+    // groupId is non-null when this restaurant is a branch (groupId = primary's id).
+    // null means this IS the primary (or a single-location restaurant).
+    groupId:         restaurant?.groupId       ?? null,
   };
 }
 

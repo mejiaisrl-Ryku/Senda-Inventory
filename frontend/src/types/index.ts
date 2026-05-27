@@ -7,6 +7,9 @@ export interface User {
   restaurantName?: string;
   restaurantLogo?: string | null;
   locationCount?: number;  // 1 = single-location, 2+ = multi-location group
+  /** Non-null when this user's restaurant is a branch (groupId = primary restaurant id).
+   *  Null/undefined for the primary/group-owner restaurant and single-location restaurants. */
+  groupId?: string | null;
 }
 
 export type Unit = "KG" | "LITERS" | "PIECES" | "LB" | "OZ" | "G" | "EA" | "DOZ" | "CS";

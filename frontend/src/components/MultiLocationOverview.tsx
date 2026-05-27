@@ -771,7 +771,9 @@ export function MultiLocationOverview() {
   function handleSelect(id: string) {
     writeStoredLocation(id);
     setSelected(id);
-    if (id !== "all") navigate("/");
+    // Note: we do NOT navigate to "/" here. For primary multi-location users, navigating to
+    // "/" would immediately redirect back to "/multi-location" (causing a loop). The switcher
+    // is used purely to highlight a specific location card in this view.
   }
 
   function toggleHighlight(metric: HighlightMetric & string) {
