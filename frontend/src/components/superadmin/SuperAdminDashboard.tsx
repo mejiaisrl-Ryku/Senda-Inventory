@@ -210,14 +210,22 @@ function AddRestaurantForm() {
   const [firstName,    setFirstName]    = useState("");
   const [lastName,     setLastName]     = useState("");
   const [email,        setEmail]        = useState("");
-  const [locType,      setLocType]      = useState<"single" | "multi">("single");
-  const [locationCount, setLocationCount] = useState(2);
-  const [loading,      setLoading]      = useState(false);
-  const [error,        setError]        = useState("");
-  const [sentTo,       setSentTo]       = useState("");   // non-empty = success state
+  const [locType,           setLocType]           = useState<"single" | "multi">("single");
+  const [locationCount,     setLocationCount]     = useState(2);
+  const [locationCountRaw,  setLocationCountRaw]  = useState("2");
+  const [locationCountError, setLocationCountError] = useState("");
+  const [loading,           setLoading]           = useState(false);
+  const [error,             setError]             = useState("");
+  const [sentTo,            setSentTo]            = useState("");   // non-empty = success state
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (locType === "multi") {
+      if (locationCount < 2 || locationCount > 10) {
+        setLocationCountError("Location count must be between 2 and 10");
+        return;
+      }
+    }
     setError("");
     setSentTo("");
     setLoading(true);
@@ -225,7 +233,8 @@ function AddRestaurantForm() {
       const count = locType === "single" ? 1 : locationCount;
       await superAdminApi.createPartnerInvite({ firstName, lastName, email, locationCount: count });
       setSentTo(email);
-      setFirstName(""); setLastName(""); setEmail(""); setLocType("single"); setLocationCount(2);
+      setFirstName(""); setLastName(""); setEmail("");
+      setLocType("single"); setLocationCount(2); setLocationCountRaw("2"); setLocationCountError("");
     } catch (err: any) {
       setError(err?.response?.data?.error ?? "Failed to send invite.");
     } finally {
@@ -277,16 +286,33 @@ function AddRestaurantForm() {
             type="number"
             min={2}
             max={10}
-            required
-            value={locationCount}
-            onChange={(e) => setLocationCount(Number(e.target.value) || locationCount)}
-            onBlur={(e) => {
-              const val = Number(e.target.value);
-              if (val < 2) setLocationCount(2);
-              else if (val > 10) setLocationCount(10);
+            value={locationCountRaw}
+            onChange={(e) => {
+              setLocationCountRaw(e.target.value);
+              setLocationCountError("");
+              const num = Number(e.target.value);
+              if (e.target.value !== "" && !isNaN(num)) setLocationCount(num);
             }}
-            className={inputCls}
+            onBlur={(e) => {
+              const raw = e.target.value.trim();
+              if (raw === "" || isNaN(Number(raw))) {
+                setLocationCountError("Location count is required");
+                return;
+              }
+              const val = Number(raw);
+              if (val < 2) {
+                setLocationCount(2); setLocationCountRaw("2"); setLocationCountError("");
+              } else if (val > 10) {
+                setLocationCount(10); setLocationCountRaw("10"); setLocationCountError("");
+              } else {
+                setLocationCount(val); setLocationCountError("");
+              }
+            }}
+            className={`${inputCls} ${locationCountError ? "!border-red-500 focus:!border-red-500" : ""}`}
           />
+          {locationCountError && (
+            <p className="text-red-500 text-[11px] mt-1">{locationCountError}</p>
+          )}
         </div>
       )}
 
