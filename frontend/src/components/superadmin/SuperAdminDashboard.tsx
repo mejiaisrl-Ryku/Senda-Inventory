@@ -279,7 +279,12 @@ function AddRestaurantForm() {
             max={10}
             required
             value={locationCount}
-            onChange={(e) => setLocationCount(Math.max(2, Math.min(10, Number(e.target.value))))}
+            onChange={(e) => setLocationCount(Number(e.target.value) || locationCount)}
+            onBlur={(e) => {
+              const val = Number(e.target.value);
+              if (val < 2) setLocationCount(2);
+              else if (val > 10) setLocationCount(10);
+            }}
             className={inputCls}
           />
         </div>
