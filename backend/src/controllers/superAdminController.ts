@@ -514,6 +514,7 @@ export async function getRestaurantDetail(req: AuthRequest, res: Response, next:
         suspended: true,
         suspendedAt: true,
         createdAt: true,
+        locationCount: true,
         users: {
           select: { id: true, name: true, email: true, role: true },
           orderBy: [{ role: "asc" }, { email: "asc" }],
@@ -544,6 +545,7 @@ export async function getRestaurantDetail(req: AuthRequest, res: Response, next:
       userCount: _count.users,
       productCount: _count.products,
       productSummary: { byDept: deptCount, byCategory: categoryCount },
+      locationCount: restaurant.locationCount,
     });
   } catch (err) {
     next(err);
@@ -609,6 +611,162 @@ export async function updateRestaurantLogo(req: AuthRequest, res: Response, next
     });
 
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── Partner location management ───────────────────────────────────────────────
+
+const LOC_NAME_MIN = 2;
+const LOC_NAME_MAX = 50;
+
+/**
+ * GET /api/super-admin/partners/:partnerId/locations
+ * Returns all locations in the partner's group (primary + branches).
+ */
+export async function listPartnerLocations(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { partnerId } = req.params;
+
+    const primary = await prisma.restaurant.findUnique({
+      where: { id: partnerId },
+      select: { id: true, locationCount: true },
+    });
+    if (!primary) return res.status(404).json({ error: "Partner not found." });
+
+    const locations = await prisma.restaurant.findMany({
+      where: { OR: [{ id: partnerId }, { groupId: partnerId }] },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        groupId: true,
+        _count: { select: { users: true, products: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    res.json({
+      locations: locations.map((l) => ({
+        id: l.id,
+        name: l.name,
+        address: l.address,
+        phone: l.phone,
+        groupId: l.groupId,
+        userCount: l._count.users,
+        productCount: l._count.products,
+        isPrimary: l.id === partnerId,
+      })),
+      totalLocations: locations.length,
+      maxLocations: primary.locationCount,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/super-admin/partners/:partnerId/locations
+ * Create a new branch for this partner (respects locationCount cap).
+ */
+export async function addPartnerLocation(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { partnerId } = req.params;
+    const { name, address, phone } = req.body as { name: string; address?: string; phone?: string };
+
+    const trimmed = (name ?? "").trim();
+    if (trimmed.length < LOC_NAME_MIN || trimmed.length > LOC_NAME_MAX) {
+      return res.status(400).json({ error: `Name must be ${LOC_NAME_MIN}–${LOC_NAME_MAX} characters.` });
+    }
+
+    const primary = await prisma.restaurant.findUnique({
+      where: { id: partnerId },
+      select: { id: true, locationCount: true },
+    });
+    if (!primary) return res.status(404).json({ error: "Partner not found." });
+
+    const currentCount = await prisma.restaurant.count({
+      where: { OR: [{ id: partnerId }, { groupId: partnerId }] },
+    });
+    if (currentCount >= primary.locationCount) {
+      return res.status(409).json({ error: `Location limit of ${primary.locationCount} reached.` });
+    }
+
+    // Name uniqueness within group
+    const duplicate = await prisma.restaurant.findFirst({
+      where: {
+        OR: [{ id: partnerId }, { groupId: partnerId }],
+        name: { equals: trimmed, mode: "insensitive" },
+      },
+    });
+    if (duplicate) {
+      return res.status(409).json({ error: "A location with that name already exists." });
+    }
+
+    const location = await prisma.restaurant.create({
+      data: {
+        name: trimmed,
+        address: address?.trim() || null,
+        phone:   phone?.trim()   || null,
+        groupId: partnerId,
+        locationCount: 1,
+      },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        groupId: true,
+        _count: { select: { users: true, products: true } },
+      },
+    });
+
+    res.status(201).json({
+      id: location.id,
+      name: location.name,
+      address: location.address,
+      phone: location.phone,
+      groupId: location.groupId,
+      userCount: location._count.users,
+      productCount: location._count.products,
+      isPrimary: false,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * DELETE /api/super-admin/partners/:partnerId/locations/:locationId
+ * Delete a branch location. Cannot delete the primary, or any location
+ * that still has users.
+ */
+export async function deletePartnerLocation(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { partnerId, locationId } = req.params;
+
+    if (locationId === partnerId) {
+      return res.status(400).json({ error: "Cannot delete the primary location." });
+    }
+
+    const location = await prisma.restaurant.findUnique({
+      where: { id: locationId },
+      select: { id: true, groupId: true, _count: { select: { users: true } } },
+    });
+    if (!location) return res.status(404).json({ error: "Location not found." });
+    if (location.groupId !== partnerId) {
+      return res.status(403).json({ error: "Location does not belong to this partner." });
+    }
+    if (location._count.users > 0) {
+      return res.status(423).json({
+        error: `This location has ${location._count.users} user(s). Remove users first before deleting.`,
+      });
+    }
+
+    await prisma.restaurant.delete({ where: { id: locationId } });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

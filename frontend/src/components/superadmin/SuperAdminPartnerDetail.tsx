@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { superAdminApi, SARestaurantDetail } from "../../api/superAdmin";
+import { superAdminApi, SALocationDetail, SARestaurantDetail } from "../../api/superAdmin";
 import { Spinner } from "../shared/Spinner";
 import { useToast } from "../../context/ToastContext";
 
@@ -356,6 +356,342 @@ function ProductSummary({
   );
 }
 
+// ── Locations section ─────────────────────────────────────────────────────────
+
+function AddLocationModal({
+  onClose,
+  onSubmit,
+  adding,
+  error,
+}: {
+  onClose:  () => void;
+  onSubmit: (name: string, address: string, phone: string) => void;
+  adding:   boolean;
+  error:    string | null;
+}) {
+  const [name,    setName]    = useState("");
+  const [address, setAddress] = useState("");
+  const [phone,   setPhone]   = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSubmit(name.trim(), address.trim(), phone.trim());
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-[#0a0a0a] border border-[#2a2a2a] rounded-[12px] p-6 shadow-2xl">
+        <h3 className="text-[16px] font-semibold text-white mb-5">Add Location</h3>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className={labelCls}>Location Name <span className="text-red-500">*</span></label>
+            <input
+              autoFocus
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Downtown, Airport…"
+              maxLength={50}
+              required
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Address <span className="text-[#444]">(optional)</span></label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="123 Main St"
+              maxLength={200}
+              className={inputCls}
+            />
+          </div>
+          <div>
+            <label className={labelCls}>Phone <span className="text-[#444]">(optional)</span></label>
+            <input
+              type="text"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+1 555-0100"
+              maxLength={30}
+              className={inputCls}
+            />
+          </div>
+          {error && (
+            <p className="text-red-400 text-[12px] bg-red-900/20 border border-red-800/30 rounded-[6px] px-3 py-2">
+              {error}
+            </p>
+          )}
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={adding}
+              className="flex-1 py-2 rounded-[8px] border border-[#2a2a2a] text-[13px] text-[#888] hover:text-white hover:border-[#444] disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={adding || !name.trim()}
+              className="flex-1 py-2 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-50 text-white text-[13px] font-semibold flex items-center justify-center gap-2 transition-colors"
+            >
+              {adding && <Spinner size="sm" />}
+              {adding ? "Creating…" : "Create Location"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function LocationRow({
+  loc,
+  isOnly,
+  onDelete,
+}: {
+  loc:      SALocationDetail;
+  isOnly:   boolean;
+  onDelete: (loc: SALocationDetail) => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handler(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
+
+  const canDelete = !loc.isPrimary && !isOnly;
+  const hasUsers  = loc.userCount > 0;
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 border-b border-[#111] last:border-0">
+      {/* Avatar */}
+      <div className="w-7 h-7 rounded-full bg-[#1a1a1a] flex items-center justify-center text-[#555] text-[11px] font-bold flex-shrink-0">
+        {loc.name[0]?.toUpperCase() ?? "?"}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-[13px] font-medium text-white truncate">{loc.name}</p>
+          {loc.isPrimary && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#3dbf8a]/10 text-[#3dbf8a] border border-[#3dbf8a]/20 flex-shrink-0">
+              Primary
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-[#555] truncate">
+          {loc.address ?? "No address"}{loc.phone ? ` · ${loc.phone}` : ""}
+        </p>
+      </div>
+
+      {/* Counts */}
+      <div className="hidden sm:flex items-center gap-4 text-[12px] text-[#555] flex-shrink-0">
+        <span>{loc.userCount} user{loc.userCount !== 1 ? "s" : ""}</span>
+        <span>{loc.productCount} product{loc.productCount !== 1 ? "s" : ""}</span>
+      </div>
+
+      {/* Three-dot menu */}
+      <div ref={menuRef} className="relative flex-shrink-0">
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          disabled={loc.isPrimary && isOnly}
+          className="w-7 h-7 flex items-center justify-center rounded-md text-[#444] hover:text-[#888] hover:bg-[#1a1a1a] transition-colors disabled:opacity-30"
+          aria-label="Location options"
+        >
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <circle cx="10" cy="4"  r="1.5" />
+            <circle cx="10" cy="10" r="1.5" />
+            <circle cx="10" cy="16" r="1.5" />
+          </svg>
+        </button>
+        {menuOpen && (
+          <div className="absolute right-0 mt-1 w-52 rounded-xl border border-[#2a2a2a] bg-[#0a0a0a] shadow-xl shadow-black/60 z-50 overflow-hidden">
+            {!canDelete ? (
+              <div className="px-3 py-2.5 text-[12px] text-[#444] italic">
+                {loc.isPrimary ? "Primary location cannot be deleted" : "Only location — cannot delete"}
+              </div>
+            ) : hasUsers ? (
+              <div className="px-3 py-2.5 text-[12px] text-[#888]">
+                <p className="text-yellow-500 font-medium mb-0.5">Cannot delete</p>
+                <p>Remove {loc.userCount} user{loc.userCount !== 1 ? "s" : ""} first</p>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setMenuOpen(false); onDelete(loc); }}
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-red-400 hover:bg-[#1a1a1a] transition-colors"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete Location
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LocationsSection({
+  partnerId,
+  maxLocations,
+}: {
+  partnerId:    string;
+  maxLocations: number;
+}) {
+  const toast = useToast();
+
+  const [locations,    setLocations]    = useState<SALocationDetail[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [showAdd,      setShowAdd]      = useState(false);
+  const [adding,       setAdding]       = useState(false);
+  const [addError,     setAddError]     = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SALocationDetail | null>(null);
+  const [deleting,     setDeleting]     = useState(false);
+
+  // Track actual max from API (may differ if locationCount changed server-side)
+  const [apiMax, setApiMax] = useState(maxLocations);
+
+  useEffect(() => {
+    setLoading(true);
+    superAdminApi.listPartnerLocations(partnerId)
+      .then((data) => {
+        setLocations(data.locations);
+        setApiMax(data.maxLocations);
+      })
+      .catch(() => toast.error("Failed to load locations."))
+      .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partnerId]);
+
+  async function handleAdd(name: string, address: string, phone: string) {
+    setAdding(true);
+    setAddError(null);
+    try {
+      const loc = await superAdminApi.addPartnerLocation(partnerId, {
+        name,
+        address: address || undefined,
+        phone:   phone   || undefined,
+      });
+      setLocations((prev) => [...prev, loc]);
+      setShowAdd(false);
+      toast.success(`"${loc.name}" added successfully.`);
+    } catch (err: any) {
+      setAddError(err?.response?.data?.error ?? "Failed to create location.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await superAdminApi.deletePartnerLocation(partnerId, deleteTarget.id);
+      const name = deleteTarget.name;
+      setLocations((prev) => prev.filter((l) => l.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      toast.success(`"${name}" deleted.`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error ?? "Failed to delete location.");
+      setDeleteTarget(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const canAdd = locations.length < apiMax;
+
+  return (
+    <>
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-[16px] font-semibold text-white">Locations</h2>
+            <p className="text-[13px] text-[#555] mt-0.5">
+              {loading ? "Loading…" : `${locations.length} of ${apiMax} used`}
+            </p>
+          </div>
+          {canAdd && (
+            <button
+              onClick={() => { setShowAdd(true); setAddError(null); }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] border border-[#3dbf8a]/30 bg-[#3dbf8a]/10 text-[12px] font-medium text-[#3dbf8a] hover:bg-[#3dbf8a]/20 hover:border-[#3dbf8a]/50 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Location
+            </button>
+          )}
+        </div>
+
+        <Card>
+          {loading ? (
+            <div className="py-8 flex items-center justify-center">
+              <Spinner size="sm" />
+            </div>
+          ) : locations.length === 0 ? (
+            <div className="py-8 text-center text-[13px] text-[#444]">No locations found.</div>
+          ) : (
+            <div>
+              {locations.map((loc) => (
+                <LocationRow
+                  key={loc.id}
+                  loc={loc}
+                  isOnly={locations.length === 1}
+                  onDelete={setDeleteTarget}
+                />
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Add modal */}
+      {showAdd && (
+        <AddLocationModal
+          onClose={() => setShowAdd(false)}
+          onSubmit={handleAdd}
+          adding={adding}
+          error={addError}
+        />
+      )}
+
+      {/* Delete confirm */}
+      {deleteTarget && (
+        <ConfirmDialog
+          title={`Delete "${deleteTarget.name}"?`}
+          body={
+            <>
+              This will permanently remove all data for{" "}
+              <span className="text-white font-medium">"{deleteTarget.name}"</span> — orders,
+              invoices, inventory, and recipes. This cannot be undone.
+            </>
+          }
+          confirmLabel="Delete"
+          danger
+          loading={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+    </>
+  );
+}
+
 // ── Main detail page ──────────────────────────────────────────────────────────
 
 // ── Logo upload area ──────────────────────────────────────────────────────────
@@ -671,6 +1007,14 @@ export function SuperAdminPartnerDetail() {
         restaurantId={detail.id}
         restaurantName={detail.name}
       />
+
+      {/* ── Locations section (multi-location partners only) ──────────── */}
+      {detail.locationCount > 1 && (
+        <LocationsSection
+          partnerId={detail.id}
+          maxLocations={detail.locationCount}
+        />
+      )}
 
       {/* ── Product summary ──────────────────────────────────────────────── */}
       <ProductSummary productCount={detail.productCount} summary={detail.productSummary} />

@@ -20,6 +20,9 @@ import {
   inviteAdminSchema,
   createPartnerInviteSchema,
   completePartnerSetupSchema,
+  listPartnerLocations,
+  addPartnerLocation,
+  deletePartnerLocation,
 } from "../controllers/superAdminController";
 
 const router = Router();
@@ -55,5 +58,10 @@ router.post("/invite", validate(inviteAdminSchema), inviteAdmin as never);
 
 // Partner invites — send setup email, create pending invite record (no restaurant yet)
 router.post("/partner-invites", validate(createPartnerInviteSchema), createPartnerInvite as never);
+
+// Partner location management (super-admin manages branches for any partner)
+router.get(   "/partners/:partnerId/locations",                listPartnerLocations as never);
+router.post(  "/partners/:partnerId/locations",                addPartnerLocation   as never);
+router.delete("/partners/:partnerId/locations/:locationId",    deletePartnerLocation as never);
 
 export default router;

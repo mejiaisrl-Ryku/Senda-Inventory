@@ -63,11 +63,23 @@ export interface SARestaurantDetail {
   createdAt: string;
   userCount: number;
   productCount: number;
+  locationCount: number;
   users: { id: string; name: string | null; email: string; role: string }[];
   productSummary: {
     byDept: Record<string, number>;
     byCategory: Record<string, number>;
   };
+}
+
+export interface SALocationDetail {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  groupId: string | null;
+  userCount: number;
+  productCount: number;
+  isPrimary: boolean;
 }
 
 // ── API calls ─────────────────────────────────────────────────────────────────
@@ -122,4 +134,16 @@ export const superAdminApi = {
   // -- Partner invites (new-partner onboarding flow) --
   createPartnerInvite: (data: { firstName: string; lastName: string; email: string; locationCount: number }) =>
     saApi.post<SAPartnerInvite>("/super-admin/partner-invites", data).then((r) => r.data),
+
+  // -- Partner location management --
+  listPartnerLocations: (partnerId: string) =>
+    saApi.get<{ locations: SALocationDetail[]; totalLocations: number; maxLocations: number }>(
+      `/super-admin/partners/${partnerId}/locations`
+    ).then((r) => r.data),
+
+  addPartnerLocation: (partnerId: string, data: { name: string; address?: string; phone?: string }) =>
+    saApi.post<SALocationDetail>(`/super-admin/partners/${partnerId}/locations`, data).then((r) => r.data),
+
+  deletePartnerLocation: (partnerId: string, locationId: string) =>
+    saApi.delete<{ ok: boolean }>(`/super-admin/partners/${partnerId}/locations/${locationId}`).then((r) => r.data),
 };
