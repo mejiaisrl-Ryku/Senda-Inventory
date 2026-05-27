@@ -261,7 +261,7 @@ export const reportsApi = {
 export const teamApi = {
   list: () => api.get<TeamMember[]>("/team").then((r) => r.data),
 
-  invite: (data: { name: string; email: string; role?: "ADMIN" | "STAFF" }) =>
+  invite: (data: { name: string; email: string; role?: "ADMIN" | "STAFF"; restaurantId?: string }) =>
     api.post("/team/invite", data).then((r) => r.data),
 
   create: (data: { name: string; email: string; password: string }) =>

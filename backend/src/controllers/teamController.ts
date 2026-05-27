@@ -12,6 +12,8 @@ export const inviteSchema = z.object({
   name: z.string().min(1, "Name is required").max(255).trim(),
   email: z.string().email(),
   role: z.enum(["ADMIN", "STAFF"]).default("STAFF"),
+  // Optional: multi-location admins may specify a branch to invite to.
+  restaurantId: z.string().optional(),
 });
 
 export const createMemberSchema = z.object({
@@ -55,23 +57,43 @@ export async function listTeam(req: AuthRequest, res: Response, next: NextFuncti
 /** POST /api/team/invite — send an invite email */
 export async function inviteTeamMember(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { name, email, role = "STAFF" } = req.body as { name: string; email: string; role?: "ADMIN" | "STAFF" };
+    const { name, email, role = "STAFF", restaurantId: bodyRestaurantId } = req.body as {
+      name: string;
+      email: string;
+      role?: "ADMIN" | "STAFF";
+      restaurantId?: string;
+    };
+
+    // Determine target restaurant.
+    // Multi-location admins may specify a branch; single-location admins use their own.
+    let targetRestaurantId = req.user.restaurantId;
+    if (bodyRestaurantId && bodyRestaurantId !== req.user.restaurantId) {
+      const target = await prisma.restaurant.findUnique({ where: { id: bodyRestaurantId } });
+      if (!target) {
+        return res.status(404).json({ error: "Location not found." });
+      }
+      // Verify the target is a branch of the requester's primary restaurant.
+      if (target.groupId !== req.user.restaurantId) {
+        return res.status(403).json({ error: "Location does not belong to your group." });
+      }
+      targetRestaurantId = bodyRestaurantId;
+    }
 
     // Guard: don't invite someone already in this restaurant.
     const existing = await prisma.user.findFirst({
-      where: { email, restaurantId: req.user.restaurantId },
+      where: { email, restaurantId: targetRestaurantId },
     });
     if (existing) {
       return res.status(409).json({ error: "A user with that email already exists in this team." });
     }
 
     const restaurant = await prisma.restaurant.findUniqueOrThrow({
-      where: { id: req.user.restaurantId },
+      where: { id: targetRestaurantId },
       select: { name: true },
     });
 
     const token = signInviteToken({
-      restaurantId: req.user.restaurantId,
+      restaurantId: targetRestaurantId,
       restaurantName: restaurant.name,
       role,
       email,

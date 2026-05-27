@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { TeamMember } from "../types";
 import { useLanguage } from "../context/LanguageContext";
-import { teamApi } from "../api";
+import { teamApi, locationsApi, LocationSummary } from "../api";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
 import { getApiError } from "../utils/errorUtils";
@@ -32,15 +32,40 @@ function RolePill({ role }: { role: "ADMIN" | "STAFF" }) {
 function InviteForm({ onSuccess }: { onSuccess: () => void }) {
   const toast = useToast();
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Multi-location: primary owners can invite to any branch
+  const isMultiLocOwner = (user?.locationCount ?? 1) > 1 && !user?.groupId;
+  const [locations, setLocations] = useState<LocationSummary[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState(user?.restaurantId ?? "");
+
+  useEffect(() => {
+    if (!isMultiLocOwner) return;
+    locationsApi.overview()
+      .then(setLocations)
+      .catch(() => { /* non-critical — invite still works with user's own restaurantId */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMultiLocOwner]);
+
+  // Keep default in sync if user loads asynchronously
+  useEffect(() => {
+    if (user?.restaurantId && !selectedLocationId) {
+      setSelectedLocationId(user.restaurantId);
+    }
+  }, [user?.restaurantId, selectedLocationId]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     try {
-      await teamApi.invite({ name, email });
+      const payload: Parameters<typeof teamApi.invite>[0] = { name, email };
+      if (isMultiLocOwner && selectedLocationId) {
+        payload.restaurantId = selectedLocationId;
+      }
+      await teamApi.invite(payload);
       toast.success(`Invite sent to ${email}`);
       setName("");
       setEmail("");
@@ -90,6 +115,23 @@ function InviteForm({ onSuccess }: { onSuccess: () => void }) {
             className={inputCls}
           />
         </div>
+        {/* Location selector — only for multi-location primary owners */}
+        {isMultiLocOwner && locations.length > 1 && (
+          <div>
+            <label className={labelCls}>{t.team.assignToLocation}</label>
+            <select
+              value={selectedLocationId}
+              onChange={(e) => setSelectedLocationId(e.target.value)}
+              className={inputCls}
+            >
+              {locations.map((loc) => (
+                <option key={loc.restaurantId} value={loc.restaurantId}>
+                  {loc.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <button
           type="submit"
           disabled={loading}

@@ -102,12 +102,18 @@ function UsersSection({
   users,
   restaurantId,
   restaurantName,
+  locationCount,
+  partnerId,
 }: {
   users: SARestaurantDetail["users"];
   restaurantId: string;
   restaurantName: string;
+  locationCount: number;
+  partnerId: string;
 }) {
   const toast = useToast();
+  const isMultiLoc = locationCount > 1;
+
   const [sendingReset, setSendingReset] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteFirstName, setInviteFirstName] = useState("");
@@ -115,6 +121,18 @@ function UsersSection({
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState("");
+
+  // Location dropdown — populated only for multi-location partners
+  const [locationOptions, setLocationOptions] = useState<SALocationDetail[]>([]);
+  const [selectedLocationId, setSelectedLocationId] = useState(restaurantId);
+
+  useEffect(() => {
+    if (!isMultiLoc) return;
+    superAdminApi.listPartnerLocations(partnerId)
+      .then((data) => setLocationOptions(data.locations))
+      .catch(() => { /* non-critical, invite still works with default */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partnerId, isMultiLoc]);
 
   async function handleSendReset(u: { id: string; email: string }) {
     setSendingReset(u.id);
@@ -133,7 +151,12 @@ function UsersSection({
     setInviteError("");
     setInviteLoading(true);
     try {
-      await superAdminApi.inviteAdmin({ firstName: inviteFirstName, lastName: inviteLastName, email: inviteEmail, restaurantId });
+      await superAdminApi.inviteAdmin({
+        firstName: inviteFirstName,
+        lastName:  inviteLastName,
+        email:     inviteEmail,
+        restaurantId: selectedLocationId,
+      });
       toast.success(`Invite sent to ${inviteEmail}`);
       setInviteFirstName("");
       setInviteLastName("");
@@ -174,37 +197,58 @@ function UsersSection({
               {inviteError}
             </div>
           )}
-          <form onSubmit={handleInvite} className="flex flex-col sm:flex-row gap-3">
-            <input
-              required
-              value={inviteFirstName}
-              onChange={(e) => setInviteFirstName(e.target.value)}
-              placeholder="First name"
-              className={inputCls}
-            />
-            <input
-              required
-              value={inviteLastName}
-              onChange={(e) => setInviteLastName(e.target.value)}
-              placeholder="Last name"
-              className={inputCls}
-            />
-            <input
-              type="email"
-              required
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="Email"
-              className={inputCls}
-            />
-            <button
-              type="submit"
-              disabled={inviteLoading}
-              className="px-4 py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-[13px] font-semibold whitespace-nowrap flex items-center gap-2 transition-colors"
-            >
-              {inviteLoading && <Spinner size="sm" />}
-              Send Invite
-            </button>
+          <form onSubmit={handleInvite} className="space-y-3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                required
+                value={inviteFirstName}
+                onChange={(e) => setInviteFirstName(e.target.value)}
+                placeholder="First name"
+                className={inputCls}
+              />
+              <input
+                required
+                value={inviteLastName}
+                onChange={(e) => setInviteLastName(e.target.value)}
+                placeholder="Last name"
+                className={inputCls}
+              />
+              <input
+                type="email"
+                required
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="Email"
+                className={inputCls}
+              />
+            </div>
+            {/* Location selector — only for multi-location partners */}
+            {isMultiLoc && locationOptions.length > 0 && (
+              <div>
+                <label className={labelCls}>Assign to Location</label>
+                <select
+                  value={selectedLocationId}
+                  onChange={(e) => setSelectedLocationId(e.target.value)}
+                  className={inputCls}
+                >
+                  {locationOptions.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name}{loc.isPrimary ? " (Primary)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={inviteLoading}
+                className="px-4 py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-[13px] font-semibold whitespace-nowrap flex items-center gap-2 transition-colors"
+              >
+                {inviteLoading && <Spinner size="sm" />}
+                Send Invite
+              </button>
+            </div>
           </form>
         </Card>
       )}
@@ -1006,6 +1050,8 @@ export function SuperAdminPartnerDetail() {
         users={detail.users}
         restaurantId={detail.id}
         restaurantName={detail.name}
+        locationCount={detail.locationCount}
+        partnerId={detail.id}
       />
 
       {/* ── Locations section (multi-location partners only) ──────────── */}
