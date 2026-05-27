@@ -47,12 +47,7 @@ export function Dashboard() {
 
   // Primary multi-location owners land on the group overview instead of the single dashboard.
   // Branch members (groupId != null) are NOT redirected — they get their own location's dashboard.
-  useEffect(() => {
-    if (user?.locationCount && user.locationCount > 1 && !user.groupId) {
-      navigate("/multi-location", { replace: true });
-    }
-  }, [user, navigate]);
-
+ 
   const loadReport = useCallback(() => {
     stockApi.report().then(setReport).catch(() => {});
   }, []);
