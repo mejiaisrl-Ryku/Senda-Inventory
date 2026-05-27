@@ -22,6 +22,8 @@ export interface JwtPayload {
   userId: string;
   role: string;
   restaurantId: string;
+  groupId?:  string | null; // null = primary/single-location; set = branch
+  isBranch?: boolean;       // convenience flag derived from groupId
 }
 
 export function signToken(payload: JwtPayload): string {

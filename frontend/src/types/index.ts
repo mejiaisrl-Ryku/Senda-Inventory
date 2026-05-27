@@ -10,6 +10,8 @@ export interface User {
   /** Non-null when this user's restaurant is a branch (groupId = primary restaurant id).
    *  Null/undefined for the primary/group-owner restaurant and single-location restaurants. */
   groupId?: string | null;
+  /** Convenience flag: true when this user's restaurant is a branch location. */
+  isBranch?: boolean;
 }
 
 export type Unit = "KG" | "LITERS" | "PIECES" | "LB" | "OZ" | "G" | "EA" | "DOZ" | "CS";

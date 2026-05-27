@@ -45,6 +45,8 @@ type SafeUserResult = {
 /** Flatten the nested restaurant relation into top-level fields. */
 function toUserResponse(u: SafeUserResult) {
   const { restaurant, ...rest } = u;
+  const groupId  = restaurant?.groupId ?? null;
+  const isBranch = groupId !== null;
   return {
     ...rest,
     restaurantName:  restaurant?.name          ?? null,
@@ -52,12 +54,20 @@ function toUserResponse(u: SafeUserResult) {
     locationCount:   restaurant?.locationCount ?? 1,
     // groupId is non-null when this restaurant is a branch (groupId = primary's id).
     // null means this IS the primary (or a single-location restaurant).
-    groupId:         restaurant?.groupId       ?? null,
+    groupId,
+    isBranch,
   };
 }
 
-function makeTokenPair(userId: string, role: string, restaurantId: string | null) {
-  const payload = { userId, role, restaurantId: restaurantId ?? "" };
+function makeTokenPair(userId: string, role: string, restaurantId: string | null, groupId?: string | null) {
+  const isBranch = groupId !== null && groupId !== undefined;
+  const payload = {
+    userId,
+    role,
+    restaurantId: restaurantId ?? "",
+    groupId:      groupId ?? null,
+    isBranch,
+  };
   return {
     token: signToken(payload),
     refreshToken: signRefreshToken(payload),
@@ -83,7 +93,7 @@ export async function register(req: Request, res: Response, next: NextFunction) 
       });
     });
 
-    const tokens = makeTokenPair(user.id, user.role, user.restaurantId);
+    const tokens = makeTokenPair(user.id, user.role, user.restaurantId, user.restaurant?.groupId);
     res.status(201).json({ user: toUserResponse(user), ...tokens });
   } catch (err) {
     next(err);
@@ -107,7 +117,7 @@ export async function login(req: Request, res: Response, next: NextFunction) {
       where: { id: raw.id },
       select: safeUser,
     });
-    const tokens = makeTokenPair(user.id, user.role, user.restaurantId);
+    const tokens = makeTokenPair(user.id, user.role, user.restaurantId, user.restaurant?.groupId);
     res.json({ user: toUserResponse(user), ...tokens });
   } catch (err) {
     next(err);
@@ -129,7 +139,7 @@ export async function refresh(req: Request, res: Response, next: NextFunction) {
       select: safeUser,
     });
     if (!user) return res.status(401).json({ error: "User no longer exists" });
-    const tokens = makeTokenPair(user.id, user.role, user.restaurantId);
+    const tokens = makeTokenPair(user.id, user.role, user.restaurantId, user.restaurant?.groupId);
     res.json({ user: toUserResponse(user), ...tokens });
   } catch (err) {
     next(err);
