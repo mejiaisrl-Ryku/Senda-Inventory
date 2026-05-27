@@ -35,7 +35,7 @@
  */
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { locationsApi, LocationSummary, MetricTrend } from "../api";
+import { locationsApi, LocationCapacity, LocationSummary, MetricTrend } from "../api";
 import { useLanguage } from "../context/LanguageContext";
 import { formatCurrency } from "../utils/stock";
 import { PageSpinner, Spinner } from "./shared/Spinner";
@@ -312,12 +312,25 @@ function SkeletonCard() {
 function LocationCard({
   loc,
   highlightedMetric,
+  onDeleteClick,
 }: {
   loc:              LocationSummary;
   highlightedMetric: HighlightMetric;
+  onDeleteClick?:   () => void;
 }) {
   const { t } = useLanguage();
   const ml = t.multiLocation;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handler(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
 
   return (
     <div className="flex-1 min-w-0 bg-[#0a0a0a] border border-[#1a1a1a] rounded-[10px] p-5 space-y-1">
@@ -334,6 +347,36 @@ function LocationCard({
           <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/20">
             TEST
           </span>
+        )}
+        {/* Three-dot menu — only on non-primary branches */}
+        {!loc.isPrimary && onDeleteClick && (
+          <div ref={menuRef} className="relative shrink-0">
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              className="w-6 h-6 flex items-center justify-center rounded-md text-[#444] hover:text-[#888] hover:bg-[#1a1a1a] transition-colors"
+              aria-label="Location options"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <circle cx="10" cy="4"  r="1.5" />
+                <circle cx="10" cy="10" r="1.5" />
+                <circle cx="10" cy="16" r="1.5" />
+              </svg>
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-1 w-44 rounded-xl border border-[#1a1a1a] bg-[#0a0a0a] shadow-xl shadow-black/60 z-50 overflow-hidden">
+                <button
+                  onClick={() => { setMenuOpen(false); onDeleteClick(); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-[13px] text-[#ef4444] hover:bg-[#1a1a1a] transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  {ml.deleteLocation}
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -461,6 +504,165 @@ function BenchmarkCard({
   );
 }
 
+// ── Add Location Modal ────────────────────────────────────────────────────────
+
+function AddLocationModal({
+  onClose,
+  onSubmit,
+  adding,
+  error,
+}: {
+  onClose:  () => void;
+  onSubmit: (name: string, address: string, phone: string) => void;
+  adding:   boolean;
+  error:    string | null;
+}) {
+  const { t } = useLanguage();
+  const ml = t.multiLocation;
+  const [name,    setName]    = useState("");
+  const [address, setAddress] = useState("");
+  const [phone,   setPhone]   = useState("");
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    onSubmit(name.trim(), address.trim(), phone.trim());
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-[#0a0a0a] border border-[#1a1a1a] rounded-[14px] p-6 shadow-2xl">
+        <h2 className="text-[16px] font-semibold text-white mb-5">{ml.addLocationTitle}</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Name */}
+          <div>
+            <label className="block text-[11px] font-semibold text-[#555] uppercase tracking-wider mb-1.5">
+              {ml.locationNameLabel} <span className="text-[#ef4444]">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={ml.locationNamePh}
+              maxLength={50}
+              required
+              className="w-full bg-[#111] border border-[#222] rounded-[8px] px-3 py-2 text-[13px] text-white placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+            />
+          </div>
+          {/* Address */}
+          <div>
+            <label className="block text-[11px] font-semibold text-[#555] uppercase tracking-wider mb-1.5">
+              {ml.locationAddressLabel}
+            </label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder={ml.locationAddressPh}
+              maxLength={200}
+              className="w-full bg-[#111] border border-[#222] rounded-[8px] px-3 py-2 text-[13px] text-white placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+            />
+          </div>
+          {/* Phone */}
+          <div>
+            <label className="block text-[11px] font-semibold text-[#555] uppercase tracking-wider mb-1.5">
+              {ml.locationPhoneLabel}
+            </label>
+            <input
+              type="text"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder={ml.locationPhonePh}
+              maxLength={30}
+              className="w-full bg-[#111] border border-[#222] rounded-[8px] px-3 py-2 text-[13px] text-white placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+            />
+          </div>
+          {/* Error */}
+          {error && (
+            <p className="text-[12px] text-[#ef4444] bg-[#ef4444]/10 border border-[#ef4444]/20 rounded-[6px] px-3 py-2">
+              {error}
+            </p>
+          )}
+          {/* Buttons */}
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 h-9 rounded-[8px] border border-[#2a2a2a] text-[13px] text-[#666] hover:text-white hover:border-[#444] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={adding || !name.trim()}
+              className="flex-1 h-9 rounded-[8px] bg-[#3dbf8a] text-[13px] font-semibold text-[#0a0a0a] hover:bg-[#4dcf9a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {adding ? ml.creating : ml.createLocation}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Confirm Delete Modal ───────────────────────────────────────────────────────
+
+function ConfirmDeleteModal({
+  location,
+  onClose,
+  onConfirm,
+  deleting,
+}: {
+  location: LocationSummary;
+  onClose:  () => void;
+  onConfirm: () => void;
+  deleting:  boolean;
+}) {
+  const { t } = useLanguage();
+  const ml = t.multiLocation;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-[#0a0a0a] border border-[#1a1a1a] rounded-[14px] p-6 shadow-2xl">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-9 h-9 rounded-full bg-[#ef4444]/10 flex items-center justify-center shrink-0">
+            <svg className="w-4.5 h-4.5 text-[#ef4444]" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ width: 18, height: 18 }}>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-[15px] font-semibold text-white">{ml.deleteLocationTitle}</h2>
+            <p className="text-[12px] text-[#ef4444] font-medium mt-0.5">{location.name}</p>
+          </div>
+        </div>
+        <p className="text-[13px] text-[#888] leading-relaxed mb-5">{ml.deleteLocationBody}</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="flex-1 h-9 rounded-[8px] border border-[#2a2a2a] text-[13px] text-[#666] hover:text-white hover:border-[#444] transition-colors disabled:opacity-40"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={deleting}
+            className="flex-1 h-9 rounded-[8px] bg-[#ef4444] text-[13px] font-semibold text-white hover:bg-[#ff5555] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {deleting ? "Deleting…" : ml.deleteConfirm}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Suspense fallback for lazy tabs ───────────────────────────────────────────
 
 function TabFallback() {
@@ -492,15 +694,30 @@ export function MultiLocationOverview() {
   const [highlightedMetric, setHighlightedMetric] = useState<HighlightMetric>(null);
   const [activeTab,         setActiveTab]         = useState<"overview" | "recipes" | "vendor">("overview");
 
+  // ── Location management state ─────────────────────────────────────────────
+  const [capacity,    setCapacity]    = useState<LocationCapacity | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [adding,      setAdding]      = useState(false);
+  const [addError,    setAddError]    = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<LocationSummary | null>(null);
+  const [deleting,    setDeleting]    = useState(false);
+  const [toastMsg,    setToastMsg]    = useState<string | null>(null);
+
+  function showToast(msg: string) {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3500);
+  }
+
   function fetchLocations(bust = false) {
     if (!bust && isLocCacheValid()) return; // already seeded from cache in useState
     const isSilent = !loading; // if already have data, refresh silently
     if (isSilent) setRefreshing(true); else setLoading(true);
     setFetchError(false);
-    locationsApi.overview()
-      .then((data) => {
+    Promise.all([locationsApi.overview(), locationsApi.capacity()])
+      .then(([data, cap]) => {
         _locCache = { data, at: Date.now() };
         setLocations(data);
+        setCapacity(cap);
         setFetchError(false);
       })
       .catch((err) => {
@@ -508,6 +725,44 @@ export function MultiLocationOverview() {
         if (status !== 401 && status !== 403) setFetchError(true);
       })
       .finally(() => { setLoading(false); setRefreshing(false); });
+  }
+
+  async function handleAddLocation(name: string, address: string, phone: string) {
+    setAdding(true);
+    setAddError(null);
+    try {
+      await locationsApi.addBranch({
+        name,
+        address: address || undefined,
+        phone:   phone   || undefined,
+      });
+      setShowAddModal(false);
+      _locCache = null;
+      fetchLocations(true);
+      showToast(`"${name}" ${ml.locationAdded}`);
+    } catch (err: any) {
+      const msg = err?.response?.data?.error;
+      setAddError(msg ?? "Failed to create location.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleDeleteLocation() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await locationsApi.deleteBranch(deleteTarget.restaurantId);
+      const name = deleteTarget.name;
+      setDeleteTarget(null);
+      _locCache = null;
+      fetchLocations(true);
+      showToast(`"${name}" ${ml.locationDeleted}`);
+    } catch (err: any) {
+      console.error("Delete location failed:", err);
+    } finally {
+      setDeleting(false);
+    }
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -571,7 +826,31 @@ export function MultiLocationOverview() {
           <p className="text-[13px] text-[#555] mt-0.5">{ml.subtitle}</p>
         </div>
         {activeTab === "overview" && locations.length > 0 && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            {/* Capacity counter */}
+            {capacity && (
+              <span className="text-[11px] text-[#444] whitespace-nowrap">
+                {capacity.used} {ml.locationAtLimit} {capacity.limit} {ml.locationSlots}
+              </span>
+            )}
+            {/* Add Location button */}
+            {capacity?.canAdd && (
+              <button
+                onClick={() => { setShowAddModal(true); setAddError(null); }}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-[#3dbf8a]/40 bg-[#3dbf8a]/10 text-[12px] font-medium text-[#3dbf8a] hover:bg-[#3dbf8a]/20 hover:border-[#3dbf8a]/60 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                {ml.addLocation}
+              </button>
+            )}
+            {/* At-limit badge */}
+            {capacity && !capacity.canAdd && (
+              <span className="inline-flex items-center h-9 px-3 rounded-lg border border-[#2a2a2a] text-[11px] text-[#555] italic whitespace-nowrap">
+                {ml.locationLimitReached}
+              </span>
+            )}
             {/* Manual refresh button */}
             <button
               onClick={() => fetchLocations(true)}
@@ -645,7 +924,12 @@ export function MultiLocationOverview() {
               <SkeletonCard key={i} />
             ))
           : visible.map((loc) => (
-              <LocationCard key={loc.restaurantId} loc={loc} highlightedMetric={highlightedMetric} />
+              <LocationCard
+                key={loc.restaurantId}
+                loc={loc}
+                highlightedMetric={highlightedMetric}
+                onDeleteClick={!loc.isPrimary ? () => setDeleteTarget(loc) : undefined}
+              />
             ))
         }
       </div>
@@ -691,6 +975,38 @@ export function MultiLocationOverview() {
       )}
 
       </> /* end overview tab */}
+
+      {/* ── Add Location Modal ─────────────────────────────────────────────── */}
+      {showAddModal && (
+        <AddLocationModal
+          onClose={() => setShowAddModal(false)}
+          onSubmit={handleAddLocation}
+          adding={adding}
+          error={addError}
+        />
+      )}
+
+      {/* ── Confirm Delete Modal ───────────────────────────────────────────── */}
+      {deleteTarget && (
+        <ConfirmDeleteModal
+          location={deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={handleDeleteLocation}
+          deleting={deleting}
+        />
+      )}
+
+      {/* ── Toast notification ─────────────────────────────────────────────── */}
+      {toastMsg && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] shadow-xl shadow-black/60 text-[13px] text-white">
+            <svg className="w-3.5 h-3.5 text-[#3dbf8a] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
+            {toastMsg}
+          </div>
+        </div>
+      )}
 
     </div>
   );

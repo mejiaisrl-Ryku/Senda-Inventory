@@ -198,10 +198,11 @@ export async function getLocationsOverview(
     if (!userRestaurant) return res.status(404).json({ error: "Restaurant not found" });
 
     const allRestaurants = [
-      { ...userRestaurant, isTest: false },
+      { ...userRestaurant, isTest: false, isPrimary: true },
       ...branches.map((r) => ({
         ...r,
         isTest: true,
+        isPrimary: false,
         // Strip the TEST_ prefix if present (legacy seeded names)
         name: r.name.replace(/^TEST_/, ""),
       })),
@@ -219,6 +220,7 @@ export async function getLocationsOverview(
           name:         r.name,
           logo:         r.logo,
           isTest:       r.isTest,
+          isPrimary:    r.isPrimary,
           hasData,
           metrics,
           trends,
@@ -757,6 +759,163 @@ export async function getLocationsPricing(
     });
 
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── Location management handlers ──────────────────────────────────────────────
+
+/**
+ * GET /api/locations/capacity
+ * Returns the partner's location limit and current usage.
+ */
+export async function getLocationsCapacity(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const restaurantId = req.user.restaurantId;
+
+    const [primary, branchCount] = await Promise.all([
+      prisma.restaurant.findUnique({
+        where:  { id: restaurantId },
+        select: { locationCount: true },
+      }),
+      prisma.restaurant.count({ where: { groupId: restaurantId } }),
+    ]);
+
+    if (!primary) return res.status(404).json({ error: "Restaurant not found" });
+
+    const used  = 1 + branchCount;
+    const limit = primary.locationCount;
+
+    res.json({ limit, used, canAdd: used < limit });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/locations/branch
+ * Creates a new branch location under the current partner.
+ * Requires ADMIN role.
+ */
+export async function addBranch(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const restaurantId = req.user.restaurantId;
+    const { name, address, phone } = req.body as {
+      name?:    string;
+      address?: string;
+      phone?:   string;
+    };
+
+    // ── Validate name
+    const trimmedName = (name ?? "").trim();
+    if (trimmedName.length < 2 || trimmedName.length > 50) {
+      return res
+        .status(400)
+        .json({ error: "Location name must be between 2 and 50 characters." });
+    }
+
+    // ── Check capacity
+    const [primary, branchCount] = await Promise.all([
+      prisma.restaurant.findUnique({
+        where:  { id: restaurantId },
+        select: { locationCount: true },
+      }),
+      prisma.restaurant.count({ where: { groupId: restaurantId } }),
+    ]);
+
+    if (!primary) return res.status(404).json({ error: "Restaurant not found" });
+
+    if (1 + branchCount >= primary.locationCount) {
+      return res.status(409).json({
+        error: `Location limit reached (${primary.locationCount}). Contact support to increase your limit.`,
+      });
+    }
+
+    // ── Check name uniqueness within this partner group
+    const allGroupIds = [
+      restaurantId,
+      ...(await prisma.restaurant.findMany({
+        where:  { groupId: restaurantId },
+        select: { id: true },
+      })).map((r) => r.id),
+    ];
+
+    const duplicate = await prisma.restaurant.findFirst({
+      where: {
+        id:   { in: allGroupIds },
+        name: trimmedName,
+      },
+    });
+
+    if (duplicate) {
+      return res.status(409).json({
+        error: "A location with that name already exists.",
+      });
+    }
+
+    // ── Create the branch (cascade deletes already in place on Restaurant)
+    const branch = await prisma.restaurant.create({
+      data: {
+        name:    trimmedName,
+        address: address?.trim() || null,
+        phone:   phone?.trim()   || null,
+        groupId: restaurantId,   // isolation: branch belongs to this partner
+      },
+      select: { id: true, name: true, address: true, phone: true, groupId: true },
+    });
+
+    res.status(201).json(branch);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * DELETE /api/locations/branch/:locationId
+ * Deletes a branch location (and all its data via cascade).
+ * Cannot delete the primary restaurant. Requires ADMIN role.
+ */
+export async function deleteBranch(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const restaurantId = req.user.restaurantId;
+    const { locationId } = req.params;
+
+    // ── Never allow deleting the primary restaurant
+    if (locationId === restaurantId) {
+      return res
+        .status(400)
+        .json({ error: "Cannot delete your primary location." });
+    }
+
+    // ── Verify ownership: must be a branch of this partner (isolation check)
+    const location = await prisma.restaurant.findUnique({
+      where:  { id: locationId },
+      select: { groupId: true, name: true },
+    });
+
+    if (!location || location.groupId !== restaurantId) {
+      return res
+        .status(403)
+        .json({ error: "Location not found or access denied." });
+    }
+
+    // ── Delete (all child rows cascade automatically)
+    await prisma.restaurant.delete({ where: { id: locationId } });
+
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

@@ -396,6 +396,7 @@ export interface LocationSummary {
   name:         string;
   logo:         string | null;
   isTest:       boolean;
+  isPrimary:    boolean;
   hasData:      boolean;
   metrics: {
     foodCostPct:          number | null;
@@ -413,6 +414,20 @@ export interface LocationSummary {
   };
 }
 
+export interface LocationCapacity {
+  limit:  number;
+  used:   number;
+  canAdd: boolean;
+}
+
+export interface BranchLocation {
+  id:       string;
+  name:     string;
+  address:  string | null;
+  phone:    string | null;
+  groupId:  string | null;
+}
+
 export const locationsApi = {
   overview: () =>
     api.get<LocationSummary[]>("/locations/overview").then((r) => r.data),
@@ -420,6 +435,12 @@ export const locationsApi = {
     api.get<RecipeComparison[]>("/locations/recipes").then((r) => r.data),
   vendorPricing: () =>
     api.get<ProductVendorComparison[]>("/locations/vendor-pricing").then((r) => r.data),
+  capacity: () =>
+    api.get<LocationCapacity>("/locations/capacity").then((r) => r.data),
+  addBranch: (body: { name: string; address?: string; phone?: string }) =>
+    api.post<BranchLocation>("/locations/branch", body).then((r) => r.data),
+  deleteBranch: (locationId: string) =>
+    api.delete<{ ok: boolean }>(`/locations/branch/${locationId}`).then((r) => r.data),
 };
 
 // ── Recipe comparison types ───────────────────────────────────────────────────
