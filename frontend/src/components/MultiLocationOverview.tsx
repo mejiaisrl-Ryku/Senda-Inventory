@@ -323,6 +323,10 @@ function LocationCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // When invoices exist (hasData) but revenue = 0, percentages can't be computed.
+  // Show a targeted hint instead of the generic "set up invoices" message.
+  const pctHint = loc.hasData ? ml.noDataHintNeedsSales : ml.noDataHint;
+
   useEffect(() => {
     if (!menuOpen) return;
     function handler(e: MouseEvent) {
@@ -381,11 +385,11 @@ function LocationCard({
       </div>
 
       <div>
-        <MetricRow label={ml.foodCostPct}    value={loc.metrics.foodCostPct}          trend={loc.trends.foodCostPct}          noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "foodCostPct"}  metricKey="foodCostPct" />
-        <MetricRow label={ml.laborCostPct}   value={loc.metrics.laborCostPct}         trend={loc.trends.laborCostPct}         noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "laborCostPct"} metricKey="laborCostPct" />
-        <MetricRow label={ml.primeCostPct}   value={loc.metrics.primeCostPct}         trend={loc.trends.primeCostPct}         noData={ml.noData} noDataHint={ml.noDataHint} highlighted={highlightedMetric === "primeCostPct"} metricKey="primeCostPct" />
-        <MetricRow label={ml.invAccuracyPct} value={loc.metrics.inventoryAccuracyPct} trend={loc.trends.inventoryAccuracyPct} noData={ml.noData} noDataHint={ml.noDataHint} metricKey="inventoryAccuracyPct" />
-        <MetricRow label={ml.revenue30d}     value={loc.metrics.revenue30d > 0 ? loc.metrics.revenue30d : null} trend={loc.trends.revenue30d} isCurrency noData={ml.noData} noDataHint={ml.noDataHint} />
+        <MetricRow label={ml.foodCostPct}    value={loc.metrics.foodCostPct}          trend={loc.trends.foodCostPct}          noData={ml.noData} noDataHint={pctHint}        highlighted={highlightedMetric === "foodCostPct"}  metricKey="foodCostPct" />
+        <MetricRow label={ml.laborCostPct}   value={loc.metrics.laborCostPct}         trend={loc.trends.laborCostPct}         noData={ml.noData} noDataHint={pctHint}        highlighted={highlightedMetric === "laborCostPct"} metricKey="laborCostPct" />
+        <MetricRow label={ml.primeCostPct}   value={loc.metrics.primeCostPct}         trend={loc.trends.primeCostPct}         noData={ml.noData} noDataHint={pctHint}        highlighted={highlightedMetric === "primeCostPct"} metricKey="primeCostPct" />
+        <MetricRow label={ml.invAccuracyPct} value={loc.metrics.inventoryAccuracyPct} trend={loc.trends.inventoryAccuracyPct} noData={ml.noData} noDataHint={ml.noDataHint}  metricKey="inventoryAccuracyPct" />
+        <MetricRow label={ml.revenue30d}     value={loc.hasData ? loc.metrics.revenue30d : null} trend={loc.trends.revenue30d} isCurrency noData={ml.noData} noDataHint={ml.noDataHint} />
       </div>
     </div>
   );

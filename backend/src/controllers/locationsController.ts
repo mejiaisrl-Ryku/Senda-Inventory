@@ -201,10 +201,10 @@ export async function getLocationsOverview(
       { ...userRestaurant, isTest: false, isPrimary: true },
       ...branches.map((r) => ({
         ...r,
-        isTest: true,
+        // Only legacy seed restaurants have the TEST_ prefix — real branches are not test.
+        isTest:    r.name.startsWith("TEST_"),
         isPrimary: false,
-        // Strip the TEST_ prefix if present (legacy seeded names)
-        name: r.name.replace(/^TEST_/, ""),
+        name:      r.name.replace(/^TEST_/, ""),
       })),
     ];
 
@@ -273,7 +273,7 @@ export async function getLocationsRecipes(
       ...branches.map((r) => ({
         id:     r.id,
         name:   r.name.replace(/^TEST_/, ""),
-        isTest: true,
+        isTest: r.name.startsWith("TEST_"),
       })),
     ];
 
@@ -543,7 +543,7 @@ export async function getLocationsPricing(
       ...branches.map((r) => ({
         id:     r.id,
         name:   r.name.replace(/^TEST_/, ""),
-        isTest: true,
+        isTest: r.name.startsWith("TEST_"),
       })),
     ];
 
