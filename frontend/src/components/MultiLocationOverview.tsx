@@ -1,3 +1,38 @@
+/**
+ * MultiLocationOverview
+ *
+ * ⚠️  DATA ISOLATION & SECURITY MODEL
+ * ────────────────────────────────────────────────────────────────────────────
+ * This component is only meaningful for multi-location restaurant partners
+ * (locationCount > 1). Single-location users are shown an informational
+ * notice instead of location cards.
+ *
+ * Frontend protection (UI layer — defence in depth only):
+ *   • Single-location users see: "You have 1 location. This view is
+ *     designed for 2+ locations."
+ *   • The location switcher only lists restaurants returned by the API,
+ *     so a user can never manually select a restaurant they don't own.
+ *
+ * Backend protection (authoritative boundary — enforced server-side):
+ *   • Every /api/locations/* endpoint derives the restaurant scope
+ *     exclusively from the JWT-embedded restaurantId (req.user.restaurantId).
+ *     No client-supplied query parameter can override this.
+ *   • Scope query: WHERE groupId = req.user.restaurantId
+ *     Returns only the primary restaurant + its branches; other partners'
+ *     restaurants are structurally unreachable.
+ *   • All downstream DB queries use WHERE restaurantId IN (allIds),
+ *     where allIds is built from the scoped restaurants above.
+ *
+ * Threat model mitigations:
+ *   ✅ Cross-partner data leakage — impossible; groupId filter is server-enforced.
+ *   ✅ JWT tampering — auth middleware validates signature + expiry before
+ *      this code runs; forged tokens receive HTTP 401.
+ *   ✅ URL / query-string manipulation — restaurantId always comes from the
+ *      verified JWT, never from req.query or req.params.
+ *   ✅ Unauthorized navigation to /multi-location — single-location users
+ *      receive an empty-or-one-location response; no cross-partner data exposed.
+ * ────────────────────────────────────────────────────────────────────────────
+ */
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { locationsApi, LocationSummary, MetricTrend } from "../api";
