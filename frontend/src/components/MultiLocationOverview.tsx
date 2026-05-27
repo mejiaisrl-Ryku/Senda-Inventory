@@ -1,8 +1,7 @@
 import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { locationsApi, seedApi, LocationSummary, MetricTrend } from "../api";
+import { locationsApi, LocationSummary, MetricTrend } from "../api";
 import { useLanguage } from "../context/LanguageContext";
-import { useAuth } from "../context/AuthContext";
 import { formatCurrency } from "../utils/stock";
 import { PageSpinner, Spinner } from "./shared/Spinner";
 
@@ -444,7 +443,7 @@ const MAX_VISIBLE = 3;
 export function MultiLocationOverview() {
   const { t }       = useLanguage();
   const navigate    = useNavigate();
-  const { isAdmin } = useAuth();
+
   const ml          = t.multiLocation;
 
   const [locations,         setLocations]         = useState<LocationSummary[]>(() =>
@@ -456,7 +455,6 @@ export function MultiLocationOverview() {
   const [showAll,           setShowAll]           = useState(false);
   const [selected,          setSelected]          = useState<string>(readStoredLocation);
   const [highlightedMetric, setHighlightedMetric] = useState<HighlightMetric>(null);
-  const [seeding,           setSeeding]           = useState(false);
   const [activeTab,         setActiveTab]         = useState<"overview" | "recipes" | "vendor">("overview");
 
   function fetchLocations(bust = false) {
@@ -488,28 +486,6 @@ export function MultiLocationOverview() {
 
   function toggleHighlight(metric: HighlightMetric & string) {
     setHighlightedMetric((prev) => (prev === metric ? null : metric));
-  }
-
-  async function handleSeed() {
-    setSeeding(true);
-    try {
-      await seedApi.seedTestLocations();
-      _locCache = null; // bust cache so refresh picks up new locations
-      const fresh = await locationsApi.overview();
-      _locCache = { data: fresh, at: Date.now() };
-      setLocations(fresh);
-    } catch { /* ignore */ } finally { setSeeding(false); }
-  }
-
-  async function handleClear() {
-    setSeeding(true);
-    try {
-      await seedApi.clearTestLocations();
-      _locCache = null;
-      const fresh = await locationsApi.overview();
-      _locCache = { data: fresh, at: Date.now() };
-      setLocations(fresh);
-    } catch { /* ignore */ } finally { setSeeding(false); }
   }
 
   if (loading) return <PageSpinner />;
@@ -681,30 +657,6 @@ export function MultiLocationOverview() {
 
       </> /* end overview tab */}
 
-      {/* Admin-only seed / clear buttons */}
-      {isAdmin && (
-        <div className="pt-4 mt-2 border-t border-[#111] flex items-center justify-between gap-4 flex-wrap">
-          <p className="text-[10px] text-[#2a2a2a] uppercase tracking-wider font-semibold">
-            Dev tools — admin only
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleSeed}
-              disabled={seeding}
-              className="px-3 py-1.5 text-[11px] text-[#555] border border-[#222] rounded-md hover:text-[#3dbf8a] hover:border-[#3dbf8a] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {seeding ? "Working…" : "Seed test data"}
-            </button>
-            <button
-              onClick={handleClear}
-              disabled={seeding}
-              className="px-3 py-1.5 text-[11px] text-[#555] border border-[#222] rounded-md hover:text-[#ef4444] hover:border-[#ef4444] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {seeding ? "Working…" : "Clear test data"}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
