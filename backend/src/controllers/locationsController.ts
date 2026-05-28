@@ -965,3 +965,122 @@ export async function deleteBranch(
     next(err);
   }
 }
+
+/**
+ * GET /api/locations/variance-analysis
+ * Calculates prime/food/labor cost variance across all locations in a group.
+ * Returns benchmark stats (best/worst/avg) and per-location delta vs best & avg.
+ *
+ * Reuses fetchRestaurantMetrics so the calculation is identical to the
+ * multi-location overview cards — no data divergence between the two views.
+ */
+export async function getVarianceAnalysis(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const restaurantId = req.user.restaurantId;
+    const now30 = daysAgo(30);
+    const now60 = daysAgo(60);
+
+    // Step 1 — Scope: primary restaurant + all branches
+    const [primary, branches] = await Promise.all([
+      prisma.restaurant.findUnique({
+        where:  { id: restaurantId },
+        select: { id: true, name: true },
+      }),
+      prisma.restaurant.findMany({
+        where:   { groupId: restaurantId },
+        select:  { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+
+    if (!primary) return res.status(404).json({ error: "Restaurant not found" });
+
+    const allLocations = [
+      { ...primary, isPrimary: true  },
+      ...branches.map((b) => ({ ...b, isPrimary: false })),
+    ];
+
+    // Step 2 — Fetch metrics for each location (parallel)
+    const rows = await Promise.all(
+      allLocations.map(async (loc) => {
+        const m = await fetchRestaurantMetrics(loc.id, now30, now60);
+        return {
+          id:        loc.id,
+          name:      loc.name,
+          isPrimary: loc.isPrimary,
+          hasData:   m.hasData,
+          metrics:   m.metrics,
+        };
+      })
+    );
+
+    // Step 3 — Build benchmark stats for each cost metric
+    function benchmarkFor(key: "primeCostPct" | "foodCostPct" | "laborCostPct") {
+      const values = rows
+        .map((r) => r.metrics[key])
+        .filter((v): v is number => v !== null);
+
+      if (values.length === 0) {
+        return { best: null, worst: null, avg: null, variance: null };
+      }
+
+      const best    = Math.min(...values);
+      const worst   = Math.max(...values);
+      const avg     = Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10;
+      const variance = Math.round((worst - best) * 10) / 10;
+
+      return { best, worst, avg, variance };
+    }
+
+    const benchmarks = {
+      prime: benchmarkFor("primeCostPct"),
+      food:  benchmarkFor("foodCostPct"),
+      labor: benchmarkFor("laborCostPct"),
+    };
+
+    // Step 4 — Annotate each location with variance vs best and vs avg
+    function varFor(
+      value: number | null,
+      best:  number | null,
+      avg:   number | null
+    ) {
+      return {
+        value,
+        vsBest: value !== null && best !== null
+          ? Math.round((value - best) * 10) / 10
+          : null,
+        vsAvg:  value !== null && avg  !== null
+          ? Math.round((value - avg)  * 10) / 10
+          : null,
+      };
+    }
+
+    const locations = rows.map((r) => ({
+      id:        r.id,
+      name:      r.name,
+      isPrimary: r.isPrimary,
+      hasData:   r.hasData,
+      metrics: {
+        primeCostPct:         r.metrics.primeCostPct,
+        foodCostPct:          r.metrics.foodCostPct,
+        laborCostPct:         r.metrics.laborCostPct,
+        inventoryAccuracyPct: r.metrics.inventoryAccuracyPct,
+        revenue30d:           r.metrics.revenue30d,
+      },
+      variance: {
+        prime: varFor(r.metrics.primeCostPct, benchmarks.prime.best, benchmarks.prime.avg),
+        food:  varFor(r.metrics.foodCostPct,  benchmarks.food.best,  benchmarks.food.avg),
+        labor: varFor(r.metrics.laborCostPct, benchmarks.labor.best, benchmarks.labor.avg),
+      },
+    }));
+
+    res.json({ benchmark: benchmarks, locations });
+  } catch (err) {
+    console.error("[getVarianceAnalysis] Error:", err);
+    next(err);
+  }
+}

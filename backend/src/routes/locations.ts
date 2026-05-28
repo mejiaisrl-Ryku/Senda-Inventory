@@ -5,6 +5,7 @@ import {
   getLocationsRecipes,
   getLocationsPricing,
   getLocationsCapacity,
+  getVarianceAnalysis,
   addBranch,
   deleteBranch,
 } from "../controllers/locationsController";
@@ -15,10 +16,11 @@ const router = Router();
 router.use(authenticate as never);
 
 // ── Read endpoints ────────────────────────────────────────────────────────────
-router.get("/overview",       getLocationsOverview as never);
-router.get("/recipes",        getLocationsRecipes  as never);
-router.get("/vendor-pricing", getLocationsPricing  as never);
-router.get("/capacity",       getLocationsCapacity as never);
+router.get("/overview",          getLocationsOverview  as never);
+router.get("/recipes",           getLocationsRecipes   as never);
+router.get("/vendor-pricing",    getLocationsPricing   as never);
+router.get("/capacity",          getLocationsCapacity  as never);
+router.get("/variance-analysis", getVarianceAnalysis   as never);
 
 // ── Location management (admin only) ─────────────────────────────────────────
 router.post(  "/branch",             requireAdmin as never, addBranch    as never);
