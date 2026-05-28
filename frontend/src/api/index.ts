@@ -395,10 +395,42 @@ export interface VarianceData {
   vsAvg:  number | null;
 }
 
+/** Shape returned by the backend — flat metrics + keyed variance object. */
+export interface RawVarianceLocation {
+  id:        string;
+  name:      string;
+  isPrimary: boolean;
+  hasData:   boolean;
+  metrics: {
+    primeCostPct:         number | null;
+    foodCostPct:          number | null;
+    laborCostPct:         number | null;
+    inventoryAccuracyPct: number | null;
+    revenue30d:           number;
+  };
+  variance: {
+    prime: VarianceData;
+    food:  VarianceData;
+    labor: VarianceData;
+  };
+}
+
+export interface RawBenchmark {
+  best: number | null; worst: number | null; avg: number | null; variance: number | null;
+}
+
+export interface RawVarianceResponse {
+  benchmark: { prime: RawBenchmark; food: RawBenchmark; labor: RawBenchmark };
+  locations: RawVarianceLocation[];
+}
+
+/** Component-ready shape after transformation. */
 export interface LocationVariance {
   restaurantId: string;
   name:         string;
   isTest:       boolean;
+  isPrimary:    boolean;
+  hasData:      boolean;
   foodCostPct:  VarianceData;
   laborCostPct: VarianceData;
   primeCostPct: VarianceData;
@@ -406,9 +438,9 @@ export interface LocationVariance {
 
 export interface VarianceAnalysisResponse {
   benchmark: {
-    foodCostPct:  number | null;
-    laborCostPct: number | null;
-    primeCostPct: number | null;
+    primeCostPct:  number | null;
+    foodCostPct:   number | null;
+    laborCostPct:  number | null;
   };
   locations: LocationVariance[];
 }
@@ -466,7 +498,7 @@ export const locationsApi = {
   deleteBranch: (locationId: string) =>
     api.delete<{ ok: boolean }>(`/locations/branch/${locationId}`).then((r) => r.data),
   getVarianceAnalysis: () =>
-    api.get<VarianceAnalysisResponse>("/locations/variance-analysis").then((r) => r.data),
+    api.get<RawVarianceResponse>("/locations/variance-analysis").then((r) => r.data),
 };
 
 // ── Recipe comparison types ───────────────────────────────────────────────────

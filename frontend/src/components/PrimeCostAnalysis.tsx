@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { locationsApi, LocationVariance, VarianceAnalysisResponse, VarianceData } from "../api";
+import { locationsApi, LocationVariance, VarianceAnalysisResponse, VarianceData, RawVarianceResponse } from "../api";
 import { PageSpinner } from "./shared/Spinner";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -274,7 +274,41 @@ export default function PrimeCostAnalysis() {
 
   useEffect(() => {
     locationsApi.getVarianceAnalysis()
-      .then((d) => { setData(d); setError(false); })
+      .then((raw: RawVarianceResponse) => {
+        // Transform backend's flat metrics + keyed variance into the
+        // nested VarianceData shape the component expects.
+        const transformed: VarianceAnalysisResponse = {
+          benchmark: {
+            primeCostPct: raw.benchmark?.prime?.best ?? null,
+            foodCostPct:  raw.benchmark?.food?.best  ?? null,
+            laborCostPct: raw.benchmark?.labor?.best ?? null,
+          },
+          locations: raw.locations.map((loc) => ({
+            restaurantId: loc.id,
+            name:         loc.name,
+            isTest:       false,          // backend doesn't expose this field here
+            isPrimary:    loc.isPrimary,
+            hasData:      loc.hasData,
+            primeCostPct: {
+              value:  loc.variance?.prime?.value  ?? loc.metrics?.primeCostPct  ?? null,
+              vsBest: loc.variance?.prime?.vsBest ?? null,
+              vsAvg:  loc.variance?.prime?.vsAvg  ?? null,
+            },
+            foodCostPct: {
+              value:  loc.variance?.food?.value  ?? loc.metrics?.foodCostPct  ?? null,
+              vsBest: loc.variance?.food?.vsBest ?? null,
+              vsAvg:  loc.variance?.food?.vsAvg  ?? null,
+            },
+            laborCostPct: {
+              value:  loc.variance?.labor?.value  ?? loc.metrics?.laborCostPct  ?? null,
+              vsBest: loc.variance?.labor?.vsBest ?? null,
+              vsAvg:  loc.variance?.labor?.vsAvg  ?? null,
+            },
+          })),
+        };
+        setData(transformed);
+        setError(false);
+      })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
