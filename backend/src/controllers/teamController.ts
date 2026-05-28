@@ -222,18 +222,33 @@ export async function registerViaInvite(req: Request, res: Response, next: NextF
         email: true,
         role: true,
         restaurantId: true,
-        restaurant: { select: { name: true } },
+        restaurant: { select: { name: true, groupId: true } },
       },
     });
 
+    const groupId  = user.restaurant?.groupId ?? null;
+    const isBranch = groupId !== null;
+
     const tokens = {
-      token: signToken({ userId: user.id, role: user.role, restaurantId: user.restaurantId ?? "" }),
-      refreshToken: signRefreshToken({ userId: user.id, role: user.role, restaurantId: user.restaurantId ?? "" }),
+      token: signToken({
+        userId:       user.id,
+        role:         user.role,
+        restaurantId: user.restaurantId ?? "",
+        groupId,
+        isBranch,
+      }),
+      refreshToken: signRefreshToken({
+        userId:       user.id,
+        role:         user.role,
+        restaurantId: user.restaurantId ?? "",
+        groupId,
+        isBranch,
+      }),
     };
 
     const { restaurant, ...rest } = user;
     res.status(201).json({
-      user: { ...rest, restaurantName: restaurant?.name ?? null },
+      user: { ...rest, restaurantName: restaurant?.name ?? null, groupId, isBranch },
       ...tokens,
     });
   } catch (err) {
