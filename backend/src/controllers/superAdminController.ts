@@ -515,6 +515,7 @@ export async function getRestaurantDetail(req: AuthRequest, res: Response, next:
         suspendedAt: true,
         createdAt: true,
         locationCount: true,
+        groupId: true,
         users: {
           select: { id: true, name: true, email: true, role: true },
           orderBy: [{ role: "asc" }, { email: "asc" }],

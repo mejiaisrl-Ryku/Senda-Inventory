@@ -64,6 +64,8 @@ export interface SARestaurantDetail {
   userCount: number;
   productCount: number;
   locationCount: number;
+  /** Non-null when this restaurant is a branch; the value is the primary restaurant's id. */
+  groupId: string | null;
   users: { id: string; name: string | null; email: string; role: string }[];
   productSummary: {
     byDept: Record<string, number>;

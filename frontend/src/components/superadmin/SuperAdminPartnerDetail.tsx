@@ -1051,13 +1051,13 @@ export function SuperAdminPartnerDetail() {
         restaurantId={detail.id}
         restaurantName={detail.name}
         locationCount={detail.locationCount}
-        partnerId={detail.id}
+        partnerId={detail.groupId ?? detail.id}
       />
 
       {/* ── Locations section (multi-location partners only) ──────────── */}
       {detail.locationCount > 1 && (
         <LocationsSection
-          partnerId={detail.id}
+          partnerId={detail.groupId ?? detail.id}
           maxLocations={detail.locationCount}
         />
       )}
