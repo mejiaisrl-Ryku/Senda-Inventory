@@ -1,5 +1,7 @@
 import { Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma";
+import { signInviteToken } from "../lib/jwt";
+import { sendInviteEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";
 
 // ══ DATA ISOLATION — SECURITY BOUNDARY ═══════════════════════════════════════
@@ -809,10 +811,11 @@ export async function addBranch(
 ) {
   try {
     const restaurantId = req.user.restaurantId;
-    const { name, address, phone } = req.body as {
+    const { name, phone, gmName, gmEmail } = req.body as {
       name?:    string;
-      address?: string;
       phone?:   string;
+      gmName?:  string;
+      gmEmail?: string;
     };
 
     // ── Validate name
@@ -821,6 +824,22 @@ export async function addBranch(
       return res
         .status(400)
         .json({ error: "Location name must be between 2 and 50 characters." });
+    }
+
+    // ── Validate GM fields
+    const trimmedGmName  = (gmName  ?? "").trim();
+    const trimmedGmEmail = (gmEmail ?? "").trim().toLowerCase();
+    if (!trimmedGmName) {
+      return res.status(400).json({ error: "Manager name is required." });
+    }
+    if (!trimmedGmEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedGmEmail)) {
+      return res.status(400).json({ error: "A valid manager email is required." });
+    }
+
+    // ── Check if email is already registered
+    const existingUser = await prisma.user.findUnique({ where: { email: trimmedGmEmail } });
+    if (existingUser) {
+      return res.status(409).json({ error: "An account with that email already exists." });
     }
 
     // ── Check capacity
@@ -862,18 +881,44 @@ export async function addBranch(
       });
     }
 
-    // ── Create the branch (cascade deletes already in place on Restaurant)
+    // ── Create the branch
     const branch = await prisma.restaurant.create({
       data: {
         name:    trimmedName,
-        address: address?.trim() || null,
-        phone:   phone?.trim()   || null,
+        phone:   phone?.trim() || null,
         groupId: restaurantId,   // isolation: branch belongs to this partner
+        locationCount: 1,        // branches have no sub-locations
       },
-      select: { id: true, name: true, address: true, phone: true, groupId: true },
+      select: { id: true, name: true, phone: true, groupId: true },
     });
 
-    res.status(201).json(branch);
+    // ── Send invite email to the manager (user created when they accept)
+    const inviteToken = signInviteToken({
+      restaurantId:   branch.id,
+      restaurantName: branch.name,
+      role:           "ADMIN",
+      email:          trimmedGmEmail,
+    });
+
+    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const inviteUrl   = `${frontendUrl}/register?token=${inviteToken}`;
+
+    await sendInviteEmail({
+      to:             trimmedGmEmail,
+      toName:         trimmedGmName,
+      restaurantName: branch.name,
+      inviteUrl,
+    });
+
+    console.log(
+      `[addBranch] Created "${branch.name}" (${branch.id}). Invite sent to "${trimmedGmEmail}".`
+    );
+
+    res.status(201).json({
+      ...branch,
+      restaurantId: branch.id,
+      message: `Location "${trimmedName}" created. Invite sent to ${trimmedGmEmail}.`,
+    });
   } catch (err) {
     next(err);
   }

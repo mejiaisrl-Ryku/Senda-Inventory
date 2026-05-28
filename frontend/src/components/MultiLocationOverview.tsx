@@ -517,21 +517,27 @@ function AddLocationModal({
   error,
 }: {
   onClose:  () => void;
-  onSubmit: (name: string, address: string, phone: string) => void;
+  onSubmit: (name: string, phone: string, gmName: string, gmEmail: string) => void;
   adding:   boolean;
   error:    string | null;
 }) {
   const { t } = useLanguage();
   const ml = t.multiLocation;
   const [name,    setName]    = useState("");
-  const [address, setAddress] = useState("");
   const [phone,   setPhone]   = useState("");
+  const [gmName,  setGmName]  = useState("");
+  const [gmEmail, setGmEmail] = useState("");
+
+  const inputCls = "w-full bg-[#111] border border-[#222] rounded-[8px] px-3 py-2 text-[13px] text-white placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors";
+  const labelCls = "block text-[11px] font-semibold text-[#555] uppercase tracking-wider mb-1.5";
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
-    onSubmit(name.trim(), address.trim(), phone.trim());
+    if (!name.trim() || !gmName.trim() || !gmEmail.trim()) return;
+    onSubmit(name.trim(), phone.trim(), gmName.trim(), gmEmail.trim());
   }
+
+  const canSubmit = name.trim() && gmName.trim() && gmEmail.trim();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -539,9 +545,9 @@ function AddLocationModal({
       <div className="relative w-full max-w-sm bg-[#0a0a0a] border border-[#1a1a1a] rounded-[14px] p-6 shadow-2xl">
         <h2 className="text-[16px] font-semibold text-white mb-5">{ml.addLocationTitle}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Name */}
+          {/* Location Name */}
           <div>
-            <label className="block text-[11px] font-semibold text-[#555] uppercase tracking-wider mb-1.5">
+            <label className={labelCls}>
               {ml.locationNameLabel} <span className="text-[#ef4444]">*</span>
             </label>
             <input
@@ -551,35 +557,53 @@ function AddLocationModal({
               placeholder={ml.locationNamePh}
               maxLength={50}
               required
-              className="w-full bg-[#111] border border-[#222] rounded-[8px] px-3 py-2 text-[13px] text-white placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+              className={inputCls}
             />
           </div>
-          {/* Address */}
+          {/* Phone (optional) */}
           <div>
-            <label className="block text-[11px] font-semibold text-[#555] uppercase tracking-wider mb-1.5">
-              {ml.locationAddressLabel}
-            </label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder={ml.locationAddressPh}
-              maxLength={200}
-              className="w-full bg-[#111] border border-[#222] rounded-[8px] px-3 py-2 text-[13px] text-white placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
-            />
-          </div>
-          {/* Phone */}
-          <div>
-            <label className="block text-[11px] font-semibold text-[#555] uppercase tracking-wider mb-1.5">
-              {ml.locationPhoneLabel}
-            </label>
+            <label className={labelCls}>{ml.locationPhoneLabel}</label>
             <input
               type="text"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder={ml.locationPhonePh}
               maxLength={30}
-              className="w-full bg-[#111] border border-[#222] rounded-[8px] px-3 py-2 text-[13px] text-white placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+              className={inputCls}
+            />
+          </div>
+          {/* Divider */}
+          <div className="border-t border-[#1a1a1a] pt-1">
+            <p className="text-[10px] text-[#444] uppercase tracking-wider mb-3">Manager / Admin</p>
+          </div>
+          {/* GM Name */}
+          <div>
+            <label className={labelCls}>
+              {ml.gmNameLabel} <span className="text-[#ef4444]">*</span>
+            </label>
+            <input
+              type="text"
+              value={gmName}
+              onChange={(e) => setGmName(e.target.value)}
+              placeholder={ml.gmNamePh}
+              maxLength={100}
+              required
+              className={inputCls}
+            />
+          </div>
+          {/* GM Email */}
+          <div>
+            <label className={labelCls}>
+              {ml.gmEmailLabel} <span className="text-[#ef4444]">*</span>
+            </label>
+            <input
+              type="email"
+              value={gmEmail}
+              onChange={(e) => setGmEmail(e.target.value)}
+              placeholder={ml.gmEmailPh}
+              maxLength={254}
+              required
+              className={inputCls}
             />
           </div>
           {/* Error */}
@@ -599,7 +623,7 @@ function AddLocationModal({
             </button>
             <button
               type="submit"
-              disabled={adding || !name.trim()}
+              disabled={adding || !canSubmit}
               className="flex-1 h-9 rounded-[8px] bg-[#3dbf8a] text-[13px] font-semibold text-[#0a0a0a] hover:bg-[#4dcf9a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {adding ? ml.creating : ml.createLocation}
@@ -731,14 +755,15 @@ export function MultiLocationOverview() {
       .finally(() => { setLoading(false); setRefreshing(false); });
   }
 
-  async function handleAddLocation(name: string, address: string, phone: string) {
+  async function handleAddLocation(name: string, phone: string, gmName: string, gmEmail: string) {
     setAdding(true);
     setAddError(null);
     try {
       await locationsApi.addBranch({
         name,
-        address: address || undefined,
         phone:   phone   || undefined,
+        gmName,
+        gmEmail,
       });
       setShowAddModal(false);
       _locCache = null;
