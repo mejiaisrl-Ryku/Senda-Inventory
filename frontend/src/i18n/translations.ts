@@ -521,6 +521,7 @@ const en = {
     tabOverview:       "Overview",
     tabRecipes:        "Recipe Comparison",
     tabVendor:         "Vendor Pricing",
+    tabPrimeCost:      "Prime Cost Analysis",
     allLocSubtitle:    "All locations · last 30 days",
 
     // Recipe Comparison
@@ -1140,6 +1141,7 @@ const es: typeof en = {
     tabOverview:      "Vista General",
     tabRecipes:       "Comparación de Recetas",
     tabVendor:        "Precios de Proveedores",
+    tabPrimeCost:     "Análisis de Costo Primo",
     allLocSubtitle:   "Todas las ubicaciones · últimos 30 días",
 
     // Comparación de Recetas

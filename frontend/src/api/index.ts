@@ -389,6 +389,30 @@ export const onboardingApi = {
 
 // ── Locations (Multi-Location Overview) ──────────────────────────────────────
 
+export interface VarianceData {
+  value: number | null;
+  vsBest: number | null;
+  vsAvg:  number | null;
+}
+
+export interface LocationVariance {
+  restaurantId: string;
+  name:         string;
+  isTest:       boolean;
+  foodCostPct:  VarianceData;
+  laborCostPct: VarianceData;
+  primeCostPct: VarianceData;
+}
+
+export interface VarianceAnalysisResponse {
+  benchmark: {
+    foodCostPct:  number | null;
+    laborCostPct: number | null;
+    primeCostPct: number | null;
+  };
+  locations: LocationVariance[];
+}
+
 export type MetricTrend = "up" | "down" | "flat" | null;
 
 export interface LocationSummary {
@@ -441,6 +465,8 @@ export const locationsApi = {
     api.post<BranchLocation>("/locations/branch", body).then((r) => r.data),
   deleteBranch: (locationId: string) =>
     api.delete<{ ok: boolean }>(`/locations/branch/${locationId}`).then((r) => r.data),
+  getVarianceAnalysis: () =>
+    api.get<VarianceAnalysisResponse>("/locations/variance-analysis").then((r) => r.data),
 };
 
 // ── Recipe comparison types ───────────────────────────────────────────────────

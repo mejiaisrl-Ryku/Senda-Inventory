@@ -43,8 +43,9 @@ import { PageSpinner, Spinner } from "./shared/Spinner";
 // ── Lazy-loaded heavy tabs ────────────────────────────────────────────────────
 // Each chunk is only downloaded when the user first clicks that tab.
 
-const RecipeComparisonTab = lazy(() => import("./RecipeComparisonTab"));
-const VendorPricingTab    = lazy(() => import("./VendorPricingTab"));
+const RecipeComparisonTab  = lazy(() => import("./RecipeComparisonTab"));
+const VendorPricingTab     = lazy(() => import("./VendorPricingTab"));
+const PrimeCostAnalysis    = lazy(() => import("./PrimeCostAnalysis"));
 
 // ── Module-level location cache (10-min TTL) ──────────────────────────────────
 
@@ -720,7 +721,7 @@ export function MultiLocationOverview() {
   const [showAll,           setShowAll]           = useState(false);
   const [selected,          setSelected]          = useState<string>(readStoredLocation);
   const [highlightedMetric, setHighlightedMetric] = useState<HighlightMetric>(null);
-  const [activeTab,         setActiveTab]         = useState<"overview" | "recipes" | "vendor">("overview");
+  const [activeTab,         setActiveTab]         = useState<"overview" | "recipes" | "vendor" | "prime-cost">("overview");
 
   // ── Location management state ─────────────────────────────────────────────
   const [capacity,    setCapacity]    = useState<LocationCapacity | null>(null);
@@ -898,26 +899,33 @@ export function MultiLocationOverview() {
             <LocationSwitcher locations={locations} selected={selected} onSelect={handleSelect} />
           </div>
         )}
-        {(activeTab === "recipes" || activeTab === "vendor") && (
+        {(activeTab === "recipes" || activeTab === "vendor" || activeTab === "prime-cost") && (
           <span className="text-[11px] text-[#333] italic">{ml.allLocSubtitle}</span>
         )}
       </div>
 
       {/* Tab switcher */}
-      <div className="flex gap-1 bg-[#0a0a0a] border border-[#1a1a1a] rounded-[8px] p-1 w-fit">
-        {(["overview", "recipes", "vendor"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-1.5 rounded-[6px] text-[12px] font-medium transition-colors whitespace-nowrap ${
-              activeTab === tab
-                ? "bg-[#1a1a1a] text-white shadow-sm"
-                : "text-[#555] hover:text-[#888]"
-            }`}
-          >
-            {tab === "overview" ? ml.tabOverview : tab === "recipes" ? ml.tabRecipes : ml.tabVendor}
-          </button>
-        ))}
+      <div className="flex gap-1 bg-[#0a0a0a] border border-[#1a1a1a] rounded-[8px] p-1 w-fit flex-wrap">
+        {(["overview", "recipes", "vendor", "prime-cost"] as const).map((tab) => {
+          const label =
+            tab === "overview"    ? ml.tabOverview   :
+            tab === "recipes"     ? ml.tabRecipes     :
+            tab === "vendor"      ? ml.tabVendor      :
+                                    ml.tabPrimeCost;
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-1.5 rounded-[6px] text-[12px] font-medium transition-colors whitespace-nowrap ${
+                activeTab === tab
+                  ? "bg-[#1a1a1a] text-white shadow-sm"
+                  : "text-[#555] hover:text-[#888]"
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Recipe Comparison tab (lazy) ───────────────────────────────────── */}
@@ -931,6 +939,13 @@ export function MultiLocationOverview() {
       {activeTab === "vendor" && (
         <Suspense fallback={<TabFallback />}>
           <VendorPricingTab />
+        </Suspense>
+      )}
+
+      {/* ── Prime Cost Analysis tab (lazy) ─────────────────────────────────── */}
+      {activeTab === "prime-cost" && (
+        <Suspense fallback={<TabFallback />}>
+          <PrimeCostAnalysis />
         </Suspense>
       )}
 
