@@ -21,7 +21,7 @@ const inputCls =
   "w-full px-3 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#0a0a0a] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors";
 
 export function Register() {
-  const { register, login } = useAuth();
+  const { register, loginWithSession } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { t } = useLanguage();
@@ -60,10 +60,10 @@ export function Register() {
     try {
       if (isInviteMode) {
         const data = await teamApi.registerViaInvite({ token: inviteToken, name, email, password });
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("refreshToken", data.refreshToken);
-        localStorage.setItem("user", JSON.stringify(data.user));
-        await login(email, password);
+        // Use the tokens/user from the invite response directly — no extra login call.
+        // This preserves the groupId and isBranch flags that were embedded during
+        // registration, rather than overwriting them with a fresh token from login().
+        loginWithSession(data.user, data.token, data.refreshToken);
         navigate("/");
       } else {
         await register(name, email, password, restaurantName);
