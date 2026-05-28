@@ -24,7 +24,7 @@ import feedbackRouter from "./routes/feedback";
 
 const isProd = process.env.NODE_ENV === "production";
 
-const DEFAULT_ORIGINS = "http://localhost:3000,https://aapp-final-1.vercel.app,https://aapp-final-1-git-main-mejiaisrl-kyru-s-projects.vercel.app";
+const DEFAULT_ORIGINS = "http://localhost:3000,https://aapp-final-1.vercel.app,https://aapp-final-1-git-main-mejiaisrl-kyru-s-projects.vercel.app,https://www.kyruadvisory.com,https://kyruadvisory.com";
 export const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? DEFAULT_ORIGINS).split(",");
 
 const app = express();
