@@ -772,3 +772,107 @@ export async function deletePartnerLocation(req: AuthRequest, res: Response, nex
     next(err);
   }
 }
+
+/**
+ * GET /api/super-admin/standalone-restaurants
+ * Returns all restaurants that are not yet part of a multi-location group
+ * (groupId = null). Used by the Merge Restaurants page to populate dropdowns.
+ */
+export async function listStandaloneRestaurants(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const restaurants = await prisma.restaurant.findMany({
+      where:   { groupId: null },
+      select:  { id: true, name: true, locationCount: true },
+      orderBy: { name: "asc" },
+    });
+    res.json(restaurants);
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/super-admin/merge-restaurants
+ * Merges one or more standalone restaurants under a single parent.
+ * Each child gets groupId = parentId and locationCount = 1.
+ * Parent's locationCount is bumped if needed to accommodate the new children.
+ */
+export async function mergeRestaurants(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { parentId, childIds } = req.body as { parentId: string; childIds: string[] };
+
+    // Basic validation
+    if (!parentId || !Array.isArray(childIds) || childIds.length === 0) {
+      return res.status(400).json({ error: "parentId and at least one childId are required." });
+    }
+    if (childIds.length > 3) {
+      return res.status(400).json({ error: "Maximum 3 restaurants can be merged at once." });
+    }
+    if (childIds.includes(parentId)) {
+      return res.status(400).json({ error: "Parent cannot also be listed as a child." });
+    }
+    const unique = new Set(childIds);
+    if (unique.size !== childIds.length) {
+      return res.status(400).json({ error: "Duplicate child restaurants detected." });
+    }
+
+    // Fetch parent
+    const parent = await prisma.restaurant.findUnique({
+      where:  { id: parentId },
+      select: { id: true, name: true, groupId: true, locationCount: true },
+    });
+    if (!parent) return res.status(404).json({ error: "Parent restaurant not found." });
+    if (parent.groupId !== null) {
+      return res.status(400).json({ error: "Parent must be a standalone restaurant (not already in a group)." });
+    }
+
+    // Fetch children
+    const children = await prisma.restaurant.findMany({
+      where:  { id: { in: childIds } },
+      select: { id: true, name: true, groupId: true },
+    });
+    if (children.length !== childIds.length) {
+      return res.status(404).json({ error: "One or more child restaurants were not found." });
+    }
+    const nonStandalone = children.filter((c) => c.groupId !== null);
+    if (nonStandalone.length > 0) {
+      return res.status(400).json({
+        error: `Cannot merge: ${nonStandalone.map((c) => c.name).join(", ")} ${nonStandalone.length === 1 ? "is" : "are"} already in a group.`,
+      });
+    }
+
+    // Ensure parent locationCount is large enough; bump it if not.
+    const totalLocations = 1 + childIds.length;
+    const newLocationCount = Math.max(parent.locationCount, totalLocations);
+
+    // Execute merge in a transaction
+    await prisma.$transaction([
+      // Bump parent's locationCount if needed
+      prisma.restaurant.update({
+        where: { id: parentId },
+        data:  { locationCount: newLocationCount },
+      }),
+      // Assign each child to the parent group
+      ...childIds.map((childId) =>
+        prisma.restaurant.update({
+          where: { id: childId },
+          data:  { groupId: parentId, locationCount: 1 },
+        })
+      ),
+    ]);
+
+    const childNames = children.map((c) => c.name).join(", ");
+    console.log(`[mergeRestaurants] Merged "${childNames}" under "${parent.name}" (${parentId}). Total locations: ${totalLocations}.`);
+
+    res.json({
+      ok:            true,
+      parentId,
+      childIds,
+      totalLocations,
+      message:       `${childNames} merged under ${parent.name}.`,
+    });
+  } catch (err) {
+    console.error("[mergeRestaurants] Error:", err);
+    next(err);
+  }
+}

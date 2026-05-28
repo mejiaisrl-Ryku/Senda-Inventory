@@ -137,6 +137,18 @@ export const superAdminApi = {
   createPartnerInvite: (data: { firstName: string; lastName: string; email: string; locationCount: number }) =>
     saApi.post<SAPartnerInvite>("/super-admin/partner-invites", data).then((r) => r.data),
 
+  // -- Merge standalone restaurants --
+  listStandaloneRestaurants: () =>
+    saApi.get<{ id: string; name: string; locationCount: number }[]>(
+      "/super-admin/standalone-restaurants"
+    ).then((r) => r.data),
+
+  mergeRestaurants: (data: { parentId: string; childIds: string[] }) =>
+    saApi.post<{ ok: boolean; parentId: string; childIds: string[]; totalLocations: number; message: string }>(
+      "/super-admin/merge-restaurants",
+      data
+    ).then((r) => r.data),
+
   // -- Partner location management --
   listPartnerLocations: (partnerId: string) =>
     saApi.get<{ locations: SALocationDetail[]; totalLocations: number; maxLocations: number }>(

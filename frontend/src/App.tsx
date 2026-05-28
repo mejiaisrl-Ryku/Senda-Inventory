@@ -26,6 +26,7 @@ import { SuperAdminLogin } from "./components/superadmin/SuperAdminLogin";
 import { SuperAdminLayout } from "./components/superadmin/SuperAdminLayout";
 import { SuperAdminDashboard } from "./components/superadmin/SuperAdminDashboard";
 import { SuperAdminPartnerDetail } from "./components/superadmin/SuperAdminPartnerDetail";
+import { MergeRestaurants } from "./components/superadmin/MergeRestaurants";
 import { Spinner } from "./components/shared/Spinner";
 import { ToastProvider } from "./context/ToastContext";
 import { ToastContainer } from "./components/shared/Toast";
@@ -140,6 +141,7 @@ function AppRoutes() {
             <Route element={<SuperAdminLayout />}>
               <Route index element={<SuperAdminDashboard />} />
               <Route path="partners/:id" element={<SuperAdminPartnerDetail />} />
+              <Route path="merge-restaurants" element={<MergeRestaurants />} />
             </Route>
           </Route>
         </Route>

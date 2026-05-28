@@ -23,6 +23,8 @@ import {
   listPartnerLocations,
   addPartnerLocation,
   deletePartnerLocation,
+  listStandaloneRestaurants,
+  mergeRestaurants,
 } from "../controllers/superAdminController";
 
 const router = Router();
@@ -63,5 +65,9 @@ router.post("/partner-invites", validate(createPartnerInviteSchema), createPartn
 router.get(   "/partners/:partnerId/locations",                listPartnerLocations as never);
 router.post(  "/partners/:partnerId/locations",                addPartnerLocation   as never);
 router.delete("/partners/:partnerId/locations/:locationId",    deletePartnerLocation as never);
+
+// Merge standalone restaurants into a multi-location group
+router.get(  "/standalone-restaurants", listStandaloneRestaurants as never);
+router.post( "/merge-restaurants",      mergeRestaurants          as never);
 
 export default router;
