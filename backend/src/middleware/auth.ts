@@ -23,8 +23,37 @@ export function requireAdmin(req: AuthRequest, res: Response, next: NextFunction
 }
 
 export function requireSuperAdmin(req: AuthRequest, res: Response, next: NextFunction) {
-  if (req.user.role !== "SUPER_ADMIN") {
+  const role = req.user.role;
+  if (role !== "SUPER_ADMIN" && role !== "KYRU_MANAGER") {
     return res.status(403).json({ error: "Super-admin access required" });
+  }
+  next();
+}
+
+/** Only KYRU_MANAGER (Kyru internal) or OWNER_SUPER_ADMIN may pass. */
+export function requireOwnerOrKyruManager(req: AuthRequest, res: Response, next: NextFunction) {
+  const role = req.user.role;
+  if (role !== "KYRU_MANAGER" && role !== "OWNER_SUPER_ADMIN") {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+  next();
+}
+
+/** Only OWNER_SUPER_ADMIN with an ownerAccountId in their JWT may pass. */
+export function requireOwnerSelfService(req: AuthRequest, res: Response, next: NextFunction) {
+  if (req.user.role !== "OWNER_SUPER_ADMIN") {
+    return res.status(403).json({ error: "Forbidden: Owner-only endpoint" });
+  }
+  if (!req.user.ownerAccountId) {
+    return res.status(400).json({ error: "Missing ownerAccountId in token" });
+  }
+  next();
+}
+
+/** Only KYRU_MANAGER may pass. */
+export function requireKyruManager(req: AuthRequest, res: Response, next: NextFunction) {
+  if (req.user.role !== "KYRU_MANAGER") {
+    return res.status(403).json({ error: "Forbidden: Kyru Manager only" });
   }
   next();
 }

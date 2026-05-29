@@ -34,7 +34,7 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
 
     const entry = await prisma.salesEntry.create({
       data: {
-        restaurantId: req.user.restaurantId,
+        restaurantId: req.user.restaurantId ?? "",
         date: toUTCDay(date),
         category: category as never, // cast: Prisma client lags schema until prisma generate
         amount,
@@ -90,7 +90,7 @@ export async function listSales(req: AuthRequest, res: Response, next: NextFunct
 
     const entries = await prisma.salesEntry.findMany({
       where: {
-        restaurantId: req.user.restaurantId,
+        restaurantId: req.user.restaurantId ?? "",
         ...(startStr || endStr
           ? {
               date: {

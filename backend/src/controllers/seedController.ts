@@ -68,9 +68,9 @@ const LABOR_OFFSETS  = [28, 21, 14, 7];
 
 // ── Seed one location ─────────────────────────────────────────────────────────
 
-async function seedOne(cfg: LocationConfig, groupId: string) {
+async function seedOne(cfg: LocationConfig, ownerAccountId: string | null) {
   const restaurant = await prisma.restaurant.create({
-    data: { name: cfg.name, groupId },
+    data: { name: cfg.name, ownerAccountId },
   });
 
   // Products
@@ -182,14 +182,14 @@ export async function seedTestLocations(
   next: NextFunction
 ) {
   try {
-    const groupId = req.user.restaurantId;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
 
-    // Idempotent: wipe any existing branch locations for this partner
-    await prisma.restaurant.deleteMany({
-      where: { groupId },
-    });
+    // Idempotent: wipe any existing test locations for this partner
+    if (ownerAccountId) {
+      await prisma.restaurant.deleteMany({ where: { ownerAccountId, name: { startsWith: "TEST_" } } });
+    }
 
-    await Promise.all(LOCATIONS.map((cfg) => seedOne(cfg, groupId)));
+    await Promise.all(LOCATIONS.map((cfg) => seedOne(cfg, ownerAccountId)));
 
     res.json({
       ok:     true,
@@ -206,16 +206,13 @@ export async function clearTestLocations(
   next: NextFunction
 ) {
   try {
-    const groupId = req.user.restaurantId;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
 
-    // Delete branches belonging to this partner (new format)
-    // Also sweep legacy TEST_ restaurants (old format, groupId = null)
-    const [byGroup, byName] = await Promise.all([
-      prisma.restaurant.deleteMany({ where: { groupId } }),
-      prisma.restaurant.deleteMany({ where: { name: { startsWith: "TEST_" }, groupId: null } }),
-    ]);
+    const deleted = ownerAccountId
+      ? await prisma.restaurant.deleteMany({ where: { ownerAccountId, name: { startsWith: "TEST_" } } })
+      : { count: 0 };
 
-    res.json({ ok: true, deleted: byGroup.count + byName.count });
+    res.json({ ok: true, deleted: deleted.count });
   } catch (err) {
     next(err);
   }

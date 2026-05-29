@@ -191,12 +191,13 @@ export async function superAdminLogin(req: Request, res: Response, next: NextFun
       return res.status(401).json({ error: "Invalid email or password." });
     }
 
-    // String comparison — independent of the Prisma-generated Role enum.
-    if ((raw.role as string) !== "SUPER_ADMIN") {
-      return res.status(403).json({ error: "Access denied — super-admin account required." });
+    // Accept both legacy SUPER_ADMIN and new KYRU_MANAGER roles.
+    const role = raw.role as string;
+    if (role !== "SUPER_ADMIN" && role !== "KYRU_MANAGER") {
+      return res.status(403).json({ error: "Access denied — Kyru Manager account required." });
     }
 
-    const payload = { userId: raw.id, role: raw.role as string, restaurantId: raw.restaurantId ?? "" };
+    const payload = { userId: raw.id, role };
 
     res.json({
       user: { id: raw.id, name: raw.name, email: raw.email, role: raw.role as string },
@@ -515,7 +516,7 @@ export async function getRestaurantDetail(req: AuthRequest, res: Response, next:
         suspendedAt: true,
         createdAt: true,
         locationCount: true,
-        groupId: true,
+        ownerAccountId: true,
         users: {
           select: { id: true, name: true, email: true, role: true },
           orderBy: [{ role: "asc" }, { email: "asc" }],
@@ -636,14 +637,23 @@ export async function listPartnerLocations(req: AuthRequest, res: Response, next
     });
     if (!primary) return res.status(404).json({ error: "Partner not found." });
 
+    // Get the ownerAccountId for this partner so we can find all sibling locations.
+    const primaryFull = await prisma.restaurant.findUnique({
+      where: { id: partnerId },
+      select: { ownerAccountId: true },
+    });
+    const ownerAccountId = primaryFull?.ownerAccountId ?? null;
+
     const locations = await prisma.restaurant.findMany({
-      where: { OR: [{ id: partnerId }, { groupId: partnerId }] },
+      where: ownerAccountId
+        ? { ownerAccountId }
+        : { id: partnerId },
       select: {
         id: true,
         name: true,
         address: true,
         phone: true,
-        groupId: true,
+        ownerAccountId: true,
         _count: { select: { users: true, products: true } },
       },
       orderBy: { createdAt: "asc" },
@@ -651,17 +661,17 @@ export async function listPartnerLocations(req: AuthRequest, res: Response, next
 
     res.json({
       locations: locations.map((l) => ({
-        id: l.id,
-        name: l.name,
-        address: l.address,
-        phone: l.phone,
-        groupId: l.groupId,
-        userCount: l._count.users,
+        id:           l.id,
+        name:         l.name,
+        address:      l.address,
+        phone:        l.phone,
+        groupId:      l.ownerAccountId,   // backward compat alias
+        isPrimary:    l.id === partnerId,
+        userCount:    l._count.users,
         productCount: l._count.products,
-        isPrimary: l.id === partnerId,
       })),
       totalLocations: locations.length,
-      maxLocations: primary.locationCount,
+      maxLocations:   primary.locationCount,
     });
   } catch (err) {
     next(err);
@@ -688,19 +698,25 @@ export async function addPartnerLocation(req: AuthRequest, res: Response, next: 
     });
     if (!primary) return res.status(404).json({ error: "Partner not found." });
 
-    const currentCount = await prisma.restaurant.count({
-      where: { OR: [{ id: partnerId }, { groupId: partnerId }] },
+    // Determine ownerAccountId from the primary restaurant.
+    const primaryFull2 = await prisma.restaurant.findUnique({
+      where: { id: partnerId },
+      select: { ownerAccountId: true },
     });
+    const ownerAccountId2 = primaryFull2?.ownerAccountId ?? null;
+
+    const groupFilter = ownerAccountId2
+      ? { ownerAccountId: ownerAccountId2 }
+      : { id: partnerId };
+
+    const currentCount = await prisma.restaurant.count({ where: groupFilter });
     if (currentCount >= primary.locationCount) {
       return res.status(409).json({ error: `Location limit of ${primary.locationCount} reached.` });
     }
 
     // Name uniqueness within group
     const duplicate = await prisma.restaurant.findFirst({
-      where: {
-        OR: [{ id: partnerId }, { groupId: partnerId }],
-        name: { equals: trimmed, mode: "insensitive" },
-      },
+      where: { ...groupFilter, name: { equals: trimmed, mode: "insensitive" } },
     });
     if (duplicate) {
       return res.status(409).json({ error: "A location with that name already exists." });
@@ -708,31 +724,31 @@ export async function addPartnerLocation(req: AuthRequest, res: Response, next: 
 
     const location = await prisma.restaurant.create({
       data: {
-        name: trimmed,
-        address: address?.trim() || null,
-        phone:   phone?.trim()   || null,
-        groupId: partnerId,
-        locationCount: 1,
+        name:           trimmed,
+        address:        address?.trim() || null,
+        phone:          phone?.trim()   || null,
+        ownerAccountId: ownerAccountId2,
+        locationCount:  1,
       },
       select: {
         id: true,
         name: true,
         address: true,
         phone: true,
-        groupId: true,
+        ownerAccountId: true,
         _count: { select: { users: true, products: true } },
       },
     });
 
     res.status(201).json({
-      id: location.id,
-      name: location.name,
-      address: location.address,
-      phone: location.phone,
-      groupId: location.groupId,
-      userCount: location._count.users,
+      id:           location.id,
+      name:         location.name,
+      address:      location.address,
+      phone:        location.phone,
+      groupId:      location.ownerAccountId,   // backward compat alias
+      userCount:    location._count.users,
       productCount: location._count.products,
-      isPrimary: false,
+      isPrimary:    false,
     });
   } catch (err) {
     next(err);
@@ -754,10 +770,16 @@ export async function deletePartnerLocation(req: AuthRequest, res: Response, nex
 
     const location = await prisma.restaurant.findUnique({
       where: { id: locationId },
-      select: { id: true, groupId: true, _count: { select: { users: true } } },
+      select: { id: true, ownerAccountId: true, _count: { select: { users: true } } },
     });
     if (!location) return res.status(404).json({ error: "Location not found." });
-    if (location.groupId !== partnerId) {
+
+    // Verify this location belongs to the same owner as the partner restaurant.
+    const partnerOwner = await prisma.restaurant.findUnique({
+      where: { id: partnerId },
+      select: { ownerAccountId: true },
+    });
+    if (!partnerOwner || location.ownerAccountId !== partnerOwner.ownerAccountId) {
       return res.status(403).json({ error: "Location does not belong to this partner." });
     }
     if (location._count.users > 0) {
@@ -775,13 +797,13 @@ export async function deletePartnerLocation(req: AuthRequest, res: Response, nex
 
 /**
  * GET /api/super-admin/standalone-restaurants
- * Returns all restaurants that are not yet part of a multi-location group
- * (groupId = null). Used by the Merge Restaurants page to populate dropdowns.
+ * Returns all restaurants not yet assigned to an OwnerAccount.
+ * Used by the Merge Restaurants page to populate dropdowns.
  */
 export async function listStandaloneRestaurants(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const restaurants = await prisma.restaurant.findMany({
-      where:   { groupId: null },
+      where:   { ownerAccountId: null },
       select:  { id: true, name: true, locationCount: true },
       orderBy: { name: "asc" },
     });
@@ -819,44 +841,50 @@ export async function mergeRestaurants(req: AuthRequest, res: Response, next: Ne
     // Fetch parent
     const parent = await prisma.restaurant.findUnique({
       where:  { id: parentId },
-      select: { id: true, name: true, groupId: true, locationCount: true },
+      select: { id: true, name: true, ownerAccountId: true, locationCount: true },
     });
     if (!parent) return res.status(404).json({ error: "Parent restaurant not found." });
-    if (parent.groupId !== null) {
-      return res.status(400).json({ error: "Parent must be a standalone restaurant (not already in a group)." });
+    if (parent.ownerAccountId !== null) {
+      return res.status(400).json({ error: "Parent is already part of an owner group." });
     }
 
     // Fetch children
     const children = await prisma.restaurant.findMany({
       where:  { id: { in: childIds } },
-      select: { id: true, name: true, groupId: true },
+      select: { id: true, name: true, ownerAccountId: true },
     });
     if (children.length !== childIds.length) {
       return res.status(404).json({ error: "One or more child restaurants were not found." });
     }
-    const nonStandalone = children.filter((c) => c.groupId !== null);
+    const nonStandalone = children.filter((c) => c.ownerAccountId !== null);
     if (nonStandalone.length > 0) {
       return res.status(400).json({
         error: `Cannot merge: ${nonStandalone.map((c) => c.name).join(", ")} ${nonStandalone.length === 1 ? "is" : "are"} already in a group.`,
       });
     }
 
+    // Create an OwnerAccount for this group using a generated unique email.
+    const ownerEmail = `owner-${parentId}@kyru-internal.com`;
+    const ownerAccount = await prisma.ownerAccount.upsert({
+      where:  { email: ownerEmail },
+      update: {},
+      create: { name: parent.name, email: ownerEmail },
+    });
+
     // Ensure parent locationCount is large enough; bump it if not.
     const totalLocations = 1 + childIds.length;
     const newLocationCount = Math.max(parent.locationCount, totalLocations);
 
-    // Execute merge in a transaction
+    // Execute merge in a transaction — assign all restaurants to the owner account
     await prisma.$transaction([
-      // Bump parent's locationCount if needed
       prisma.restaurant.update({
         where: { id: parentId },
-        data:  { locationCount: newLocationCount },
+        data:  { locationCount: newLocationCount, ownerAccountId: ownerAccount.id },
       }),
-      // Assign each child to the parent group
       ...childIds.map((childId) =>
         prisma.restaurant.update({
           where: { id: childId },
-          data:  { groupId: parentId, locationCount: 1 },
+          data:  { ownerAccountId: ownerAccount.id, locationCount: 1 },
         })
       ),
     ]);

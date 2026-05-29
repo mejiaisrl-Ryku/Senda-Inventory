@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-import { signToken, signRefreshToken, verifyRefreshToken, signResetToken, verifyResetToken } from "../lib/jwt";
+import { signToken, signRefreshToken, verifyRefreshToken, signResetToken, verifyResetToken, JwtPayload } from "../lib/jwt";
 import { sendPasswordResetEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";
 
@@ -30,7 +30,8 @@ const safeUser = {
   email: true,
   role: true,
   restaurantId: true,
-  restaurant: { select: { name: true, logo: true, locationCount: true, groupId: true } },
+  ownerAccountId: true,
+  restaurant: { select: { name: true, logo: true, locationCount: true, ownerAccountId: true } },
 } as const;
 
 type SafeUserResult = {
@@ -38,35 +39,37 @@ type SafeUserResult = {
   name: string | null;
   email: string;
   role: string;
-  restaurantId: string | null;
-  restaurant: { name: string; logo: string | null; locationCount: number; groupId: string | null } | null;
+  restaurantId:   string | null;
+  ownerAccountId: string | null;
+  restaurant: { name: string; logo: string | null; locationCount: number; ownerAccountId: string | null } | null;
 };
 
 /** Flatten the nested restaurant relation into top-level fields. */
 function toUserResponse(u: SafeUserResult) {
   const { restaurant, ...rest } = u;
-  const groupId  = restaurant?.groupId ?? null;
-  const isBranch = groupId !== null;
+  // For ADMIN/STAFF: ownerAccountId comes from their restaurant's ownerAccountId
+  // For OWNER_SUPER_ADMIN: ownerAccountId is on the user record itself
+  const ownerAccountId = restaurant?.ownerAccountId ?? u.ownerAccountId ?? null;
   return {
     ...rest,
     restaurantName:  restaurant?.name          ?? null,
     restaurantLogo:  restaurant?.logo          ?? null,
     locationCount:   restaurant?.locationCount ?? 1,
-    // groupId is non-null when this restaurant is a branch (groupId = primary's id).
-    // null means this IS the primary (or a single-location restaurant).
-    groupId,
-    isBranch,
+    ownerAccountId,
   };
 }
 
-function makeTokenPair(userId: string, role: string, restaurantId: string | null, groupId?: string | null) {
-  const isBranch = groupId !== null && groupId !== undefined;
-  const payload = {
+function makeTokenPair(
+  userId: string,
+  role: string,
+  restaurantId: string | null,
+  ownerAccountId?: string | null
+) {
+  const payload: JwtPayload = {
     userId,
     role,
-    restaurantId: restaurantId ?? "",
-    groupId:      groupId ?? null,
-    isBranch,
+    ...(restaurantId   ? { restaurantId }   : {}),
+    ...(ownerAccountId ? { ownerAccountId } : {}),
   };
   return {
     token: signToken(payload),
@@ -93,7 +96,7 @@ export async function register(req: Request, res: Response, next: NextFunction) 
       });
     });
 
-    const tokens = makeTokenPair(user.id, user.role, user.restaurantId, user.restaurant?.groupId);
+    const tokens = makeTokenPair(user.id, user.role, user.restaurantId, user.restaurant?.ownerAccountId ?? user.ownerAccountId);
     res.status(201).json({ user: toUserResponse(user), ...tokens });
   } catch (err) {
     next(err);
@@ -117,7 +120,7 @@ export async function login(req: Request, res: Response, next: NextFunction) {
       where: { id: raw.id },
       select: safeUser,
     });
-    const tokens = makeTokenPair(user.id, user.role, user.restaurantId, user.restaurant?.groupId);
+    const tokens = makeTokenPair(user.id, user.role, user.restaurantId, user.restaurant?.ownerAccountId ?? user.ownerAccountId);
     res.json({ user: toUserResponse(user), ...tokens });
   } catch (err) {
     next(err);
@@ -139,7 +142,7 @@ export async function refresh(req: Request, res: Response, next: NextFunction) {
       select: safeUser,
     });
     if (!user) return res.status(401).json({ error: "User no longer exists" });
-    const tokens = makeTokenPair(user.id, user.role, user.restaurantId, user.restaurant?.groupId);
+    const tokens = makeTokenPair(user.id, user.role, user.restaurantId, user.restaurant?.ownerAccountId ?? user.ownerAccountId);
     res.json({ user: toUserResponse(user), ...tokens });
   } catch (err) {
     next(err);

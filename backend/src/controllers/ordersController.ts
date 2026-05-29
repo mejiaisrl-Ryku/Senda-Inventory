@@ -34,7 +34,7 @@ export async function createOrder(req: AuthRequest, res: Response, next: NextFun
   try {
     const { purveyor, invoiceDate, invoiceNumber, department, items } =
       req.body as z.infer<typeof createOrderSchema>;
-    const restaurantId = req.user.restaurantId;
+    const restaurantId = req.user.restaurantId ?? "";
 
     // If any items reference a productId, verify they belong to this restaurant.
     const referencedProductIds = items.flatMap((i) => (i.productId ? [i.productId] : []));

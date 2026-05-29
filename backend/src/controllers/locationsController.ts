@@ -6,27 +6,37 @@ import { AuthRequest } from "../types";
 
 // ══ DATA ISOLATION — SECURITY BOUNDARY ═══════════════════════════════════════
 //
-// Every handler in this file follows the same two-step isolation pattern:
-//
-//   Step 1 — Scope: fetch the primary restaurant + any branches that belong to
-//            the same partner group (WHERE groupId = req.user.restaurantId).
-//            The JWT-derived restaurantId is the authoritative source of truth;
-//            no client-supplied parameter can override it.
-//
-//   Step 2 — Filter: all downstream DB queries use `restaurantId: { in: allIds }`
-//            where allIds is derived exclusively from Step 1. This guarantees
-//            that no row from another partner's group can be returned, regardless
-//            of query structure.
-//
-// Threat model:
-//   ✅ Cross-partner leakage impossible — groupId scope is server-enforced.
-//   ✅ JWT tampering rejected — the auth middleware validates the token before
-//      this code runs and rejects forged or expired tokens (HTTP 401/403).
-//   ✅ URL / query-string manipulation ignored — restaurantId always comes from
-//      req.user (the verified JWT payload), never from req.query or req.params.
-//   ✅ Single-location users see only their own restaurant (branches = []).
+// Group scope is determined by ownerAccountId (JWT-embedded).
+// All locations belonging to the same OwnerAccount share that ownerAccountId.
+// Single-location restaurants without an OwnerAccount fall back to their own id.
 //
 // ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Return a Prisma `where` filter that scopes a Restaurant query to the
+ * authenticated user's group. All restaurants sharing the same ownerAccountId
+ * are in scope; single-location restaurants without an owner account see only
+ * their own row.
+ */
+function groupWhere(ownerAccountId: string | null | undefined, restaurantId: string | null | undefined) {
+  if (ownerAccountId) return { ownerAccountId };
+  if (restaurantId)   return { id: restaurantId };
+  return { id: "no-match" };  // should never happen for authenticated users
+}
+
+/**
+ * Resolve the full list of restaurants in scope, split into primary (user's
+ * own restaurant) and branches (the rest). Works with both old single-location
+ * and new OwnerAccount-based multi-location setups.
+ */
+async function resolveGroupRestaurants<S extends Record<string, true>>(
+  ownerAccountId: string | null | undefined,
+  restaurantId:   string | null | undefined,
+  select: S
+): Promise<Array<Record<string, unknown>>> {
+  const where = groupWhere(ownerAccountId, restaurantId);
+  return prisma.restaurant.findMany({ where, select, orderBy: { createdAt: "asc" } } as Parameters<typeof prisma.restaurant.findMany>[0]);
+}
 
 // ── Shared unit-conversion helper (mirrors recipeController logic) ────────────
 
@@ -180,35 +190,26 @@ export async function getLocationsOverview(
   next: NextFunction
 ) {
   try {
-    const restaurantId = req.user.restaurantId;
+    const restaurantId   = req.user.restaurantId   ?? null;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
     const now30 = daysAgo(30);
     const now60 = daysAgo(60);
 
-    // Step 1 — Scope: primary restaurant + branches in this partner group only.
-    const [userRestaurant, branches] = await Promise.all([
-      prisma.restaurant.findUnique({
-        where:  { id: restaurantId },
-        select: { id: true, name: true, logo: true },
-      }),
-      prisma.restaurant.findMany({
-        where:   { groupId: restaurantId }, // ← isolation: only this partner's branches
-        select:  { id: true, name: true, logo: true },
-        orderBy: { name: "asc" },
-      }),
-    ]);
+    // Step 1 — Scope: all restaurants in the user's group.
+    const rawLocations = await resolveGroupRestaurants(
+      ownerAccountId, restaurantId,
+      { id: true, name: true, logo: true }
+    ) as { id: string; name: string; logo: string | null }[];
 
-    if (!userRestaurant) return res.status(404).json({ error: "Restaurant not found" });
+    if (rawLocations.length === 0) return res.status(404).json({ error: "Restaurant not found" });
 
-    const allRestaurants = [
-      { ...userRestaurant, isTest: false, isPrimary: true },
-      ...branches.map((r) => ({
-        ...r,
-        // Only legacy seed restaurants have the TEST_ prefix — real branches are not test.
-        isTest:    r.name.startsWith("TEST_"),
-        isPrimary: false,
-        name:      r.name.replace(/^TEST_/, ""),
-      })),
-    ];
+    const allRestaurants = rawLocations.map((r) => ({
+      id:        r.id,
+      name:      r.name.replace(/^TEST_/, ""),
+      logo:      r.logo,
+      isTest:    r.name.startsWith("TEST_"),
+      isPrimary: r.id === restaurantId,
+    }));
 
     const results = await Promise.all(
       allRestaurants.map(async (r) => {
@@ -252,32 +253,23 @@ export async function getLocationsRecipes(
   next: NextFunction
 ) {
   try {
-    const restaurantId = req.user.restaurantId;
+    const restaurantId   = req.user.restaurantId   ?? null;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
     const now30 = daysAgo(30);
 
-    // Step 1 — Scope: primary restaurant + branches in this partner group only.
-    const [userRestaurant, branches] = await Promise.all([
-      prisma.restaurant.findUnique({
-        where:  { id: restaurantId },
-        select: { id: true, name: true },
-      }),
-      prisma.restaurant.findMany({
-        where:   { groupId: restaurantId }, // ← isolation: only this partner's branches
-        select:  { id: true, name: true },
-        orderBy: { name: "asc" },
-      }),
-    ]);
+    // Step 1 — Scope: all restaurants in the user's group.
+    const rawLocations = await resolveGroupRestaurants(
+      ownerAccountId, restaurantId,
+      { id: true, name: true }
+    ) as { id: string; name: string }[];
 
-    if (!userRestaurant) return res.status(404).json({ error: "Restaurant not found" });
+    if (rawLocations.length === 0) return res.status(404).json({ error: "Restaurant not found" });
 
-    const allRestaurants = [
-      { id: userRestaurant.id, name: userRestaurant.name, isTest: false },
-      ...branches.map((r) => ({
-        id:     r.id,
-        name:   r.name.replace(/^TEST_/, ""),
-        isTest: r.name.startsWith("TEST_"),
-      })),
-    ];
+    const allRestaurants = rawLocations.map((r) => ({
+      id:     r.id,
+      name:   r.name.replace(/^TEST_/, ""),
+      isTest: r.name.startsWith("TEST_"),
+    }));
 
     const allIds = allRestaurants.map((r) => r.id);
 
@@ -523,32 +515,23 @@ export async function getLocationsPricing(
   next: NextFunction
 ) {
   try {
-    const restaurantId = req.user.restaurantId;
+    const restaurantId   = req.user.restaurantId   ?? null;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
     const now30 = daysAgo(30);
 
-    // Step 1 — Scope: primary restaurant + branches in this partner group only.
-    const [userRestaurant, branches] = await Promise.all([
-      prisma.restaurant.findUnique({
-        where:  { id: restaurantId },
-        select: { id: true, name: true },
-      }),
-      prisma.restaurant.findMany({
-        where:   { groupId: restaurantId }, // ← isolation: only this partner's branches
-        select:  { id: true, name: true },
-        orderBy: { name: "asc" },
-      }),
-    ]);
+    // Step 1 — Scope: all restaurants in the user's group.
+    const rawLocations = await resolveGroupRestaurants(
+      ownerAccountId, restaurantId,
+      { id: true, name: true }
+    ) as { id: string; name: string }[];
 
-    if (!userRestaurant) return res.status(404).json({ error: "Restaurant not found" });
+    if (rawLocations.length === 0) return res.status(404).json({ error: "Restaurant not found" });
 
-    const allRestaurants = [
-      { id: userRestaurant.id, name: userRestaurant.name, isTest: false },
-      ...branches.map((r) => ({
-        id:     r.id,
-        name:   r.name.replace(/^TEST_/, ""),
-        isTest: r.name.startsWith("TEST_"),
-      })),
-    ];
+    const allRestaurants = rawLocations.map((r) => ({
+      id:     r.id,
+      name:   r.name.replace(/^TEST_/, ""),
+      isTest: r.name.startsWith("TEST_"),
+    }));
 
     const allIds = allRestaurants.map((r) => r.id);
 
@@ -779,19 +762,18 @@ export async function getLocationsCapacity(
   next: NextFunction
 ) {
   try {
-    const restaurantId = req.user.restaurantId;
+    const restaurantId   = req.user.restaurantId   ?? null;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
 
-    const [primary, branchCount] = await Promise.all([
-      prisma.restaurant.findUnique({
-        where:  { id: restaurantId },
-        select: { locationCount: true },
-      }),
-      prisma.restaurant.count({ where: { groupId: restaurantId } }),
-    ]);
+    const primary = restaurantId
+      ? await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { locationCount: true } })
+      : null;
 
     if (!primary) return res.status(404).json({ error: "Restaurant not found" });
 
-    const used  = 1 + branchCount;
+    const used = ownerAccountId
+      ? await prisma.restaurant.count({ where: { ownerAccountId } })
+      : 1;
     const limit = primary.locationCount;
 
     res.json({ limit, used, canAdd: used < limit });
@@ -811,7 +793,8 @@ export async function addBranch(
   next: NextFunction
 ) {
   try {
-    const restaurantId = req.user.restaurantId;
+    const restaurantId   = req.user.restaurantId   ?? null;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
     const { name, phone, gmName, gmEmail } = req.body as {
       name?:    string;
       phone?:   string;
@@ -844,53 +827,42 @@ export async function addBranch(
     }
 
     // ── Check capacity
-    const [primary, branchCount] = await Promise.all([
-      prisma.restaurant.findUnique({
-        where:  { id: restaurantId },
-        select: { locationCount: true },
-      }),
-      prisma.restaurant.count({ where: { groupId: restaurantId } }),
-    ]);
+    const primary2 = restaurantId
+      ? await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { locationCount: true } })
+      : null;
+    if (!primary2) return res.status(404).json({ error: "Restaurant not found" });
 
-    if (!primary) return res.status(404).json({ error: "Restaurant not found" });
+    const usedCount = ownerAccountId
+      ? await prisma.restaurant.count({ where: { ownerAccountId } })
+      : 1;
 
-    if (1 + branchCount >= primary.locationCount) {
+    if (usedCount >= primary2.locationCount) {
       return res.status(409).json({
-        error: `Location limit reached (${primary.locationCount}). Contact support to increase your limit.`,
+        error: `Location limit reached (${primary2.locationCount}). Contact support to increase your limit.`,
       });
     }
 
     // ── Check name uniqueness within this partner group
-    const allGroupIds = [
-      restaurantId,
-      ...(await prisma.restaurant.findMany({
-        where:  { groupId: restaurantId },
-        select: { id: true },
-      })).map((r) => r.id),
-    ];
-
     const duplicate = await prisma.restaurant.findFirst({
       where: {
-        id:   { in: allGroupIds },
+        ...groupWhere(ownerAccountId, restaurantId),
         name: trimmedName,
       },
     });
 
     if (duplicate) {
-      return res.status(409).json({
-        error: "A location with that name already exists.",
-      });
+      return res.status(409).json({ error: "A location with that name already exists." });
     }
 
     // ── Create the branch
     const branch = await prisma.restaurant.create({
       data: {
-        name:    trimmedName,
-        phone:   phone?.trim() || null,
-        groupId: restaurantId,   // isolation: branch belongs to this partner
-        locationCount: 1,        // branches have no sub-locations
+        name:           trimmedName,
+        phone:          phone?.trim() || null,
+        ownerAccountId: ownerAccountId,
+        locationCount:  1,
       },
-      select: { id: true, name: true, phone: true, groupId: true },
+      select: { id: true, name: true, phone: true, ownerAccountId: true },
     });
 
     // ── Send invite email to the manager (user created when they accept)
@@ -936,26 +908,23 @@ export async function deleteBranch(
   next: NextFunction
 ) {
   try {
-    const restaurantId = req.user.restaurantId;
+    const restaurantId   = req.user.restaurantId   ?? null;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
     const { locationId } = req.params;
 
-    // ── Never allow deleting the primary restaurant
+    // ── Never allow deleting one's own location
     if (locationId === restaurantId) {
-      return res
-        .status(400)
-        .json({ error: "Cannot delete your primary location." });
+      return res.status(400).json({ error: "Cannot delete your primary location." });
     }
 
-    // ── Verify ownership: must be a branch of this partner (isolation check)
+    // ── Verify ownership: location must share the same ownerAccountId
     const location = await prisma.restaurant.findUnique({
       where:  { id: locationId },
-      select: { groupId: true, name: true },
+      select: { ownerAccountId: true, name: true },
     });
 
-    if (!location || location.groupId !== restaurantId) {
-      return res
-        .status(403)
-        .json({ error: "Location not found or access denied." });
+    if (!location || !ownerAccountId || location.ownerAccountId !== ownerAccountId) {
+      return res.status(403).json({ error: "Location not found or access denied." });
     }
 
     // ── Delete (all child rows cascade automatically)
@@ -981,29 +950,22 @@ export async function getVarianceAnalysis(
   next: NextFunction
 ) {
   try {
-    const restaurantId = req.user.restaurantId;
+    const restaurantId   = req.user.restaurantId   ?? null;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
     const now30 = daysAgo(30);
     const now60 = daysAgo(60);
 
-    // Step 1 — Scope: primary restaurant + all branches
-    const [primary, branches] = await Promise.all([
-      prisma.restaurant.findUnique({
-        where:  { id: restaurantId },
-        select: { id: true, name: true },
-      }),
-      prisma.restaurant.findMany({
-        where:   { groupId: restaurantId },
-        select:  { id: true, name: true },
-        orderBy: { name: "asc" },
-      }),
-    ]);
+    // Step 1 — Scope: all locations in the group
+    const rawLocs = await resolveGroupRestaurants(
+      ownerAccountId, restaurantId,
+      { id: true, name: true }
+    ) as { id: string; name: string }[];
 
-    if (!primary) return res.status(404).json({ error: "Restaurant not found" });
+    if (rawLocs.length === 0) return res.status(404).json({ error: "Restaurant not found" });
 
-    const allLocations = [
-      { ...primary, isPrimary: true  },
-      ...branches.map((b) => ({ ...b, isPrimary: false })),
-    ];
+    const allLocations = rawLocs.map((r) => ({
+      ...r, isPrimary: r.id === restaurantId,
+    }));
 
     // Step 2 — Fetch metrics for each location (parallel)
     const rows = await Promise.all(
@@ -1097,11 +1059,12 @@ export async function getParLevelBenchmark(
   next: NextFunction
 ) {
   try {
-    const parentRestaurantId = req.user.restaurantId;
+    const parentRestaurantId = req.user.restaurantId ?? null;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
 
     // ── 1. Scope: primary + branches ────────────────────────────────────────
     const allLocations = await prisma.restaurant.findMany({
-      where: { OR: [{ id: parentRestaurantId }, { groupId: parentRestaurantId }] },
+      where: groupWhere(ownerAccountId, parentRestaurantId),
       select: { id: true, name: true },
     });
 
@@ -1256,15 +1219,15 @@ export async function copyParLevels(
 
     // ── Authorization: both must belong to the user's group ────────────────────
     const [sourceLoc, targetLoc] = await Promise.all([
-      prisma.restaurant.findUnique({ where: { id: sourceLocationId }, select: { id: true, groupId: true } }),
-      prisma.restaurant.findUnique({ where: { id: targetLocationId }, select: { id: true, groupId: true } }),
+      prisma.restaurant.findUnique({ where: { id: sourceLocationId }, select: { id: true, ownerAccountId: true } }),
+      prisma.restaurant.findUnique({ where: { id: targetLocationId }, select: { id: true, ownerAccountId: true } }),
     ]);
 
     if (!sourceLoc) return res.status(404).json({ error: "Source location not found" });
     if (!targetLoc) return res.status(404).json({ error: "Target location not found" });
 
-    const ownsSource = sourceLocationId === userRestaurantId || sourceLoc.groupId === userRestaurantId;
-    const ownsTarget = targetLocationId === userRestaurantId || targetLoc.groupId === userRestaurantId;
+    const ownsSource = sourceLocationId === userRestaurantId || (req.user.ownerAccountId && sourceLoc.ownerAccountId === req.user.ownerAccountId);
+    const ownsTarget = targetLocationId === userRestaurantId || (req.user.ownerAccountId && targetLoc.ownerAccountId === req.user.ownerAccountId);
     if (!ownsSource) return res.status(403).json({ error: "You don't own the source location" });
     if (!ownsTarget) return res.status(403).json({ error: "You don't own the target location" });
 
@@ -1340,12 +1303,13 @@ export async function getCostBreakdown(
   next: NextFunction
 ) {
   try {
-    const parentRestaurantId = req.user.restaurantId;
+    const parentRestaurantId = req.user.restaurantId ?? null;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
     const days = Math.min(Math.max(parseInt(req.query.days as string) || 30, 1), 365);
 
     // ── 1. Scope ────────────────────────────────────────────────────────────────
     const allLocations = await prisma.restaurant.findMany({
-      where: { OR: [{ id: parentRestaurantId }, { groupId: parentRestaurantId }] },
+      where: groupWhere(ownerAccountId, parentRestaurantId),
       select: { id: true, name: true },
     });
 
@@ -1461,12 +1425,13 @@ export async function getLaborBreakdown(
   next: NextFunction
 ) {
   try {
-    const parentRestaurantId = req.user.restaurantId;
+    const parentRestaurantId = req.user.restaurantId ?? null;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
     const days = Math.min(Math.max(parseInt(req.query.days as string) || 30, 1), 365);
 
     // ── 1. Scope ────────────────────────────────────────────────────────────────
     const allLocations = await prisma.restaurant.findMany({
-      where: { OR: [{ id: parentRestaurantId }, { groupId: parentRestaurantId }] },
+      where: groupWhere(ownerAccountId, parentRestaurantId),
       select: { id: true, name: true },
     });
 
@@ -1561,11 +1526,12 @@ export async function getWasteAnalysis(
   next: NextFunction
 ) {
   try {
-    const parentRestaurantId = req.user.restaurantId;
+    const parentRestaurantId = req.user.restaurantId ?? null;
+    const ownerAccountId = req.user.ownerAccountId ?? null;
 
     // ── 1. Scope ────────────────────────────────────────────────────────────────
     const allLocations = await prisma.restaurant.findMany({
-      where: { OR: [{ id: parentRestaurantId }, { groupId: parentRestaurantId }] },
+      where: groupWhere(ownerAccountId, parentRestaurantId),
       select: { id: true, name: true },
     });
 

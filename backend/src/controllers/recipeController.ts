@@ -289,15 +289,15 @@ export async function copyRecipe(req: AuthRequest, res: Response, next: NextFunc
 
     // ── Authorization: both restaurants must belong to the user's group ─────────
     const [sourceRestaurant, targetRestaurant] = await Promise.all([
-      prisma.restaurant.findUnique({ where: { id: sourceRestaurantId }, select: { id: true, groupId: true } }),
-      prisma.restaurant.findUnique({ where: { id: targetRestaurantId }, select: { id: true, groupId: true } }),
+      prisma.restaurant.findUnique({ where: { id: sourceRestaurantId }, select: { id: true, ownerAccountId: true } }),
+      prisma.restaurant.findUnique({ where: { id: targetRestaurantId }, select: { id: true, ownerAccountId: true } }),
     ]);
 
     if (!sourceRestaurant) return res.status(404).json({ error: "Source restaurant not found" });
     if (!targetRestaurant) return res.status(404).json({ error: "Target restaurant not found" });
 
-    const ownsSource = sourceRestaurantId === userRestaurantId || sourceRestaurant.groupId === userRestaurantId;
-    const ownsTarget = targetRestaurantId === userRestaurantId || targetRestaurant.groupId === userRestaurantId;
+    const ownsSource = sourceRestaurantId === userRestaurantId || (req.user.ownerAccountId && sourceRestaurant.ownerAccountId === req.user.ownerAccountId);
+    const ownsTarget = targetRestaurantId === userRestaurantId || (req.user.ownerAccountId && targetRestaurant.ownerAccountId === req.user.ownerAccountId);
 
     if (!ownsSource) return res.status(403).json({ error: "You don't own the source restaurant" });
     if (!ownsTarget) return res.status(403).json({ error: "You don't own the target restaurant" });

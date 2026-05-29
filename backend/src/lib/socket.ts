@@ -20,7 +20,7 @@ export function initSocket(httpServer: HttpServer, allowedOrigins: string[]): Se
     if (!token) return next(new Error("Authentication required"));
     try {
       const payload = verifyToken(token);
-      (socket as AuthenticatedSocket).restaurantId = payload.restaurantId;
+      (socket as AuthenticatedSocket).restaurantId = payload.restaurantId ?? "";
       next();
     } catch {
       next(new Error("Invalid or expired token"));

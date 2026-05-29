@@ -19,11 +19,11 @@ const REFRESH_EXPIRES_IN = (process.env.JWT_REFRESH_EXPIRES_IN ?? "30d") as Sign
 // valid for any role value (including SUPER_ADMIN) regardless of whether prisma
 // generate has been run yet.
 export interface JwtPayload {
-  userId: string;
-  role: string;
-  restaurantId: string;
-  groupId?:  string | null; // null = primary/single-location; set = branch
-  isBranch?: boolean;       // convenience flag derived from groupId
+  userId:              string;
+  role:                string;
+  restaurantId?:       string;    // ADMIN/STAFF: their restaurant; absent for KYRU_MANAGER
+  ownerAccountId?:     string;    // OWNER_SUPER_ADMIN own account; ADMIN if in a group; absent otherwise
+  ownedRestaurantIds?: string[];  // OWNER_SUPER_ADMIN: cached list for perf; omit for ADMIN/STAFF
 }
 
 export function signToken(payload: JwtPayload): string {

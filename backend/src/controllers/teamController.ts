@@ -66,14 +66,14 @@ export async function inviteTeamMember(req: AuthRequest, res: Response, next: Ne
 
     // Determine target restaurant.
     // Multi-location admins may specify a branch; single-location admins use their own.
-    let targetRestaurantId = req.user.restaurantId;
+    let targetRestaurantId = req.user.restaurantId ?? "";
     if (bodyRestaurantId && bodyRestaurantId !== req.user.restaurantId) {
       const target = await prisma.restaurant.findUnique({ where: { id: bodyRestaurantId } });
       if (!target) {
         return res.status(404).json({ error: "Location not found." });
       }
-      // Verify the target is a branch of the requester's primary restaurant.
-      if (target.groupId !== req.user.restaurantId) {
+      // Verify the target belongs to the same owner account as the requester.
+      if (!req.user.ownerAccountId || target.ownerAccountId !== req.user.ownerAccountId) {
         return res.status(403).json({ error: "Location does not belong to your group." });
       }
       targetRestaurantId = bodyRestaurantId;
@@ -222,33 +222,26 @@ export async function registerViaInvite(req: Request, res: Response, next: NextF
         email: true,
         role: true,
         restaurantId: true,
-        restaurant: { select: { name: true, groupId: true } },
+        restaurant: { select: { name: true, ownerAccountId: true } },
       },
     });
 
-    const groupId  = user.restaurant?.groupId ?? null;
-    const isBranch = groupId !== null;
+    const ownerAccountId = user.restaurant?.ownerAccountId ?? null;
 
+    const basePayload = {
+      userId: user.id,
+      role:   user.role,
+      ...(user.restaurantId ? { restaurantId: user.restaurantId } : {}),
+      ...(ownerAccountId    ? { ownerAccountId }                  : {}),
+    };
     const tokens = {
-      token: signToken({
-        userId:       user.id,
-        role:         user.role,
-        restaurantId: user.restaurantId ?? "",
-        groupId,
-        isBranch,
-      }),
-      refreshToken: signRefreshToken({
-        userId:       user.id,
-        role:         user.role,
-        restaurantId: user.restaurantId ?? "",
-        groupId,
-        isBranch,
-      }),
+      token:        signToken(basePayload),
+      refreshToken: signRefreshToken(basePayload),
     };
 
     const { restaurant, ...rest } = user;
     res.status(201).json({
-      user: { ...rest, restaurantName: restaurant?.name ?? null, groupId, isBranch },
+      user: { ...rest, restaurantName: restaurant?.name ?? null, ownerAccountId },
       ...tokens,
     });
   } catch (err) {
