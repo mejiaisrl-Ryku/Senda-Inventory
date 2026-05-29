@@ -1085,3 +1085,145 @@ export async function getVarianceAnalysis(
     next(err);
   }
 }
+
+/**
+ * GET /api/locations/par-levels
+ * Par levels (minimumStock) and inventory accuracy across all group locations.
+ * Accuracy is derived from the most recent CLOSED count session per location.
+ */
+export async function getParLevelBenchmark(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const parentRestaurantId = req.user.restaurantId;
+
+    // ── 1. Scope: primary + branches ────────────────────────────────────────
+    const allLocations = await prisma.restaurant.findMany({
+      where: { OR: [{ id: parentRestaurantId }, { groupId: parentRestaurantId }] },
+      select: { id: true, name: true },
+    });
+
+    if (allLocations.length === 0) {
+      return res.status(404).json({ error: "No locations found" });
+    }
+
+    const allIds = allLocations.map((l) => l.id);
+
+    // ── 2. Products (par levels) — single batch query ────────────────────────
+    const allProducts = await prisma.product.findMany({
+      where: { restaurantId: { in: allIds } },
+      select: {
+        id:           true,
+        name:         true,
+        restaurantId: true,
+        category:     true,
+        minimumStock: true,
+        unit:         true,
+      },
+    });
+
+    // ── 3. Latest CLOSED count session per location — parallel ───────────────
+    const sessions = await Promise.all(
+      allIds.map((restaurantId) =>
+        prisma.countSession.findFirst({
+          where:   { restaurantId, status: "CLOSED" },
+          orderBy: { date: "desc" },
+          select: {
+            entries: {
+              select: {
+                productId:        true,
+                expectedQuantity: true,
+                actualQuantity:   true,
+              },
+            },
+          },
+        }).then((session) => ({ restaurantId, session }))
+      )
+    );
+
+    // ── 4. Build accuracy lookup: restaurantId → productId → accuracy% ───────
+    const accuracyByLocation: Record<string, Record<string, number>> = {};
+    for (const { restaurantId, session } of sessions) {
+      accuracyByLocation[restaurantId] = {};
+      if (!session) continue;
+      for (const entry of session.entries) {
+        const expected = Number(entry.expectedQuantity);
+        if (expected <= 0) continue;
+        const acc = (Number(entry.actualQuantity) / expected) * 100;
+        accuracyByLocation[restaurantId][entry.productId] = Math.round(acc * 10) / 10;
+      }
+    }
+
+    // ── 5. Assemble per-location response with category grouping ─────────────
+    const locationRows = allLocations.map((loc) => {
+      const locProducts = allProducts.filter((p) => p.restaurantId === loc.id);
+
+      // Group by category
+      const byCategory: Record<string, {
+        productId: string; name: string; parLevel: number; unit: string; accuracy: number | null;
+      }[]> = {};
+
+      for (const prod of locProducts) {
+        const cat = prod.category ?? "Uncategorized";
+        if (!byCategory[cat]) byCategory[cat] = [];
+        byCategory[cat].push({
+          productId: prod.id,
+          name:      prod.name,
+          parLevel:  prod.minimumStock,
+          unit:      prod.unit,
+          accuracy:  accuracyByLocation[loc.id]?.[prod.id] ?? null,
+        });
+      }
+
+      const parLevelsByCategory = Object.entries(byCategory)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([category, products]) => {
+          const valid = products.map((p) => p.accuracy).filter((a): a is number => a !== null);
+          const avgAccuracy = valid.length > 0
+            ? Math.round((valid.reduce((s, v) => s + v, 0) / valid.length) * 10) / 10
+            : null;
+          return {
+            category,
+            products: products.sort((a, b) => a.name.localeCompare(b.name)),
+            avgAccuracy,
+            productCount: products.length,
+          };
+        });
+
+      return {
+        id:     loc.id,
+        name:   loc.name.replace(/^TEST_/, ""),
+        isTest: loc.name.startsWith("TEST_"),
+        parLevelsByCategory,
+      };
+    });
+
+    // ── 6. Benchmarks: best/worst per category ───────────────────────────────
+    const benchmarkByCategory: Record<string, {
+      bestLocation: string | null; bestAccuracy: number;
+      worstLocation: string | null; worstAccuracy: number;
+    }> = {};
+
+    for (const loc of locationRows) {
+      for (const cat of loc.parLevelsByCategory) {
+        if (cat.avgAccuracy === null) continue;
+        if (!benchmarkByCategory[cat.category]) {
+          benchmarkByCategory[cat.category] = {
+            bestLocation:  null, bestAccuracy:  -Infinity,
+            worstLocation: null, worstAccuracy:  Infinity,
+          };
+        }
+        const b = benchmarkByCategory[cat.category];
+        if (cat.avgAccuracy > b.bestAccuracy)  { b.bestLocation  = loc.id; b.bestAccuracy  = cat.avgAccuracy; }
+        if (cat.avgAccuracy < b.worstAccuracy) { b.worstLocation = loc.id; b.worstAccuracy = cat.avgAccuracy; }
+      }
+    }
+
+    res.json({ locations: locationRows, benchmark: benchmarkByCategory });
+  } catch (err) {
+    console.error("[getParLevelBenchmark] Error:", err);
+    next(err);
+  }
+}
