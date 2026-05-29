@@ -268,3 +268,89 @@ export async function deleteRecipe(req: AuthRequest, res: Response, next: NextFu
     res.status(204).end();
   } catch (err) { next(err); }
 }
+
+/**
+ * POST /api/recipes/copy
+ * Copy a recipe from one location to another within the same group.
+ * Both source and target must be owned by the authenticated user's group.
+ */
+export async function copyRecipe(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { sourceRecipeId, sourceRestaurantId, targetRestaurantId } = req.body;
+    const userRestaurantId = req.user.restaurantId;
+
+    // ── Validation ─────────────────────────────────────────────────────────────
+    if (!sourceRecipeId || !sourceRestaurantId || !targetRestaurantId) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    if (sourceRestaurantId === targetRestaurantId) {
+      return res.status(400).json({ error: "Source and target must be different" });
+    }
+
+    // ── Authorization: both restaurants must belong to the user's group ─────────
+    const [sourceRestaurant, targetRestaurant] = await Promise.all([
+      prisma.restaurant.findUnique({ where: { id: sourceRestaurantId }, select: { id: true, groupId: true } }),
+      prisma.restaurant.findUnique({ where: { id: targetRestaurantId }, select: { id: true, groupId: true } }),
+    ]);
+
+    if (!sourceRestaurant) return res.status(404).json({ error: "Source restaurant not found" });
+    if (!targetRestaurant) return res.status(404).json({ error: "Target restaurant not found" });
+
+    const ownsSource = sourceRestaurantId === userRestaurantId || sourceRestaurant.groupId === userRestaurantId;
+    const ownsTarget = targetRestaurantId === userRestaurantId || targetRestaurant.groupId === userRestaurantId;
+
+    if (!ownsSource) return res.status(403).json({ error: "You don't own the source restaurant" });
+    if (!ownsTarget) return res.status(403).json({ error: "You don't own the target restaurant" });
+
+    // ── Fetch source recipe ─────────────────────────────────────────────────────
+    const sourceRecipe = await recipeModel.findFirst({
+      where: { id: sourceRecipeId, restaurantId: sourceRestaurantId },
+      include: recipeInclude,
+    });
+
+    if (!sourceRecipe) return res.status(404).json({ error: "Recipe not found" });
+
+    // ── Duplicate check ─────────────────────────────────────────────────────────
+    const existing = await recipeModel.findFirst({
+      where: { restaurantId: targetRestaurantId, name: sourceRecipe.name },
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        error: `Recipe "${sourceRecipe.name}" already exists in target location`,
+      });
+    }
+
+    // ── Create copy ─────────────────────────────────────────────────────────────
+    const newRecipe = await recipeModel.create({
+      data: {
+        name:         sourceRecipe.name,
+        department:   sourceRecipe.department,
+        sellingPrice: sourceRecipe.sellingPrice,
+        restaurantId: targetRestaurantId,
+        ingredients: {
+          create: sourceRecipe.ingredients.map((ing: any) => ({
+            productId:        ing.productId,
+            quantity:         ing.quantity,
+            unit:             ing.unit,
+            conversionFactor: ing.conversionFactor ?? null,
+          })),
+        },
+      },
+      include: recipeInclude,
+    });
+
+    console.log(
+      `[copyRecipe] User ${req.user.userId} copied "${sourceRecipe.name}" from ${sourceRestaurantId} to ${targetRestaurantId}`
+    );
+
+    res.status(201).json({
+      success: true,
+      message: `Recipe "${sourceRecipe.name}" copied successfully`,
+      recipe:  serialize(newRecipe),
+    });
+  } catch (err) {
+    console.error("[copyRecipe] Error:", err);
+    next(err);
+  }
+}

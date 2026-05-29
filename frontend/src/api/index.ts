@@ -353,6 +353,12 @@ export const recipesApi = {
   ) => api.put<Recipe>(`/recipes/${id}`, data).then((r) => r.data),
 
   delete: (id: string) => api.delete(`/recipes/${id}`),
+
+  copyRecipe: (sourceRecipeId: string, sourceRestaurantId: string, targetRestaurantId: string) =>
+    api.post<{ success: boolean; message: string; recipe: Recipe }>(
+      "/recipes/copy",
+      { sourceRecipeId, sourceRestaurantId, targetRestaurantId }
+    ).then((r) => r.data),
 };
 
 // ── Labor ─────────────────────────────────────────────────────────────────────
