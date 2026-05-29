@@ -1328,3 +1328,121 @@ export async function copyParLevels(
     next(err);
   }
 }
+
+/**
+ * GET /api/locations/cost-breakdown?days=30
+ * Invoice cost aggregated by category, then by location and supplier.
+ * Useful for cross-location root-cause analysis of food costs.
+ */
+export async function getCostBreakdown(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const parentRestaurantId = req.user.restaurantId;
+    const days = Math.min(Math.max(parseInt(req.query.days as string) || 30, 1), 365);
+
+    // ── 1. Scope ────────────────────────────────────────────────────────────────
+    const allLocations = await prisma.restaurant.findMany({
+      where: { OR: [{ id: parentRestaurantId }, { groupId: parentRestaurantId }] },
+      select: { id: true, name: true },
+    });
+
+    if (allLocations.length === 0) {
+      return res.status(404).json({ error: "No locations found" });
+    }
+
+    const allIds    = allLocations.map((l) => l.id);
+    const cutoff    = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const nameById  = new Map(allLocations.map((l) => [l.id, l.name]));
+
+    // ── 2. Fetch order items — select only what we need ──────────────────────────
+    type RawItem = {
+      category:    string | null;
+      quantity:    number;
+      unitCost:    number;
+      productName: string | null;
+      order: { restaurantId: string; purveyor: string | null };
+    };
+
+    const items: RawItem[] = await (prisma as any).orderItem.findMany({
+      where: {
+        order: {
+          restaurantId: { in: allIds },
+          createdAt:    { gte: cutoff },
+        },
+      },
+      select: {
+        category:    true,
+        quantity:    true,
+        unitCost:    true,
+        productName: true,
+        order: {
+          select: { restaurantId: true, purveyor: true },
+        },
+      },
+    });
+
+    // ── 3. Aggregate: category → locationId → supplier → { cost, volume } ────────
+    type SupplierAcc = { cost: number; volume: number };
+    type LocationAcc = { totalCost: number; totalVolume: number; suppliers: Record<string, SupplierAcc> };
+    type CategoryAcc = Record<string, LocationAcc>; // keyed by locationId
+
+    const byCategory: Record<string, CategoryAcc> = {};
+
+    for (const item of items) {
+      const category  = (item.category ?? "Uncategorized").trim();
+      const locationId = item.order.restaurantId;
+      const supplier  = (item.order.purveyor ?? "Unknown").trim();
+      const qty       = item.quantity;
+      const cost      = qty * item.unitCost;   // ← correct: spec used nonexistent item.cost
+
+      byCategory[category]            ??= {};
+      byCategory[category][locationId] ??= { totalCost: 0, totalVolume: 0, suppliers: {} };
+      byCategory[category][locationId].suppliers[supplier] ??= { cost: 0, volume: 0 };
+
+      byCategory[category][locationId].totalCost   += cost;
+      byCategory[category][locationId].totalVolume += qty;
+      byCategory[category][locationId].suppliers[supplier].cost   += cost;
+      byCategory[category][locationId].suppliers[supplier].volume += qty;
+    }
+
+    // ── 4. Shape response ────────────────────────────────────────────────────────
+    const r2  = (v: number) => Math.round(v * 100) / 100;
+    const r3  = (v: number) => Math.round(v * 1000) / 1000;
+
+    const categories = Object.entries(byCategory)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([category, locMap]) => {
+        const locations = Object.entries(locMap)
+          .map(([locationId, acc]) => {
+            const suppliers = Object.entries(acc.suppliers)
+              .map(([name, s]) => ({
+                name,
+                cost:     r2(s.cost),
+                volume:   r2(s.volume),
+                unitCost: s.volume > 0 ? r3(s.cost / s.volume) : 0,
+              }))
+              .sort((a, b) => b.cost - a.cost);
+
+            return {
+              locationId,
+              locationName: nameById.get(locationId) ?? "Unknown",
+              totalCost:   r2(acc.totalCost),
+              volume:      r2(acc.totalVolume),
+              avgUnitCost: acc.totalVolume > 0 ? r3(acc.totalCost / acc.totalVolume) : 0,
+              suppliers,
+            };
+          })
+          .sort((a, b) => b.totalCost - a.totalCost);
+
+        return { category, locations };
+      });
+
+    res.json({ categories, period: { days, from: cutoff } });
+  } catch (err) {
+    console.error("[getCostBreakdown] Error:", err);
+    next(err);
+  }
+}

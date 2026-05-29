@@ -8,6 +8,7 @@ import {
   getVarianceAnalysis,
   getParLevelBenchmark,
   copyParLevels,
+  getCostBreakdown,
   addBranch,
   deleteBranch,
 } from "../controllers/locationsController";
@@ -25,6 +26,7 @@ router.get("/capacity",          getLocationsCapacity  as never);
 router.get("/variance-analysis", getVarianceAnalysis   as never);
 router.get( "/par-levels",       getParLevelBenchmark  as never);
 router.post("/par-levels/copy",  copyParLevels         as never);
+router.get( "/cost-breakdown",   getCostBreakdown      as never);
 
 // ── Location management (admin only) ─────────────────────────────────────────
 router.post(  "/branch",             requireAdmin as never, addBranch    as never);
