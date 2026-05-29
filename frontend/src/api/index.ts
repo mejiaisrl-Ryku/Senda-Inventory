@@ -430,6 +430,42 @@ export interface RawVarianceResponse {
   locations: RawVarianceLocation[];
 }
 
+// ── Par level benchmark types ─────────────────────────────────────────────────
+
+export interface ParLevelProduct {
+  productId:  string;
+  name:       string;
+  parLevel:   number;
+  unit:       string;
+  accuracy:   number | null;
+}
+
+export interface ParLevelCategory {
+  category:     string;
+  products:     ParLevelProduct[];
+  avgAccuracy:  number | null;
+  productCount: number;
+}
+
+export interface ParLevelLocation {
+  id:                  string;
+  name:                string;
+  isTest:              boolean;
+  parLevelsByCategory: ParLevelCategory[];
+}
+
+export interface ParBenchmark {
+  bestLocation:  string | null;
+  bestAccuracy:  number;
+  worstLocation: string | null;
+  worstAccuracy: number;
+}
+
+export interface ParLevelBenchmarkResponse {
+  locations: ParLevelLocation[];
+  benchmark: Record<string, ParBenchmark>;
+}
+
 /** Component-ready shape after transformation. */
 export interface LocationVariance {
   restaurantId: string;
@@ -505,6 +541,10 @@ export const locationsApi = {
     api.delete<{ ok: boolean }>(`/locations/branch/${locationId}`).then((r) => r.data),
   getVarianceAnalysis: () =>
     api.get<RawVarianceResponse>("/locations/variance-analysis").then((r) => r.data),
+  getParLevelBenchmark: () =>
+    api.get<ParLevelBenchmarkResponse>("/locations/par-levels").then((r) => r.data),
+  copyParLevels: (sourceLocationId: string, targetLocationId: string, category?: string) =>
+    api.post<{ ok: boolean }>("/locations/par-levels/copy", { sourceLocationId, targetLocationId, category }).then((r) => r.data),
 };
 
 // ── Recipe comparison types ───────────────────────────────────────────────────

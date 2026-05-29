@@ -46,6 +46,7 @@ import { PageSpinner, Spinner } from "./shared/Spinner";
 const RecipeComparisonTab  = lazy(() => import("./RecipeComparisonTab"));
 const VendorPricingTab     = lazy(() => import("./VendorPricingTab"));
 const PrimeCostAnalysis    = lazy(() => import("./PrimeCostAnalysis"));
+const ParLevelBenchmarkTab = lazy(() => import("./ParLevelBenchmarkTab"));
 
 // ── Module-level location cache (10-min TTL) ──────────────────────────────────
 
@@ -721,7 +722,7 @@ export function MultiLocationOverview() {
   const [showAll,           setShowAll]           = useState(false);
   const [selected,          setSelected]          = useState<string>(readStoredLocation);
   const [highlightedMetric, setHighlightedMetric] = useState<HighlightMetric>(null);
-  const [activeTab,         setActiveTab]         = useState<"overview" | "recipes" | "vendor" | "prime-cost">("overview");
+  const [activeTab,         setActiveTab]         = useState<"overview" | "recipes" | "vendor" | "prime-cost" | "par-levels">("overview");
 
   // ── Location management state ─────────────────────────────────────────────
   const [capacity,    setCapacity]    = useState<LocationCapacity | null>(null);
@@ -899,19 +900,20 @@ export function MultiLocationOverview() {
             <LocationSwitcher locations={locations} selected={selected} onSelect={handleSelect} />
           </div>
         )}
-        {(activeTab === "recipes" || activeTab === "vendor" || activeTab === "prime-cost") && (
+        {(activeTab === "recipes" || activeTab === "vendor" || activeTab === "prime-cost" || activeTab === "par-levels") && (
           <span className="text-[11px] text-[#333] italic">{ml.allLocSubtitle}</span>
         )}
       </div>
 
       {/* Tab switcher */}
       <div className="flex gap-1 bg-[#0a0a0a] border border-[#1a1a1a] rounded-[8px] p-1 w-fit flex-wrap">
-        {(["overview", "recipes", "vendor", "prime-cost"] as const).map((tab) => {
+        {(["overview", "recipes", "vendor", "prime-cost", "par-levels"] as const).map((tab) => {
           const label =
             tab === "overview"    ? ml.tabOverview   :
             tab === "recipes"     ? ml.tabRecipes     :
             tab === "vendor"      ? ml.tabVendor      :
-                                    ml.tabPrimeCost;
+            tab === "prime-cost"  ? ml.tabPrimeCost   :
+                                    ml.tabParLevels;
           return (
             <button
               key={tab}
@@ -946,6 +948,13 @@ export function MultiLocationOverview() {
       {activeTab === "prime-cost" && (
         <Suspense fallback={<TabFallback />}>
           <PrimeCostAnalysis />
+        </Suspense>
+      )}
+
+      {/* ── Par Level Benchmark tab (lazy) ─────────────────────────────────── */}
+      {activeTab === "par-levels" && (
+        <Suspense fallback={<TabFallback />}>
+          <ParLevelBenchmarkTab />
         </Suspense>
       )}
 
