@@ -1227,3 +1227,104 @@ export async function getParLevelBenchmark(
     next(err);
   }
 }
+
+/**
+ * POST /api/locations/par-levels/copy
+ * Copy minimumStock (par levels) from one group location to another,
+ * matching products by name. Optional category filter.
+ */
+export async function copyParLevels(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { sourceLocationId, targetLocationId, category } = req.body as {
+      sourceLocationId?: string;
+      targetLocationId?: string;
+      category?:         string;
+    };
+    const userRestaurantId = req.user.restaurantId;
+
+    // ── Validation ─────────────────────────────────────────────────────────────
+    if (!sourceLocationId || !targetLocationId) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+    if (sourceLocationId === targetLocationId) {
+      return res.status(400).json({ error: "Source and target must be different" });
+    }
+
+    // ── Authorization: both must belong to the user's group ────────────────────
+    const [sourceLoc, targetLoc] = await Promise.all([
+      prisma.restaurant.findUnique({ where: { id: sourceLocationId }, select: { id: true, groupId: true } }),
+      prisma.restaurant.findUnique({ where: { id: targetLocationId }, select: { id: true, groupId: true } }),
+    ]);
+
+    if (!sourceLoc) return res.status(404).json({ error: "Source location not found" });
+    if (!targetLoc) return res.status(404).json({ error: "Target location not found" });
+
+    const ownsSource = sourceLocationId === userRestaurantId || sourceLoc.groupId === userRestaurantId;
+    const ownsTarget = targetLocationId === userRestaurantId || targetLoc.groupId === userRestaurantId;
+    if (!ownsSource) return res.status(403).json({ error: "You don't own the source location" });
+    if (!ownsTarget) return res.status(403).json({ error: "You don't own the target location" });
+
+    // ── Fetch source products (one batch query) ─────────────────────────────────
+    const sourceProducts = await prisma.product.findMany({
+      where: {
+        restaurantId: sourceLocationId,
+        ...(category ? { category } : {}),
+      },
+      select: { name: true, minimumStock: true },
+    });
+
+    if (sourceProducts.length === 0) {
+      return res.status(404).json({
+        error: category
+          ? `No products found in category "${category}" at source location`
+          : "No products found at source location",
+      });
+    }
+
+    // ── Fetch target products by name (one batch query, no N+1) ────────────────
+    const sourceNames = sourceProducts.map((p) => p.name);
+    const targetProducts = await prisma.product.findMany({
+      where: { restaurantId: targetLocationId, name: { in: sourceNames } },
+      select: { id: true, name: true },
+    });
+
+    if (targetProducts.length === 0) {
+      return res.json({ success: true, message: "No matching products found in target location", copiedCount: 0 });
+    }
+
+    // Build name → minimumStock map from source
+    const parByName = new Map(sourceProducts.map((p) => [p.name, p.minimumStock]));
+
+    // ── Batch update via transaction ────────────────────────────────────────────
+    const updates = targetProducts
+      .filter((tp) => parByName.has(tp.name))
+      .map((tp) =>
+        prisma.product.update({
+          where: { id: tp.id },
+          data:  { minimumStock: parByName.get(tp.name)! },
+        })
+      );
+
+    await prisma.$transaction(updates);
+    const copiedCount = updates.length;
+
+    console.log(
+      `[copyParLevels] User ${req.user.userId} copied ${copiedCount} par levels ` +
+      `from ${sourceLocationId} to ${targetLocationId}` +
+      (category ? ` (category: ${category})` : "")
+    );
+
+    res.json({
+      success: true,
+      message: `Copied ${copiedCount} par level${copiedCount !== 1 ? "s" : ""}`,
+      copiedCount,
+    });
+  } catch (err) {
+    console.error("[copyParLevels] Error:", err);
+    next(err);
+  }
+}
