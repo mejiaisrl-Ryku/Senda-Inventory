@@ -14,9 +14,11 @@ datasource db {
 // ─────────────────────────────────────────────
 
 enum Role {
-  SUPER_ADMIN
-  ADMIN
-  STAFF
+  KYRU_MANAGER      // Kyru internal admin (replaces SUPER_ADMIN; kept during migration)
+  OWNER_SUPER_ADMIN // Restaurant-group owner with cross-location access
+  ADMIN             // Location admin
+  STAFF             // Regular staff
+  SUPER_ADMIN       // Legacy — remove after migrating existing records to KYRU_MANAGER
 }
 
 enum Unit {
@@ -96,6 +98,23 @@ enum RecipeDepartment {
 // Models
 // ─────────────────────────────────────────────
 
+// Owned by Kyru — one record per restaurant group (or single-location partner).
+// Replaces the old self-referential groupId pattern on Restaurant.
+model OwnerAccount {
+  id        String   @id @default(cuid())
+  name      String                          // Business / company name
+  email     String   @unique
+
+  active    Boolean  @default(true)         // Soft-delete flag
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurants Restaurant[]
+
+  @@index([email])
+  @@map("owner_accounts")
+}
+
 model Restaurant {
   id                   String    @id @default(cuid())
   name                 String
@@ -105,13 +124,12 @@ model Restaurant {
   suspended            Boolean   @default(false)
   suspendedAt          DateTime?
   onboardingDismissed  Boolean   @default(false)
-  locationCount        Int       @default(1)  // 1 = single-location, 2-10 = multi-location group
+  locationCount        Int       @default(1)
 
-  // Multi-location grouping: branch restaurants point to the group's primary restaurant.
-  // null = standalone (single location or group HQ).
-  groupId  String?
-  group    Restaurant?  @relation("RestaurantGroup", fields: [groupId], references: [id], onDelete: SetNull)
-  branches Restaurant[] @relation("RestaurantGroup")
+  // Owner relationship — replaces old self-referential groupId pattern.
+  // null = standalone or not yet assigned to an owner account.
+  ownerAccountId String?
+  ownerAccount   OwnerAccount? @relation(fields: [ownerAccountId], references: [id], onDelete: SetNull)
 
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
@@ -124,7 +142,7 @@ model Restaurant {
   countSessions CountSession[]
   recipes       Recipe[]
 
-  @@index([groupId])
+  @@index([ownerAccountId])
   @@map("restaurants")
 }
 
@@ -134,12 +152,21 @@ model User {
   email        String     @unique
   password     String
   role         Role       @default(STAFF)
+
+  // ADMIN / STAFF — linked to one location
   restaurantId String?
   restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // OWNER_SUPER_ADMIN — linked to an owner account (cross-location access)
+  ownerAccountId String?
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   stockLogs StockLog[]
 
   @@index([restaurantId])
+  @@index([ownerAccountId])
   @@map("users")
 }
 
