@@ -466,6 +466,87 @@ export interface ParLevelBenchmarkResponse {
   benchmark: Record<string, ParBenchmark>;
 }
 
+// ── Cost breakdown types ──────────────────────────────────────────────────────
+
+export interface CostSupplier {
+  name:     string;
+  cost:     number;
+  volume:   number;
+  unitCost: number;
+}
+
+export interface CostLocationEntry {
+  locationId:   string;
+  locationName: string;
+  totalCost:    number;
+  volume:       number;
+  avgUnitCost:  number;
+  suppliers:    CostSupplier[];
+}
+
+export interface CostCategory {
+  category:  string;
+  locations: CostLocationEntry[];
+}
+
+export interface CostBreakdownResponse {
+  categories: CostCategory[];
+  period:     { days: number; from: string };
+}
+
+// ── Labor breakdown types ─────────────────────────────────────────────────────
+
+export interface LaborLocationEntry {
+  locationId:     string;
+  locationName:   string;
+  fohLabor:       number;
+  bohLabor:       number;
+  management:     number;
+  totalLaborCost: number;
+  avgCostPerDay:  number;
+  daysWorked:     number;
+  hasData:        boolean;
+}
+
+export interface LaborBreakdownResponse {
+  locations: LaborLocationEntry[];
+  period:    { days: number; from: string };
+}
+
+// ── Waste analysis types ──────────────────────────────────────────────────────
+
+export interface WasteCategory {
+  category:       string;
+  totalWaste:     number;
+  totalWasteCost: number;
+  spoilageRate:   number;
+  productCount:   number;
+}
+
+export interface WasteLocationEntry {
+  locationId:          string;
+  locationName:        string;
+  categories:          WasteCategory[];
+  totalWasteCost:      number;
+  overallSpoilageRate: number;
+  lastCountDate:       string | null;
+  hasData:             boolean;
+}
+
+export interface WasteBenchmark {
+  locationId:          string;
+  locationName:        string;
+  overallSpoilageRate: number;
+}
+
+export interface WasteAnalysisResponse {
+  locations: WasteLocationEntry[];
+  benchmark: {
+    bestLocation:  WasteBenchmark | null;
+    worstLocation: WasteBenchmark | null;
+  };
+}
+
 /** Component-ready shape after transformation. */
 export interface LocationVariance {
   restaurantId: string;
@@ -545,6 +626,12 @@ export const locationsApi = {
     api.get<ParLevelBenchmarkResponse>("/locations/par-levels").then((r) => r.data),
   copyParLevels: (sourceLocationId: string, targetLocationId: string, category?: string) =>
     api.post<{ ok: boolean }>("/locations/par-levels/copy", { sourceLocationId, targetLocationId, category }).then((r) => r.data),
+  getCostBreakdown: (days = 30) =>
+    api.get<CostBreakdownResponse>(`/locations/cost-breakdown?days=${days}`).then((r) => r.data),
+  getLaborBreakdown: (days = 30) =>
+    api.get<LaborBreakdownResponse>(`/locations/labor-breakdown?days=${days}`).then((r) => r.data),
+  getWasteAnalysis: () =>
+    api.get<WasteAnalysisResponse>("/locations/waste-analysis").then((r) => r.data),
 };
 
 // ── Recipe comparison types ───────────────────────────────────────────────────

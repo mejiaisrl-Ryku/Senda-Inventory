@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { locationsApi, LocationVariance, VarianceAnalysisResponse, VarianceData, RawVarianceResponse } from "../api";
+import {
+  locationsApi,
+  LocationVariance,
+  VarianceAnalysisResponse,
+  VarianceData,
+  RawVarianceResponse,
+  CostBreakdownResponse,
+  LaborBreakdownResponse,
+  WasteAnalysisResponse,
+} from "../api";
 import { PageSpinner } from "./shared/Spinner";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -272,6 +281,12 @@ export default function PrimeCostAnalysis() {
   const [sortDir,  setSortDir]  = useState<SortDir>("asc");
   const [selected, setSelected] = useState<string | null>(null);
 
+  // Drill-down breakdown data (loaded on row selection)
+  const [costBreakdown,  setCostBreakdown]  = useState<CostBreakdownResponse  | null>(null);
+  const [laborBreakdown, setLaborBreakdown] = useState<LaborBreakdownResponse | null>(null);
+  const [wasteAnalysis,  setWasteAnalysis]  = useState<WasteAnalysisResponse  | null>(null);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+
   useEffect(() => {
     locationsApi.getVarianceAnalysis()
       .then((raw: RawVarianceResponse) => {
@@ -312,6 +327,25 @@ export default function PrimeCostAnalysis() {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, []);
+
+  // Load breakdown data whenever a location is selected (once per session)
+  useEffect(() => {
+    if (!selected || costBreakdown) return; // already loaded
+    setBreakdownLoading(true);
+    Promise.all([
+      locationsApi.getCostBreakdown(30),
+      locationsApi.getLaborBreakdown(30),
+      locationsApi.getWasteAnalysis(),
+    ])
+      .then(([costs, labor, waste]) => {
+        setCostBreakdown(costs);
+        setLaborBreakdown(labor);
+        setWasteAnalysis(waste);
+      })
+      .catch(() => { /* breakdown failures are non-fatal; sections show "no data" */ })
+      .finally(() => setBreakdownLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
 
   if (loading) return <PageSpinner />;
 
@@ -478,11 +512,189 @@ export default function PrimeCostAnalysis() {
 
       {/* Drill-down detail */}
       {selectedLoc && (
-        <div className="space-y-2">
+        <div className="space-y-4">
           <p className="text-[11px] font-semibold text-[#444] uppercase tracking-wider">
             Breakdown · {selectedLoc.name}
           </p>
           <VarianceDetailCard loc={selectedLoc} />
+
+          {breakdownLoading && (
+            <p className="text-[11px] text-[#444] italic text-center py-2">Loading breakdown data…</p>
+          )}
+
+          {/* ── Cost Breakdown by Category ────────────────────────────────── */}
+          {costBreakdown && (() => {
+            const catEntries = costBreakdown.categories
+              .map((cat) => ({
+                category: cat.category,
+                locData:  cat.locations.find((l) => l.locationId === selected),
+              }))
+              .filter((c): c is { category: string; locData: NonNullable<typeof c.locData> } => !!c.locData)
+              .sort((a, b) => b.locData.totalCost - a.locData.totalCost);
+
+            if (catEntries.length === 0) return null;
+            return (
+              <div className="rounded-[10px] border border-[#1a1a1a] bg-[#0a0a0a] overflow-hidden">
+                <div className="px-4 py-3 border-b border-[#111]">
+                  <p className="text-[11px] font-semibold text-[#555] uppercase tracking-wider">
+                    Cost Breakdown by Category · last 30 days
+                  </p>
+                </div>
+                <div className="divide-y divide-[#0d0d0d] max-h-[240px] overflow-y-auto">
+                  {catEntries.map(({ category, locData }) => (
+                    <div key={category} className="px-4 py-3">
+                      <div className="flex items-baseline justify-between mb-1">
+                        <span className="text-[13px] font-medium text-white">{category}</span>
+                        <span className="text-[13px] font-bold text-[#3dbf8a]">
+                          ${locData.totalCost.toFixed(0)}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-[#555]">
+                        {locData.volume.toFixed(1)} units · avg ${locData.avgUnitCost.toFixed(2)}/unit
+                      </p>
+                      {locData.suppliers.length > 0 && (
+                        <p className="text-[10px] text-[#444] mt-0.5">
+                          {locData.suppliers.slice(0, 3).map((s) => s.name).join(" · ")}
+                          {locData.suppliers.length > 3 && ` +${locData.suppliers.length - 3} more`}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Labor Efficiency ─────────────────────────────────────────── */}
+          {laborBreakdown && (() => {
+            const labor = laborBreakdown.locations.find((l) => l.locationId === selected);
+            return (
+              <div className="rounded-[10px] border border-[#1a1a1a] bg-[#0a0a0a] overflow-hidden">
+                <div className="px-4 py-3 border-b border-[#111]">
+                  <p className="text-[11px] font-semibold text-[#555] uppercase tracking-wider">
+                    Labor Costs · last 30 days
+                  </p>
+                </div>
+                <div className="px-4 py-3">
+                  {!labor || !labor.hasData ? (
+                    <p className="text-[12px] text-[#444] italic">No labor data available</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-[8px] bg-[#111] border border-[#1a1a1a] p-3">
+                          <p className="text-[10px] text-[#444] uppercase tracking-wider">Avg Cost / Day</p>
+                          <p className="text-[16px] font-bold text-[#3dbf8a] mt-1">
+                            ${labor.avgCostPerDay.toFixed(0)}
+                          </p>
+                          <p className="text-[10px] text-[#555] mt-0.5">{labor.daysWorked} days logged</p>
+                        </div>
+                        <div className="rounded-[8px] bg-[#111] border border-[#1a1a1a] p-3">
+                          <p className="text-[10px] text-[#444] uppercase tracking-wider">Total Labor</p>
+                          <p className="text-[16px] font-bold text-white mt-1">
+                            ${labor.totalLaborCost.toFixed(0)}
+                          </p>
+                          <p className="text-[10px] text-[#555] mt-0.5">last 30 days</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { label: "FOH",   value: labor.fohLabor },
+                          { label: "BOH",   value: labor.bohLabor },
+                          { label: "Mgmt",  value: labor.management },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="rounded-[6px] bg-[#111] border border-[#1a1a1a] p-2 text-center">
+                            <p className="text-[10px] text-[#444] uppercase">{label}</p>
+                            <p className="text-[12px] font-semibold text-white mt-0.5">
+                              ${value.toFixed(0)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Waste & Spoilage Analysis ─────────────────────────────────── */}
+          {wasteAnalysis && (() => {
+            const waste = wasteAnalysis.locations.find((l) => l.locationId === selected);
+            const spoilColor = (r: number) =>
+              r <= 5 ? "text-[#3dbf8a]" : r <= 10 ? "text-[#f59e0b]" : "text-[#ef4444]";
+            const spoilBorder = (r: number) =>
+              r <= 5 ? "border-[#3dbf8a]/20" : r <= 10 ? "border-[#f59e0b]/20" : "border-[#ef4444]/20";
+
+            return (
+              <div className="rounded-[10px] border border-[#1a1a1a] bg-[#0a0a0a] overflow-hidden">
+                <div className="px-4 py-3 border-b border-[#111]">
+                  <p className="text-[11px] font-semibold text-[#555] uppercase tracking-wider">
+                    Spoilage & Waste
+                  </p>
+                </div>
+                <div className="px-4 py-3 space-y-3">
+                  {!waste || !waste.hasData ? (
+                    <p className="text-[12px] text-[#444] italic">No count session data available</p>
+                  ) : (
+                    <>
+                      {/* Overall rate */}
+                      <div className={`rounded-[8px] bg-[#111] border ${spoilBorder(waste.overallSpoilageRate)} p-3 flex items-center justify-between`}>
+                        <div>
+                          <p className="text-[10px] text-[#444] uppercase tracking-wider">Overall Spoilage Rate</p>
+                          <p className="text-[10px] text-[#555] mt-0.5">
+                            ${waste.totalWasteCost.toFixed(0)} lost to waste
+                          </p>
+                        </div>
+                        <p className={`text-[20px] font-bold ${spoilColor(waste.overallSpoilageRate)}`}>
+                          {waste.overallSpoilageRate.toFixed(1)}%
+                        </p>
+                      </div>
+
+                      {/* Category list */}
+                      {waste.categories.length > 0 && (
+                        <div className="space-y-1.5 max-h-[150px] overflow-y-auto">
+                          {waste.categories.map((cat) => (
+                            <div key={cat.category} className="flex items-center justify-between text-[12px]">
+                              <span className="text-[#888]">{cat.category}</span>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <span className={`font-semibold ${spoilColor(cat.spoilageRate)}`}>
+                                  {cat.spoilageRate.toFixed(1)}%
+                                </span>
+                                <span className="text-[#444] w-14 text-right">
+                                  ${cat.totalWasteCost.toFixed(0)}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Best performer opportunity */}
+                      {wasteAnalysis.benchmark.bestLocation &&
+                        wasteAnalysis.benchmark.bestLocation.locationId !== selected &&
+                        waste.overallSpoilageRate > wasteAnalysis.benchmark.bestLocation.overallSpoilageRate && (
+                        <div className="rounded-[8px] bg-[#3dbf8a]/[0.07] border border-[#3dbf8a]/20 p-3">
+                          <p className="text-[10px] font-semibold text-[#3dbf8a] uppercase tracking-wider mb-1">
+                            Opportunity
+                          </p>
+                          <p className="text-[12px] text-[#aaa]">
+                            <span className="text-white font-medium">
+                              {wasteAnalysis.benchmark.bestLocation.locationName}
+                            </span>
+                            {" "}has{" "}
+                            <span className="text-[#3dbf8a] font-semibold">
+                              {(waste.overallSpoilageRate - wasteAnalysis.benchmark.bestLocation.overallSpoilageRate).toFixed(1)}%
+                            </span>
+                            {" "}lower spoilage
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 
