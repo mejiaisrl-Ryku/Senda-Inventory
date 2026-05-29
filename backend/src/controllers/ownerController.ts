@@ -1,6 +1,7 @@
 import { Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
+import logger from "../utils/logger";
 
 /**
  * GET /api/owner-account/me
@@ -14,6 +15,12 @@ export async function getOwnerMe(
 ) {
   try {
     const { ownerAccountId } = req.user;
+
+    logger.debug("getOwnerMe: entry", {
+      userId:         req.user.userId,
+      ownerAccountId,
+    });
+
     if (!ownerAccountId) {
       return res.status(400).json({ error: "Not an owner account" });
     }
@@ -25,6 +32,11 @@ export async function getOwnerMe(
 
     if (!account) return res.status(404).json({ error: "Owner account not found" });
 
+    logger.debug("getOwnerMe: success", {
+      ownerAccountId,
+      restaurantCount: account._count.restaurants,
+    });
+
     res.json({
       ownerAccountId:  account.id,
       name:            account.name,
@@ -33,7 +45,10 @@ export async function getOwnerMe(
       createdAt:       account.createdAt,
     });
   } catch (err) {
-    console.error("[getOwnerMe] Error:", err);
+    logger.error("getOwnerMe: error", {
+      userId:  req.user.userId,
+      message: (err as Error).message,
+    });
     next(err);
   }
 }
@@ -50,6 +65,12 @@ export async function getOwnerRestaurants(
 ) {
   try {
     const { ownerAccountId } = req.user;
+
+    logger.debug("getOwnerRestaurants: entry", {
+      userId:         req.user.userId,
+      ownerAccountId,
+    });
+
     if (!ownerAccountId) {
       return res.status(400).json({ error: "Not an owner account" });
     }
@@ -60,9 +81,17 @@ export async function getOwnerRestaurants(
       orderBy: { name: "asc" },
     });
 
+    logger.debug("getOwnerRestaurants: success", {
+      ownerAccountId,
+      restaurantCount: restaurants.length,
+    });
+
     res.json(restaurants);
   } catch (err) {
-    console.error("[getOwnerRestaurants] Error:", err);
+    logger.error("getOwnerRestaurants: error", {
+      userId:  req.user.userId,
+      message: (err as Error).message,
+    });
     next(err);
   }
 }

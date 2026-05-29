@@ -6,6 +6,7 @@ import { prisma } from "../lib/prisma";
 import { signToken, signRefreshToken, signInviteToken, signResetToken } from "../lib/jwt";
 import { sendInviteEmail, sendPasswordResetEmail, sendPartnerInviteEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";
+import logger, { sanitizeEmail } from "../utils/logger";
 
 // ── Validation schemas ────────────────────────────────────────────────────────
 
@@ -917,12 +918,19 @@ export async function createOwnerAccount(
   res: Response,
   next: NextFunction
 ) {
+  const start = Date.now();
   try {
     const { ownerEmail, ownerName, restaurantIds = [] } = req.body as {
       ownerEmail?: string;
       ownerName?:  string;
       restaurantIds?: string[];
     };
+
+    logger.info("createOwnerAccount: entry", {
+      userId:          req.user.userId,
+      ownerEmail:      ownerEmail ? sanitizeEmail(ownerEmail) : undefined,
+      restaurantCount: restaurantIds.length,
+    });
 
     if (!ownerEmail || !ownerName) {
       return res.status(400).json({ error: "Missing ownerEmail or ownerName" });
@@ -976,14 +984,21 @@ export async function createOwnerAccount(
 
     try {
       await sendPartnerInviteEmail({ to: ownerEmail, firstName, setupUrl });
-      console.log(`[createOwnerAccount] Invite email sent to ${ownerEmail}`);
     } catch (emailErr) {
-      console.error(`[createOwnerAccount] Email send failed:`, emailErr);
+      logger.error("createOwnerAccount: email send failed", {
+        userId:     req.user.userId,
+        ownerEmail: sanitizeEmail(ownerEmail),
+        error:      (emailErr as Error).message,
+      });
     }
 
-    console.log(
-      `[createOwnerAccount] id=${ownerAccount.id} email=${ownerEmail} restaurants=${assignedCount}`
-    );
+    logger.info("createOwnerAccount: success", {
+      userId:                req.user.userId,
+      ownerAccountId:        ownerAccount.id,
+      inviteTokenGenerated:  true,
+      restaurantsAssigned:   assignedCount,
+      durationMs:            Date.now() - start,
+    });
 
     res.status(201).json({
       ownerAccountId:  ownerAccount.id,
@@ -994,7 +1009,11 @@ export async function createOwnerAccount(
       restaurantCount: assignedCount,
     });
   } catch (err) {
-    console.error("[createOwnerAccount] Error:", err);
+    logger.error("createOwnerAccount: error", {
+      userId:  req.user.userId,
+      message: (err as Error).message,
+      code:    (err as NodeJS.ErrnoException).code,
+    });
     next(err);
   }
 }
@@ -1009,9 +1028,19 @@ export async function listOwnerAccounts(
   next: NextFunction
 ) {
   try {
+    logger.debug("listOwnerAccounts: entry", {
+      userId:      req.user.userId,
+      queryParams: req.query,
+    });
+
     const accounts = await prisma.ownerAccount.findMany({
       include:  { _count: { select: { restaurants: true } } },
       orderBy:  { createdAt: "desc" },
+    });
+
+    logger.debug("listOwnerAccounts: success", {
+      userId: req.user.userId,
+      count:  accounts.length,
     });
 
     res.json(accounts.map((acc) => ({
@@ -1024,7 +1053,10 @@ export async function listOwnerAccounts(
       updatedAt:       acc.updatedAt,
     })));
   } catch (err) {
-    console.error("[listOwnerAccounts] Error:", err);
+    logger.error("listOwnerAccounts: error", {
+      userId:  req.user.userId,
+      message: (err as Error).message,
+    });
     next(err);
   }
 }
@@ -1040,12 +1072,23 @@ export async function getOwnerAccount(
 ) {
   try {
     const { ownerAccountId } = req.params;
+
+    logger.debug("getOwnerAccount: entry", {
+      userId:         req.user.userId,
+      ownerAccountId,
+    });
+
     const account = await prisma.ownerAccount.findUnique({
       where:   { id: ownerAccountId },
       include: { restaurants: { select: { id: true, name: true, locationCount: true } } },
     });
 
     if (!account) return res.status(404).json({ error: "Owner account not found" });
+
+    logger.debug("getOwnerAccount: success", {
+      ownerAccountId,
+      restaurantCount: account.restaurants.length,
+    });
 
     res.json({
       id:          account.id,
@@ -1056,7 +1099,11 @@ export async function getOwnerAccount(
       createdAt:   account.createdAt,
     });
   } catch (err) {
-    console.error("[getOwnerAccount] Error:", err);
+    logger.error("getOwnerAccount: error", {
+      userId:         req.user.userId,
+      ownerAccountId: req.params.ownerAccountId,
+      message:        (err as Error).message,
+    });
     next(err);
   }
 }
@@ -1077,6 +1124,12 @@ export async function assignRestaurantToOwner(
     if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) {
       return res.status(400).json({ error: "restaurantIds must be a non-empty array" });
     }
+
+    logger.warn("assignRestaurantToOwner: entry", {
+      userId:          req.user.userId,
+      ownerAccountId,
+      restaurantCount: restaurantIds.length,
+    });
 
     const account = await prisma.ownerAccount.findUnique({ where: { id: ownerAccountId } });
     if (!account) return res.status(404).json({ error: "Owner account not found" });
@@ -1100,10 +1153,11 @@ export async function assignRestaurantToOwner(
       .filter((r) => r.ownerAccountId && r.ownerAccountId !== ownerAccountId)
       .map((r) => ({ restaurantId: r.id, from: r.ownerAccountId }));
 
-    console.log(
-      `[assignRestaurantToOwner] Assigned ${result.count} restaurants to ${ownerAccountId}.` +
-      (reassigned.length ? ` Reassigned: ${JSON.stringify(reassigned)}` : "")
-    );
+    logger.warn("assignRestaurantToOwner: success", {
+      ownerAccountId,
+      assignedCount:     result.count,
+      ...(reassigned.length ? { reassigned } : {}),
+    });
 
     res.json({
       assignedCount: result.count,
@@ -1111,7 +1165,11 @@ export async function assignRestaurantToOwner(
       message: `Assigned ${result.count} restaurant(s) to owner account`,
     });
   } catch (err) {
-    console.error("[assignRestaurantToOwner] Error:", err);
+    logger.error("assignRestaurantToOwner: error", {
+      userId:         req.user.userId,
+      ownerAccountId: req.params.ownerAccountId,
+      message:        (err as Error).message,
+    });
     next(err);
   }
 }
@@ -1129,18 +1187,30 @@ export async function deleteOwnerAccount(
     const { ownerAccountId } = req.params;
     const { reason }         = req.body as { reason?: string };
 
+    logger.warn("deleteOwnerAccount: entry", {
+      userId:         req.user.userId,
+      ownerAccountId,
+      reason:         reason ?? "not provided",
+    });
+
     const account = await prisma.ownerAccount.update({
       where: { id: ownerAccountId },
       data:  { active: false },
     });
 
-    console.log(
-      `[deleteOwnerAccount] Soft-deleted ${ownerAccountId}. Reason: ${reason ?? "not provided"}`
-    );
+    logger.warn("deleteOwnerAccount: success", {
+      ownerAccountId,
+      active: false,
+      reason: reason ?? "not provided",
+    });
 
     res.json({ id: account.id, active: account.active, message: "Owner account marked inactive" });
   } catch (err) {
-    console.error("[deleteOwnerAccount] Error:", err);
+    logger.error("deleteOwnerAccount: error", {
+      userId:         req.user.userId,
+      ownerAccountId: req.params.ownerAccountId,
+      message:        (err as Error).message,
+    });
     next(err);
   }
 }
