@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   locationsApi,
+  recipesApi,
   RecipeComparison,
   LocationRecipeEntry,
 } from "../api";
 import { useLanguage } from "../context/LanguageContext";
+import { useToast } from "../context/ToastContext";
 import { Spinner } from "./shared/Spinner";
 
 // ── Module-level cache (5-min TTL) ────────────────────────────────────────────
@@ -54,10 +56,12 @@ function RecipeLocationCard({
   entry,
   rank,
   bestCost,
+  onCopyClick,
 }: {
-  entry:    LocationRecipeEntry;
-  rank:     "best" | "worst" | "mid";
-  bestCost: number | null;
+  entry:        LocationRecipeEntry;
+  rank:         "best" | "worst" | "mid";
+  bestCost:     number | null;
+  onCopyClick?: () => void;
 }) {
   const { t } = useLanguage();
   const ml = t.multiLocation;
@@ -84,6 +88,16 @@ function RecipeLocationCard({
           </span>
         )}
         <p className="text-[12px] text-[#333] mt-1 italic">{ml.rcNotOffered}</p>
+
+        {/* Copy to this location button */}
+        {onCopyClick && (
+          <button
+            onClick={onCopyClick}
+            className="mt-2 w-full py-2 px-3 rounded-[6px] bg-[#3dbf8a]/10 border border-[#3dbf8a]/30 text-[12px] font-semibold text-[#3dbf8a] hover:bg-[#3dbf8a]/20 transition-colors"
+          >
+            Copy to this location
+          </button>
+        )}
       </div>
     );
   }
@@ -186,7 +200,8 @@ function RecipeLocationCard({
 
 export default function RecipeComparisonTab() {
   const { t } = useLanguage();
-  const ml = t.multiLocation;
+  const ml    = t.multiLocation;
+  const toast = useToast();
 
   // Seed state from cache if available
   const [comparisons, setComparisons] = useState<RecipeComparison[]>(() =>
@@ -199,6 +214,14 @@ export default function RecipeComparisonTab() {
   );
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
+
+  // ── Copy dialog state ──────────────────────────────────────────────────────
+  // targetId = "not offered" location we're copying INTO
+  // sourceId = location to copy FROM (user picks in the dialog)
+  const [copyTargetId, setCopyTargetId] = useState<string | null>(null);
+  const [copySourceId, setCopySourceId] = useState<string | null>(null);
+  const [copyOpen,     setCopyOpen]     = useState(false);
+  const [copyLoading,  setCopyLoading]  = useState(false);
 
   function load(bustCache = false) {
     if (!bustCache && isCacheValid()) return; // served from cache already in useState
@@ -228,6 +251,45 @@ export default function RecipeComparisonTab() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [dropOpen]);
+
+  // ── Copy handler ───────────────────────────────────────────────────────────
+
+  async function handleCopyRecipe() {
+    if (!copyTargetId || !copySourceId || !selected) return;
+
+    const comp       = comparisons.find((c) => c.recipeName === selected);
+    const sourceEntry = comp?.locations.find((l) => l.restaurantId === copySourceId);
+
+    if (!sourceEntry?.recipeId) {
+      toast.error("Could not find source recipe ID — please try again.");
+      return;
+    }
+
+    setCopyLoading(true);
+    try {
+      await recipesApi.copyRecipe(sourceEntry.recipeId, copySourceId, copyTargetId);
+      toast.success(`"${selected}" copied successfully!`);
+      setCopyOpen(false);
+      setCopyTargetId(null);
+      setCopySourceId(null);
+      // Bust cache and reload so the new card appears
+      _cache = null;
+      load(true);
+    } catch (err: any) {
+      const msg = err?.response?.data?.error ?? "Failed to copy recipe. Please try again.";
+      toast.error(msg);
+    } finally {
+      setCopyLoading(false);
+    }
+  }
+
+  function openCopyDialog(targetRestaurantId: string) {
+    setCopyTargetId(targetRestaurantId);
+    setCopySourceId(null);
+    setCopyOpen(true);
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
@@ -262,6 +324,11 @@ export default function RecipeComparisonTab() {
     : [];
   const bestCost  = sorted.length > 0 ? (sorted[0].recipeCost ?? null) : null;
   const worstCost = sorted.length > 1 ? (sorted[sorted.length - 1].recipeCost ?? null) : null;
+
+  // Locations with the recipe — potential copy sources
+  const copySourceOptions = comparison?.locations.filter((l) => l.hasRecipe) ?? [];
+  // Name of the copy target location
+  const copyTargetName = comparison?.locations.find((l) => l.restaurantId === copyTargetId)?.locationName ?? "";
 
   return (
     <div className="space-y-6">
@@ -348,6 +415,11 @@ export default function RecipeComparisonTab() {
                 entry={entry}
                 rank={entry.hasRecipe ? recipeRank(entry, sorted) : "mid"}
                 bestCost={bestCost}
+                onCopyClick={
+                  !entry.hasRecipe && copySourceOptions.length > 0
+                    ? () => openCopyDialog(entry.restaurantId)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -374,6 +446,80 @@ export default function RecipeComparisonTab() {
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Copy Recipe Dialog ──────────────────────────────────────────────── */}
+      {copyOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !copyLoading && setCopyOpen(false)} />
+          <div className="relative bg-[#0a0a0a] border border-[#1a1a1a] rounded-[12px] p-6 w-full max-w-md space-y-5 shadow-2xl">
+            <div>
+              <h3 className="text-[16px] font-semibold text-white">Copy Recipe</h3>
+              <p className="text-[12px] text-[#555] mt-0.5">
+                Copy <span className="text-white font-medium">"{selected}"</span> to{" "}
+                <span className="text-[#3dbf8a] font-medium">{copyTargetName}</span>
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* To (read-only) */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#555] uppercase tracking-wider mb-1.5">
+                  To location
+                </label>
+                <div className="px-3 py-2.5 rounded-[6px] bg-[#111] border border-[#1a1a1a] text-[13px] text-[#3dbf8a] font-medium">
+                  {copyTargetName || "—"}
+                </div>
+              </div>
+
+              {/* From (user picks) */}
+              <div>
+                <label className="block text-[11px] font-semibold text-[#555] uppercase tracking-wider mb-1.5">
+                  Copy from
+                </label>
+                <select
+                  value={copySourceId ?? ""}
+                  onChange={(e) => setCopySourceId(e.target.value || null)}
+                  className="w-full px-3 py-2.5 rounded-[6px] bg-[#111] border border-[#1a1a1a] text-white text-[13px] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                >
+                  <option value="">Select source location…</option>
+                  {copySourceOptions.map((loc) => (
+                    <option key={loc.restaurantId} value={loc.restaurantId}>
+                      {loc.locationName}
+                      {loc.recipeCost !== undefined ? ` — $${loc.recipeCost.toFixed(2)}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Info note */}
+            <div className="px-3 py-2.5 rounded-[8px] bg-[#1a1a1a] border border-[#2a2a2a]">
+              <p className="text-[11px] text-[#666] leading-relaxed">
+                Ingredients are copied as-is. Costs may differ at the target location due to different supplier prices.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => { if (!copyLoading) { setCopyOpen(false); setCopySourceId(null); } }}
+                disabled={copyLoading}
+                className="flex-1 h-9 rounded-[6px] border border-[#2a2a2a] text-[13px] text-[#666] hover:text-white hover:border-[#444] disabled:opacity-40 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCopyRecipe}
+                disabled={!copySourceId || copyLoading}
+                className="flex-1 h-9 rounded-[6px] bg-[#3dbf8a] text-[13px] font-semibold text-[#0a0a0a] hover:bg-[#4dcf9a] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+              >
+                {copyLoading && <Spinner size="sm" />}
+                {copyLoading ? "Copying…" : "Copy Recipe"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

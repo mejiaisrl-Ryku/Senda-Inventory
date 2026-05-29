@@ -526,6 +526,7 @@ export interface LocationRecipeEntry {
   locationName:    string;
   isTest:          boolean;
   hasRecipe:       boolean;
+  recipeId?:       string;   // present only when hasRecipe = true
   sellingPrice?:   number;
   recipeCost?:     number;
   costPct?:        number;

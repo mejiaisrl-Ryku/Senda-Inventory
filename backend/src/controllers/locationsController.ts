@@ -448,6 +448,7 @@ export async function getLocationsRecipes(
             locationName: restaurant.name,
             isTest:       restaurant.isTest,
             hasRecipe:    true,
+            recipeId:     recipe.id as string,
             sellingPrice: Math.round(sp * 100) / 100,
             recipeCost,
             costPct,
