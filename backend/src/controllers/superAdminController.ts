@@ -904,3 +904,243 @@ export async function mergeRestaurants(req: AuthRequest, res: Response, next: Ne
     next(err);
   }
 }
+
+// ── Owner Account Management (KYRU_MANAGER only) ──────────────────────────────
+
+/**
+ * POST /api/super-admin/owner-accounts
+ * Create an OwnerAccount and optionally assign restaurants.
+ * Sends a partner-setup invite email to the owner.
+ */
+export async function createOwnerAccount(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { ownerEmail, ownerName, restaurantIds = [] } = req.body as {
+      ownerEmail?: string;
+      ownerName?:  string;
+      restaurantIds?: string[];
+    };
+
+    if (!ownerEmail || !ownerName) {
+      return res.status(400).json({ error: "Missing ownerEmail or ownerName" });
+    }
+
+    const [existingUser, existingOwner] = await Promise.all([
+      prisma.user.findUnique({ where: { email: ownerEmail } }),
+      prisma.ownerAccount.findUnique({ where: { email: ownerEmail } }),
+    ]);
+
+    if (existingUser)  return res.status(409).json({ error: "Email already in use by a user account" });
+    if (existingOwner) return res.status(409).json({ error: "Owner account already exists for this email" });
+
+    // Create the OwnerAccount
+    const ownerAccount = await prisma.ownerAccount.create({
+      data: { name: ownerName, email: ownerEmail },
+    });
+
+    // Assign restaurants if provided
+    let assignedCount = 0;
+    if (restaurantIds.length > 0) {
+      const result = await prisma.restaurant.updateMany({
+        where: { id: { in: restaurantIds } },
+        data:  { ownerAccountId: ownerAccount.id },
+      });
+      assignedCount = result.count;
+    }
+
+    // Generate a random invite token and create a PartnerInvite record
+    const token     = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // 3 days
+    const [firstName, ...rest] = ownerName.trim().split(" ");
+    const lastName = rest.join(" ") || "";
+
+    await prisma.partnerInvite.upsert({
+      where:  { email: ownerEmail },
+      update: { token, status: "pending", expiresAt },
+      create: {
+        email:     ownerEmail,
+        firstName: firstName,
+        lastName:  lastName,
+        token,
+        status:    "pending",
+        expiresAt,
+      },
+    });
+
+    // Send invite email (non-fatal — log but don't fail the request)
+    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const setupUrl    = `${frontendUrl}/partner-setup?token=${encodeURIComponent(token)}&type=owner`;
+
+    try {
+      await sendPartnerInviteEmail({ to: ownerEmail, firstName, setupUrl });
+      console.log(`[createOwnerAccount] Invite email sent to ${ownerEmail}`);
+    } catch (emailErr) {
+      console.error(`[createOwnerAccount] Email send failed:`, emailErr);
+    }
+
+    console.log(
+      `[createOwnerAccount] id=${ownerAccount.id} email=${ownerEmail} restaurants=${assignedCount}`
+    );
+
+    res.status(201).json({
+      ownerAccountId:  ownerAccount.id,
+      ownerName:       ownerAccount.name,
+      ownerEmail:      ownerAccount.email,
+      inviteToken:     token,
+      sentEmail:       ownerEmail,
+      restaurantCount: assignedCount,
+    });
+  } catch (err) {
+    console.error("[createOwnerAccount] Error:", err);
+    next(err);
+  }
+}
+
+/**
+ * GET /api/super-admin/owner-accounts
+ * List all OwnerAccounts with restaurant counts.
+ */
+export async function listOwnerAccounts(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const accounts = await prisma.ownerAccount.findMany({
+      include:  { _count: { select: { restaurants: true } } },
+      orderBy:  { createdAt: "desc" },
+    });
+
+    res.json(accounts.map((acc) => ({
+      id:              acc.id,
+      name:            acc.name,
+      email:           acc.email,
+      active:          acc.active,
+      restaurantCount: acc._count.restaurants,
+      createdAt:       acc.createdAt,
+      updatedAt:       acc.updatedAt,
+    })));
+  } catch (err) {
+    console.error("[listOwnerAccounts] Error:", err);
+    next(err);
+  }
+}
+
+/**
+ * GET /api/super-admin/owner-accounts/:ownerAccountId
+ * Get a single OwnerAccount with its restaurants.
+ */
+export async function getOwnerAccount(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { ownerAccountId } = req.params;
+    const account = await prisma.ownerAccount.findUnique({
+      where:   { id: ownerAccountId },
+      include: { restaurants: { select: { id: true, name: true, locationCount: true } } },
+    });
+
+    if (!account) return res.status(404).json({ error: "Owner account not found" });
+
+    res.json({
+      id:          account.id,
+      name:        account.name,
+      email:       account.email,
+      active:      account.active,
+      restaurants: account.restaurants,
+      createdAt:   account.createdAt,
+    });
+  } catch (err) {
+    console.error("[getOwnerAccount] Error:", err);
+    next(err);
+  }
+}
+
+/**
+ * POST /api/super-admin/owner-accounts/:ownerAccountId/assign-restaurants
+ * Assign (or reassign) restaurants to an OwnerAccount.
+ */
+export async function assignRestaurantToOwner(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { ownerAccountId } = req.params;
+    const { restaurantIds }  = req.body as { restaurantIds?: string[] };
+
+    if (!Array.isArray(restaurantIds) || restaurantIds.length === 0) {
+      return res.status(400).json({ error: "restaurantIds must be a non-empty array" });
+    }
+
+    const account = await prisma.ownerAccount.findUnique({ where: { id: ownerAccountId } });
+    if (!account) return res.status(404).json({ error: "Owner account not found" });
+
+    // Fetch current owners for audit log
+    const existing = await prisma.restaurant.findMany({
+      where:  { id: { in: restaurantIds } },
+      select: { id: true, ownerAccountId: true },
+    });
+
+    if (existing.length !== restaurantIds.length) {
+      return res.status(400).json({ error: "One or more restaurants not found" });
+    }
+
+    const result = await prisma.restaurant.updateMany({
+      where: { id: { in: restaurantIds } },
+      data:  { ownerAccountId },
+    });
+
+    const reassigned = existing
+      .filter((r) => r.ownerAccountId && r.ownerAccountId !== ownerAccountId)
+      .map((r) => ({ restaurantId: r.id, from: r.ownerAccountId }));
+
+    console.log(
+      `[assignRestaurantToOwner] Assigned ${result.count} restaurants to ${ownerAccountId}.` +
+      (reassigned.length ? ` Reassigned: ${JSON.stringify(reassigned)}` : "")
+    );
+
+    res.json({
+      assignedCount: result.count,
+      restaurantIds,
+      message: `Assigned ${result.count} restaurant(s) to owner account`,
+    });
+  } catch (err) {
+    console.error("[assignRestaurantToOwner] Error:", err);
+    next(err);
+  }
+}
+
+/**
+ * DELETE /api/super-admin/owner-accounts/:ownerAccountId
+ * Soft-delete: mark active = false. Restaurants are not affected.
+ */
+export async function deleteOwnerAccount(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { ownerAccountId } = req.params;
+    const { reason }         = req.body as { reason?: string };
+
+    const account = await prisma.ownerAccount.update({
+      where: { id: ownerAccountId },
+      data:  { active: false },
+    });
+
+    console.log(
+      `[deleteOwnerAccount] Soft-deleted ${ownerAccountId}. Reason: ${reason ?? "not provided"}`
+    );
+
+    res.json({ id: account.id, active: account.active, message: "Owner account marked inactive" });
+  } catch (err) {
+    console.error("[deleteOwnerAccount] Error:", err);
+    next(err);
+  }
+}

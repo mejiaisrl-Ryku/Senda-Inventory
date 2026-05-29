@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticate, requireSuperAdmin } from "../middleware/auth";
+import { authenticate, requireSuperAdmin, requireKyruManager } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import {
   superAdminLogin,
@@ -25,6 +25,11 @@ import {
   deletePartnerLocation,
   listStandaloneRestaurants,
   mergeRestaurants,
+  createOwnerAccount,
+  listOwnerAccounts,
+  getOwnerAccount,
+  assignRestaurantToOwner,
+  deleteOwnerAccount,
 } from "../controllers/superAdminController";
 
 const router = Router();
@@ -69,5 +74,12 @@ router.delete("/partners/:partnerId/locations/:locationId",    deletePartnerLoca
 // Merge standalone restaurants into a multi-location group
 router.get(  "/standalone-restaurants", listStandaloneRestaurants as never);
 router.post( "/merge-restaurants",      mergeRestaurants          as never);
+
+// ── Owner Account Management (KYRU_MANAGER only) ─────────────────────────────
+router.post(  "/owner-accounts",                                   requireKyruManager as never, createOwnerAccount      as never);
+router.get(   "/owner-accounts",                                   requireKyruManager as never, listOwnerAccounts       as never);
+router.get(   "/owner-accounts/:ownerAccountId",                   requireKyruManager as never, getOwnerAccount        as never);
+router.post(  "/owner-accounts/:ownerAccountId/assign-restaurants", requireKyruManager as never, assignRestaurantToOwner as never);
+router.delete("/owner-accounts/:ownerAccountId",                   requireKyruManager as never, deleteOwnerAccount     as never);
 
 export default router;
