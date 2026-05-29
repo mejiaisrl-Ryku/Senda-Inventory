@@ -1548,3 +1548,159 @@ export async function getLaborBreakdown(
     next(err);
   }
 }
+
+/**
+ * GET /api/locations/waste-analysis
+ * Spoilage/waste from the latest CLOSED count session per location.
+ * Waste = max(0, expectedQuantity − actualQuantity).
+ * Cost uses the snapshot unitCost stored on each CountEntry.
+ */
+export async function getWasteAnalysis(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const parentRestaurantId = req.user.restaurantId;
+
+    // ── 1. Scope ────────────────────────────────────────────────────────────────
+    const allLocations = await prisma.restaurant.findMany({
+      where: { OR: [{ id: parentRestaurantId }, { groupId: parentRestaurantId }] },
+      select: { id: true, name: true },
+    });
+
+    if (allLocations.length === 0) {
+      return res.status(404).json({ error: "No locations found" });
+    }
+
+    const allIds   = allLocations.map((l) => l.id);
+    const nameById = new Map(allLocations.map((l) => [l.id, l.name]));
+
+    // ── 2. Latest CLOSED session per location — parallel ────────────────────────
+    const sessionsByLoc = await Promise.all(
+      allIds.map((restaurantId) =>
+        prisma.countSession.findFirst({
+          where:   { restaurantId, status: "CLOSED" },
+          orderBy: { date: "desc" },
+          select: {
+            date: true,
+            entries: {
+              select: {
+                expectedQuantity: true,
+                actualQuantity:   true,
+                unitCost:         true,   // snapshot cost at count time
+                product: {
+                  select: { id: true, name: true, category: true },
+                },
+              },
+            },
+          },
+        }).then((session) => ({ restaurantId, session }))
+      )
+    );
+
+    // ── 3. Aggregate waste by category per location ──────────────────────────────
+    type ProductWaste = {
+      productId: string; name: string;
+      waste: number; wasteCost: number; spoilageRate: number; costPerUnit: number;
+    };
+    type CategoryAcc = {
+      totalWaste: number; totalWasteCost: number; totalExpected: number;
+      products: ProductWaste[];
+    };
+
+    const r2 = (v: number) => Math.round(v * 100)  / 100;
+    const r3 = (v: number) => Math.round(v * 1000) / 1000;
+    const r1 = (v: number) => Math.round(v * 1000) / 10;   // 1dp %
+
+    const locations = allIds.map((locationId) => {
+      const { session } = sessionsByLoc.find((s) => s.restaurantId === locationId)!;
+      const locationName = nameById.get(locationId) ?? "Unknown";
+
+      if (!session) {
+        return { locationId, locationName, categories: [], totalWasteCost: 0, overallSpoilageRate: 0, hasData: false };
+      }
+
+      const byCategory = new Map<string, CategoryAcc>();
+
+      for (const entry of session.entries) {
+        const expected = Number(entry.expectedQuantity);
+        const actual   = Number(entry.actualQuantity);
+        const waste    = Math.max(0, expected - actual);
+        const cost     = Number(entry.unitCost);
+        const wasteCost = waste * cost;
+        const cat       = (entry.product.category ?? "Uncategorized").trim();
+
+        if (!byCategory.has(cat)) {
+          byCategory.set(cat, { totalWaste: 0, totalWasteCost: 0, totalExpected: 0, products: [] });
+        }
+        const acc = byCategory.get(cat)!;
+        acc.totalWaste    += waste;
+        acc.totalWasteCost += wasteCost;
+        acc.totalExpected  += expected;
+
+        if (waste > 0) {
+          acc.products.push({
+            productId:    entry.product.id,
+            name:         entry.product.name,
+            waste:        r2(waste),
+            wasteCost:    r2(wasteCost),
+            spoilageRate: expected > 0 ? r1(waste / expected) : 0,
+            costPerUnit:  r3(cost),
+          });
+        }
+      }
+
+      const categories = [...byCategory.entries()]
+        .filter(([, acc]) => acc.products.length > 0)
+        .map(([category, acc]) => ({
+          category,
+          totalWaste:     r2(acc.totalWaste),
+          totalWasteCost: r2(acc.totalWasteCost),
+          spoilageRate:   acc.totalExpected > 0 ? r1(acc.totalWaste / acc.totalExpected) : 0,
+          productCount:   acc.products.length,
+          products:       acc.products.sort((a, b) => b.wasteCost - a.wasteCost),
+        }))
+        .sort((a, b) => b.totalWasteCost - a.totalWasteCost);
+
+      // Overall spoilage from the full entry set (not just waste-having categories)
+      const grandExpected = [...byCategory.values()].reduce((s, c) => s + c.totalExpected, 0);
+      const grandWaste    = [...byCategory.values()].reduce((s, c) => s + c.totalWaste,    0);
+      const totalWasteCost = [...byCategory.values()].reduce((s, c) => s + c.totalWasteCost, 0);
+
+      return {
+        locationId,
+        locationName,
+        categories,
+        totalWasteCost:      r2(totalWasteCost),
+        overallSpoilageRate: grandExpected > 0 ? r1(grandWaste / grandExpected) : 0,
+        lastCountDate:       session.date,
+        hasData:             true,
+      };
+    });
+
+    // Sort by total waste cost descending
+    const sorted = [...locations].sort((a, b) => b.totalWasteCost - a.totalWasteCost);
+    const withData = sorted.filter((l) => l.hasData);
+
+    // Benchmark: best (lowest spoilage) and worst (highest)
+    const byRate      = [...withData].sort((a, b) => a.overallSpoilageRate - b.overallSpoilageRate);
+    const bestLoc     = byRate[0] ?? null;
+    const worstLoc    = byRate[byRate.length - 1] ?? null;
+
+    const slim = (l: (typeof sorted)[number] | null | undefined) => l
+      ? { locationId: l.locationId, locationName: l.locationName, overallSpoilageRate: l.overallSpoilageRate }
+      : null;
+
+    res.json({
+      locations: sorted,
+      benchmark: {
+        bestLocation:  slim(bestLoc),
+        worstLocation: slim(bestLoc?.locationId !== worstLoc?.locationId ? worstLoc : null),
+      },
+    });
+  } catch (err) {
+    console.error("[getWasteAnalysis] Error:", err);
+    next(err);
+  }
+}

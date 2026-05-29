@@ -10,6 +10,7 @@ import {
   copyParLevels,
   getCostBreakdown,
   getLaborBreakdown,
+  getWasteAnalysis,
   addBranch,
   deleteBranch,
 } from "../controllers/locationsController";
@@ -29,6 +30,7 @@ router.get( "/par-levels",       getParLevelBenchmark  as never);
 router.post("/par-levels/copy",  copyParLevels         as never);
 router.get( "/cost-breakdown",   getCostBreakdown      as never);
 router.get( "/labor-breakdown",  getLaborBreakdown     as never);
+router.get( "/waste-analysis",   getWasteAnalysis      as never);
 
 // ── Location management (admin only) ─────────────────────────────────────────
 router.post(  "/branch",             requireAdmin as never, addBranch    as never);
