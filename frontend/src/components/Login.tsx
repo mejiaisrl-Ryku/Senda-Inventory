@@ -213,6 +213,12 @@ export function Login() {
                     {t.auth.createAccount}
                   </Link>
                 </p>
+
+                <p className="text-center mt-2">
+                  <Link to="/manager/login" className="text-[11px] text-[#333] hover:text-[#555] transition-colors">
+                    Kyru Manager Access
+                  </Link>
+                </p>
               </form>
             </>
           )}

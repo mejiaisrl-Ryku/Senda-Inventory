@@ -4,6 +4,9 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { SocketProvider } from "./context/SocketContext";
 import { SuperAdminProvider, useSuperAdmin } from "./context/SuperAdminContext";
+import { ManagerProvider, useManager } from "./context/ManagerContext";
+import { ManagerLogin } from "./components/manager/ManagerLogin";
+import { ManagerDashboard } from "./components/manager/ManagerDashboard";
 import { Layout } from "./components/Layout";
 import { Login } from "./components/Login";
 import { Register } from "./components/Register";
@@ -90,6 +93,26 @@ function SAPublicRoute() {
   return <Outlet />;
 }
 
+// ── Manager portal guards ─────────────────────────────────────────────────────
+
+function MgrProtectedRoute() {
+  const { isAuthenticated, bootstrapping } = useManager();
+  if (bootstrapping) return (
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <Spinner size="lg" />
+    </div>
+  );
+  if (!isAuthenticated) return <Navigate to="/manager/login" replace />;
+  return <Outlet />;
+}
+
+function MgrPublicRoute() {
+  const { isAuthenticated, bootstrapping } = useManager();
+  if (bootstrapping) return null;
+  if (isAuthenticated) return <Navigate to="/manager" replace />;
+  return <Outlet />;
+}
+
 function AppRoutes() {
   return (
     <BootstrapGate>
@@ -146,6 +169,16 @@ function AppRoutes() {
           </Route>
         </Route>
 
+        {/* ── Manager portal — separate from regular auth and super-admin ── */}
+        <Route path="manager">
+          <Route element={<MgrPublicRoute />}>
+            <Route path="login" element={<ManagerLogin />} />
+          </Route>
+          <Route element={<MgrProtectedRoute />}>
+            <Route index element={<ManagerDashboard />} />
+          </Route>
+        </Route>
+
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BootstrapGate>
@@ -158,6 +191,7 @@ export default function App() {
       <ThemeProvider>
         <AuthProvider>
           <SuperAdminProvider>
+            <ManagerProvider>
             <SocketProvider>
               <ToastProvider>
                 <BrowserRouter>
@@ -166,6 +200,7 @@ export default function App() {
                 <ToastContainer />
               </ToastProvider>
             </SocketProvider>
+            </ManagerProvider>
           </SuperAdminProvider>
         </AuthProvider>
       </ThemeProvider>
