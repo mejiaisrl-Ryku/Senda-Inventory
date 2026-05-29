@@ -1446,3 +1446,105 @@ export async function getCostBreakdown(
     next(err);
   }
 }
+
+/**
+ * GET /api/locations/labor-breakdown?days=30
+ * Labor cost aggregated by location: FOH, BOH, management breakdown
+ * plus average cost per day and unique days worked.
+ *
+ * Note: LaborEntry tracks dollar amounts (fohLabor, bohLabor, management,
+ * total) — not hours. Hourly-rate metrics are not available from this model.
+ */
+export async function getLaborBreakdown(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const parentRestaurantId = req.user.restaurantId;
+    const days = Math.min(Math.max(parseInt(req.query.days as string) || 30, 1), 365);
+
+    // ── 1. Scope ────────────────────────────────────────────────────────────────
+    const allLocations = await prisma.restaurant.findMany({
+      where: { OR: [{ id: parentRestaurantId }, { groupId: parentRestaurantId }] },
+      select: { id: true, name: true },
+    });
+
+    if (allLocations.length === 0) {
+      return res.status(404).json({ error: "No locations found" });
+    }
+
+    const allIds   = allLocations.map((l) => l.id);
+    const cutoff   = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const nameById = new Map(allLocations.map((l) => [l.id, l.name]));
+
+    // ── 2. Fetch labor entries — single batch ────────────────────────────────────
+    const entries = await prisma.laborEntry.findMany({
+      where: {
+        restaurantId: { in: allIds },
+        date:         { gte: cutoff },
+      },
+      select: {
+        restaurantId: true,
+        date:         true,
+        fohLabor:     true,
+        bohLabor:     true,
+        management:   true,
+        total:        true,
+      },
+    });
+
+    // ── 3. Aggregate per location ─────────────────────────────────────────────────
+    type Acc = {
+      fohLabor:   number;
+      bohLabor:   number;
+      management: number;
+      total:      number;
+      dates:      Set<string>;
+    };
+
+    const byLocation = new Map<string, Acc>();
+
+    for (const e of entries) {
+      if (!byLocation.has(e.restaurantId)) {
+        byLocation.set(e.restaurantId, { fohLabor: 0, bohLabor: 0, management: 0, total: 0, dates: new Set() });
+      }
+      const acc = byLocation.get(e.restaurantId)!;
+      acc.fohLabor   += e.fohLabor;
+      acc.bohLabor   += e.bohLabor;
+      acc.management += e.management;
+      acc.total      += e.total;
+      acc.dates.add(e.date.toISOString().slice(0, 10));
+    }
+
+    // ── 4. Shape response ────────────────────────────────────────────────────────
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+
+    const locations = allIds
+      .map((id) => {
+        const acc  = byLocation.get(id);
+        const name = nameById.get(id) ?? "Unknown";
+        if (!acc) {
+          return { locationId: id, locationName: name, fohLabor: 0, bohLabor: 0, management: 0, totalLaborCost: 0, avgCostPerDay: 0, daysWorked: 0, hasData: false };
+        }
+        const daysWorked = acc.dates.size;
+        return {
+          locationId:     id,
+          locationName:   name,
+          fohLabor:       r2(acc.fohLabor),
+          bohLabor:       r2(acc.bohLabor),
+          management:     r2(acc.management),
+          totalLaborCost: r2(acc.total),
+          avgCostPerDay:  daysWorked > 0 ? r2(acc.total / daysWorked) : 0,
+          daysWorked,
+          hasData:        true,
+        };
+      })
+      .sort((a, b) => b.avgCostPerDay - a.avgCostPerDay);
+
+    res.json({ locations, period: { days, from: cutoff } });
+  } catch (err) {
+    console.error("[getLaborBreakdown] Error:", err);
+    next(err);
+  }
+}
