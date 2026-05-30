@@ -308,3 +308,33 @@ export interface WeeklyReport {
   totalUsed: number;
   totalWaste: number;
 }
+
+// ── Phase 5 GM Dashboard ──────────────────────────────────────────────────────
+
+export interface GMAlert {
+  type:         "HIGH_LABOR" | "HIGH_PRIME_COST" | "SALES_DROP";
+  severity:     "warning" | "critical";
+  message:      string;
+  messagEs:     string;
+  locationName: string;
+}
+
+export interface GMDashboard {
+  restaurant: { id: string; name: string; address: string | null };
+  period:     string;
+  sales: {
+    total:       number;
+    byCategory:  { FOOD: number; BEER: number; LIQUOR: number; WINE: number };
+    dailyTotals: { date: string; total: number }[];
+    trend:       "up" | "down" | "flat";
+    last7Total:  number;
+    prior7Total: number;
+  };
+  labor: {
+    total:     number;
+    breakdown: { fohLabor: number; bohLabor: number; management: number };
+    laborPct:  number;
+  };
+  primeCost: { value: number; pct: number };
+  alerts:    GMAlert[];
+}

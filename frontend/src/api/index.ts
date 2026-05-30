@@ -746,3 +746,9 @@ export const feedbackApi = {
   submit: (message: string) =>
     api.post<{ ok: boolean }>("/feedback", { message }).then((r) => r.data),
 };
+
+// ── Phase 5 GM API ────────────────────────────────────────────────────────────
+export const gmApi = {
+  getDashboard: () =>
+    api.get<import("../types").GMDashboard>("/gm/dashboard").then((r) => r.data),
+};

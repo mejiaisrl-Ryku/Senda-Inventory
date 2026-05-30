@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { stockApi } from "../api";
-import { StockReport } from "../types";
+import { stockApi, gmApi } from "../api";
+import { StockReport, GMDashboard, GMAlert } from "../types";
 import { formatCurrency } from "../utils/stock";
 import { LowStockAlerts } from "./LowStockAlerts";
 import { OnboardingChecklist } from "./OnboardingChecklist";
-import { PageSpinner } from "./shared/Spinner";
+import { PageSpinner, Spinner } from "./shared/Spinner";
 import { useStockSocket } from "../hooks/useStockSocket";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -33,6 +33,198 @@ function StatCard({
       <p className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] truncate">{label}</p>
       <p className={`mt-2 font-semibold text-white tracking-tight leading-none truncate ${valCls}`}>{value}</p>
       {sub && <p className="mt-2 text-xs text-[#555] truncate">{sub}</p>}
+    </div>
+  );
+}
+
+// ── Sparkline SVG chart ───────────────────────────────────────────────────────
+
+function Sparkline({ points }: { points: { date: string; total: number }[] }) {
+  if (points.length < 2) return null;
+  const W = 600; const H = 100; const PAD = 8;
+  const vals  = points.map((p) => p.total);
+  const minV  = Math.min(...vals);
+  const maxV  = Math.max(...vals);
+  const range = maxV - minV || 1;
+  const x = (i: number) => PAD + (i / (points.length - 1)) * (W - PAD * 2);
+  const y = (v: number) => PAD + ((maxV - v) / range) * (H - PAD * 2);
+  const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.total).toFixed(1)}`).join(" ");
+  return (
+    <div className="w-full overflow-hidden">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 120 }}>
+        <path d={d} fill="none" stroke="#3dbf8a" strokeWidth="2" strokeLinejoin="round" />
+        <text x={PAD} y={PAD + 8}  fill="#555" fontSize="11">{formatCurrency(maxV)}</text>
+        <text x={PAD} y={H - PAD}  fill="#555" fontSize="11">{formatCurrency(minV)}</text>
+        <text x={PAD} y={H - 1}    fill="#333" fontSize="10">{points[0].date}</text>
+        <text x={W - PAD} y={H - 1} fill="#333" fontSize="10" textAnchor="end">{points[points.length - 1].date}</text>
+      </svg>
+    </div>
+  );
+}
+
+// ── Single bar row ────────────────────────────────────────────────────────────
+
+function BarRow({ label, amount, total, color }: { label: string; amount: number; total: number; color: string }) {
+  const pct = total > 0 ? (amount / total) * 100 : 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex justify-between text-[12px]">
+        <span className="text-[#888]">{label}</span>
+        <span className="text-white">{formatCurrency(amount)}</span>
+      </div>
+      <div className="h-2 rounded-full bg-[#1a1a1a] overflow-hidden">
+        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Alert banner ──────────────────────────────────────────────────────────────
+
+function AlertBanner({ alerts, lang }: { alerts: GMAlert[]; lang: string }) {
+  if (alerts.length === 0) return null;
+  return (
+    <div className="rounded-[8px] border border-[#2a2a2a] bg-[#0a0a0a] p-4 space-y-2">
+      {alerts.map((a, i) => (
+        <div key={i} className="flex items-start gap-2.5">
+          <span className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${a.severity === "critical" ? "bg-[#ef4444]" : "bg-[#f59e0b]"}`} />
+          <p className={`text-[13px] ${a.severity === "critical" ? "text-[#ef4444]" : "text-[#f59e0b]"}`}>
+            {lang === "es" ? a.messagEs : a.message}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Metric value color ────────────────────────────────────────────────────────
+
+function laborColor(pct: number) {
+  if (pct > 45) return "text-[#ef4444]";
+  if (pct > 35) return "text-[#f59e0b]";
+  return "text-[#3dbf8a]";
+}
+
+function primeColor(pct: number) {
+  if (pct > 75) return "text-[#ef4444]";
+  if (pct > 65) return "text-[#f59e0b]";
+  return "text-[#3dbf8a]";
+}
+
+// ── Colored stat card ─────────────────────────────────────────────────────────
+
+function ColorStatCard({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+  return (
+    <div className="bg-[#0a0a0a] rounded-[8px] px-4 sm:px-6 py-5 border border-[#1a1a1a] min-w-0">
+      <p className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] truncate">{label}</p>
+      <p className={`mt-2 text-[24px] font-semibold tracking-tight leading-none truncate ${valueColor ?? "text-white"}`}>{value}</p>
+    </div>
+  );
+}
+
+// ── GM Performance Section ────────────────────────────────────────────────────
+
+function GMPerformanceSection() {
+  const { t, lang } = useLanguage();
+  const p = t.performance;
+  const [gmData,    setGmData]    = useState<GMDashboard | null>(null);
+  const [gmLoading, setGmLoading] = useState(true);
+  const [gmError,   setGmError]   = useState(false);
+
+  useEffect(() => {
+    gmApi.getDashboard()
+      .then(setGmData)
+      .catch(() => setGmError(true))
+      .finally(() => setGmLoading(false));
+  }, []);
+
+  if (gmLoading) {
+    return (
+      <div className="flex items-center justify-center py-10 gap-2 text-[#555]">
+        <Spinner size="sm" /> <span className="text-[13px]">{p.subtitle}…</span>
+      </div>
+    );
+  }
+
+  if (gmError || !gmData) {
+    return (
+      <div className="px-4 py-3 rounded-[8px] bg-[#1a1a1a] border border-[#2a2a2a] text-[13px] text-[#555]">
+        Unable to load performance data.
+      </div>
+    );
+  }
+
+  const { sales, labor, primeCost, alerts } = gmData;
+  const trendText  = sales.trend === "up" ? p.trendUp : sales.trend === "down" ? p.trendDown : p.trendFlat;
+  const trendColor = sales.trend === "up" ? "text-[#3dbf8a]" : sales.trend === "down" ? "text-[#ef4444]" : "text-[#555]";
+
+  const catColors: Record<string, string> = {
+    FOOD: "#3dbf8a", BEER: "#f59e0b", LIQUOR: "#8b5cf6", WINE: "#ef4444",
+  };
+  const catLabels: Record<string, string> = {
+    FOOD: p.food, BEER: p.beer, LIQUOR: p.liquor, WINE: p.wine,
+  };
+  const laborColors = ["#3dbf8a", "#f59e0b", "#8b5cf6"];
+
+  return (
+    <div className="space-y-4">
+      {/* Section header */}
+      <div>
+        <h2 className="text-[16px] font-semibold text-white">{p.title}</h2>
+        <p className="text-[13px] text-[#555] mt-0.5">{p.subtitle}</p>
+      </div>
+
+      {/* Alerts */}
+      <div className="rounded-[8px] border border-[#1a1a1a] bg-[#0a0a0a] p-4">
+        <p className="text-[11px] font-semibold text-[#555] uppercase tracking-[0.08em] mb-3">{p.alerts}</p>
+        {alerts.length === 0 ? (
+          <p className="text-[13px] text-[#3dbf8a]">{p.noAlerts}</p>
+        ) : (
+          <AlertBanner alerts={alerts} lang={lang} />
+        )}
+      </div>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label={p.totalSales}   value={formatCurrency(sales.total)} />
+        <ColorStatCard label={p.laborPct}     value={`${labor.laborPct.toFixed(1)}%`}    valueColor={laborColor(labor.laborPct)} />
+        <ColorStatCard label={p.primeCostPct} value={`${primeCost.pct.toFixed(1)}%`}     valueColor={primeColor(primeCost.pct)} />
+        <ColorStatCard label={p.trend}        value={trendText}                           valueColor={trendColor} />
+      </div>
+
+      {/* Sales by category */}
+      <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5 space-y-3">
+        <p className="text-[13px] font-semibold text-white">{p.salesByCategory}</p>
+        {Object.entries(sales.byCategory).map(([cat, amount]) => (
+          <BarRow
+            key={cat}
+            label={catLabels[cat] ?? cat}
+            amount={amount}
+            total={sales.total}
+            color={catColors[cat] ?? "#555"}
+          />
+        ))}
+      </div>
+
+      {/* Labor breakdown */}
+      <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5 space-y-3">
+        <p className="text-[13px] font-semibold text-white">{p.laborCost}</p>
+        {[
+          { label: p.fohLabor,   amount: labor.breakdown.fohLabor,   color: laborColors[0] },
+          { label: p.bohLabor,   amount: labor.breakdown.bohLabor,   color: laborColors[1] },
+          { label: p.management, amount: labor.breakdown.management, color: laborColors[2] },
+        ].map(({ label, amount, color }) => (
+          <BarRow key={label} label={label} amount={amount} total={labor.total} color={color} />
+        ))}
+      </div>
+
+      {/* Daily sales sparkline */}
+      {sales.dailyTotals.length > 1 && (
+        <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5">
+          <p className="text-[13px] font-semibold text-white mb-3">{p.dailySales}</p>
+          <Sparkline points={sales.dailyTotals} />
+        </div>
+      )}
     </div>
   );
 }
@@ -136,6 +328,13 @@ export function Dashboard() {
       )}
 
       <LowStockAlerts compact />
+
+      {/* Phase 5: GM Performance section — ADMIN only */}
+      {user?.role === "ADMIN" && (
+        <div className="pt-2 border-t border-[#1a1a1a]">
+          <GMPerformanceSection />
+        </div>
+      )}
     </div>
   );
 }
