@@ -7,6 +7,7 @@ import { SuperAdminProvider, useSuperAdmin } from "./context/SuperAdminContext";
 import { ManagerProvider, useManager } from "./context/ManagerContext";
 import { ManagerLogin } from "./components/manager/ManagerLogin";
 import { ManagerDashboard } from "./components/manager/ManagerDashboard";
+import { OwnerDashboard } from "./components/owner/OwnerDashboard";
 import { Layout } from "./components/Layout";
 import { Login } from "./components/Login";
 import { Register } from "./components/Register";
@@ -93,6 +94,14 @@ function SAPublicRoute() {
   return <Outlet />;
 }
 
+// ── Owner portal guard ────────────────────────────────────────────────────────
+
+function OwnerRoute() {
+  const { user } = useAuth();
+  if (user?.role !== "OWNER_SUPER_ADMIN") return <Navigate to="/" replace />;
+  return <Outlet />;
+}
+
 // ── Manager portal guards ─────────────────────────────────────────────────────
 
 function MgrProtectedRoute() {
@@ -152,6 +161,13 @@ function AppRoutes() {
               <Route path="labor" element={<LaborPage />} />
               <Route path="team" element={<TeamPage />} />
             </Route>
+          </Route>
+        </Route>
+
+        {/* ── Owner portal — inside regular auth, no sidebar Layout ── */}
+        <Route element={<ProtectedRoutes />}>
+          <Route element={<OwnerRoute />}>
+            <Route path="owner/dashboard" element={<OwnerDashboard />} />
           </Route>
         </Route>
 

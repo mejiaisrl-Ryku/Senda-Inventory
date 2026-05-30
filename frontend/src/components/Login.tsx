@@ -30,7 +30,9 @@ export function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate("/");
+      // storeSession runs synchronously inside login(), so localStorage is up-to-date here.
+      const stored = JSON.parse(localStorage.getItem("user") ?? "null") as { role?: string } | null;
+      navigate(stored?.role === "OWNER_SUPER_ADMIN" ? "/owner/dashboard" : "/");
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setError(msg ?? "Login failed. Please try again.");

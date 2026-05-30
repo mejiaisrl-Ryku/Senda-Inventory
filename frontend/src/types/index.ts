@@ -2,15 +2,15 @@ export interface User {
   id: string;
   name?: string;
   email: string;
-  role: "ADMIN" | "STAFF";
-  restaurantId: string;
+  role: "ADMIN" | "STAFF" | "OWNER_SUPER_ADMIN" | "KYRU_MANAGER" | "SUPER_ADMIN";
+  restaurantId?: string | null;
   restaurantName?: string;
   restaurantLogo?: string | null;
-  locationCount?: number;  // 1 = single-location, 2+ = multi-location group
-  /** Non-null when this user's restaurant is a branch (groupId = primary restaurant id).
-   *  Null/undefined for the primary/group-owner restaurant and single-location restaurants. */
+  locationCount?: number;
+  ownerAccountId?: string | null;
+  /** @deprecated — replaced by ownerAccountId in Phase 1.2 */
   groupId?: string | null;
-  /** Convenience flag: true when this user's restaurant is a branch location. */
+  /** @deprecated — replaced by ownerAccountId in Phase 1.2 */
   isBranch?: boolean;
 }
 
@@ -307,6 +307,33 @@ export interface WeeklyReport {
   totalReceived: number;
   totalUsed: number;
   totalWaste: number;
+}
+
+// ── Phase 5 Owner Dashboard ───────────────────────────────────────────────────
+
+export interface OwnerLocationData {
+  restaurant: { id: string; name: string; address: string | null };
+  sales: {
+    total:       number;
+    byCategory:  { FOOD: number; BEER: number; LIQUOR: number; WINE: number };
+    trend:       "up" | "down" | "flat";
+  };
+  labor:     { total: number; laborPct: number };
+  primeCost: { value: number; pct: number };
+  alerts:    GMAlert[];
+}
+
+export interface OwnerDashboard {
+  ownerAccount: { id: string; name: string };
+  period:       string;
+  locations:    OwnerLocationData[];
+  summary: {
+    totalRevenue:     number;
+    avgLaborPct:      number;
+    avgPrimeCostPct:  number;
+    bestPerformer:    string;
+    needsAttention:   string[];
+  };
 }
 
 // ── Phase 5 GM Dashboard ──────────────────────────────────────────────────────

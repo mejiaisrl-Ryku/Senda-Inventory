@@ -149,6 +149,25 @@ const en = {
     management:      "Management",
   },
 
+  // ── Owner Dashboard (Phase 5) ─────────────────────────────────────────────────
+  owner: {
+    title:           "Group Overview",
+    subtitle:        "All locations — last 30 days",
+    totalRevenue:    "Total Revenue",
+    avgLaborPct:     "Avg Labor %",
+    avgPrimeCostPct: "Avg Prime Cost %",
+    bestPerformer:   "Best Performer",
+    needsAttention:  "Needs Attention",
+    noAlerts:        "No alerts",
+    locations:       "Locations",
+    salesTotal:      "Sales",
+    laborPct:        "Labor %",
+    primeCostPct:    "Prime Cost %",
+    trend:           "Trend",
+    alerts:          "Alerts",
+    viewAll:         "All Locations",
+  },
+
   // ── Invoices / Product List ──────────────────────────────────────────────────
   invoices: {
     title:              "Invoices",
@@ -800,6 +819,24 @@ const es: typeof en = {
     fohLabor:        "Labor FOH",
     bohLabor:        "Labor BOH",
     management:      "Gerencia",
+  },
+
+  owner: {
+    title:           "Resumen del Grupo",
+    subtitle:        "Todas las ubicaciones — últimos 30 días",
+    totalRevenue:    "Ingresos Totales",
+    avgLaborPct:     "% Labor Promedio",
+    avgPrimeCostPct: "% Costo Primo Promedio",
+    bestPerformer:   "Mejor Desempeño",
+    needsAttention:  "Requiere Atención",
+    noAlerts:        "Sin alertas",
+    locations:       "Ubicaciones",
+    salesTotal:      "Ventas",
+    laborPct:        "% Labor",
+    primeCostPct:    "% Costo Primo",
+    trend:           "Tendencia",
+    alerts:          "Alertas",
+    viewAll:         "Todas las Ubicaciones",
   },
 
   invoices: {
