@@ -12,9 +12,8 @@ const router = Router();
 // ── GM endpoints (ADMIN role) — mounted at /api/gm ────────────────────────────
 export const gmRouter = Router();
 gmRouter.use(authenticate as never);
-gmRouter.use(requireAdmin  as never);
-gmRouter.get("/dashboard", getGmDashboard as never);
-gmRouter.get("/location",  getGmLocation  as never);
+gmRouter.get("/dashboard", requireAdmin as never, getGmDashboard as never);
+gmRouter.get("/location",  requireAdmin as never, getGmLocation  as never);
 
 // ── Owner endpoints (OWNER_SUPER_ADMIN role) — mounted at /api/owner ──────────
 export const ownerDashRouter = Router();
