@@ -238,16 +238,7 @@ export function OwnerDashboard() {
     <div className="min-h-screen bg-black">
       {/* Top bar */}
       <header className="border-b border-[#1a1a1a] bg-[#0a0a0a] px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <img
-            src={process.env.PUBLIC_URL + "/kyru-logo-horizontal.svg"}
-            alt="Kyru"
-            style={{ height: 28, width: "auto" }}
-            className="object-contain"
-          />
-          <div className="h-5 w-px bg-[#1a1a1a]" />
-          <p className="text-[13px] text-[#555] truncate">{ownerAccount.name}</p>
-        </div>
+        <p className="text-[13px] text-white font-medium truncate">{ownerAccount.name}</p>
         <button
           onClick={handleLogout}
           className="text-[12px] text-[#333] hover:text-[#666] transition-colors"
@@ -256,7 +247,7 @@ export function OwnerDashboard() {
         </button>
       </header>
 
-      <div className="max-w-5xl mx-auto p-6 sm:p-8 space-y-8">
+      <div className="p-8 space-y-8">
 
         {/* Page header */}
         <div>
