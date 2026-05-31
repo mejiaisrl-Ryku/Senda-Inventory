@@ -685,6 +685,7 @@ const en = {
     noData:         "No data for this period",
     foodCostNote:   "Food cost requires invoice data",
     viewFull:       "View Full Report →",
+    export:         "Export .xlsx",
   },
 
   // ── Date Range Picker ────────────────────────────────────────────────────────
@@ -1407,6 +1408,7 @@ const es: typeof en = {
     noData:         "Sin datos para este período",
     foodCostNote:   "El costo de alimentos requiere datos de facturas",
     viewFull:       "Ver Reporte Completo →",
+    export:         "Exportar .xlsx",
   },
 
   dateRange: {

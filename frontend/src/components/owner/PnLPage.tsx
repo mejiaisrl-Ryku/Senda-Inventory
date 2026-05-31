@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ownerApi } from "../../api";
 import { PnLReport, PnLLocation } from "../../types";
 import { formatCurrency } from "../../utils/stock";
-import { PageSpinner } from "../shared/Spinner";
+import { PageSpinner, Spinner } from "../shared/Spinner";
 import DateRangePicker from "../shared/DateRangePicker";
 import { useLanguage, LangToggle } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
@@ -70,12 +70,13 @@ export function PnLPage() {
   const navigate = useNavigate();
   const pl = t.pnl;
 
-  const [ownerName, setOwnerName] = useState<string>("");
-  const [data,      setData]      = useState<PnLReport | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(false);
-  const [startDate, setStartDate] = useState(() => daysAgoISO(30));
-  const [endDate,   setEndDate]   = useState(() => toISO(new Date()));
+  const [ownerName,  setOwnerName]  = useState<string>("");
+  const [data,       setData]       = useState<PnLReport | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState(false);
+  const [startDate,  setStartDate]  = useState(() => daysAgoISO(30));
+  const [endDate,    setEndDate]    = useState(() => toISO(new Date()));
+  const [exporting,  setExporting]  = useState(false);
 
   // Fetch owner name once on mount
   useEffect(() => {
@@ -92,6 +93,17 @@ export function PnLPage() {
   }
 
   useEffect(() => { fetchPnL(startDate, endDate); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await ownerApi.exportPnL(startDate, endDate);
+    } catch (err) {
+      console.error("[PnLPage] export failed:", err);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function handleDateChange(s: string, e: string) {
     setStartDate(s);
@@ -136,8 +148,27 @@ export function PnLPage() {
       <div className="p-8 space-y-8">
         {/* Page header + date picker */}
         <div>
-          <h1 className="text-[24px] font-semibold text-white">{pl.title}</h1>
-          <p className="text-[13px] text-[#555] mt-0.5">{pl.subtitle}</p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-[24px] font-semibold text-white">{pl.title}</h1>
+              <p className="text-[13px] text-[#555] mt-0.5">{pl.subtitle}</p>
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={exporting || loading}
+              className="shrink-0 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-[6px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-[12px] font-medium transition-colors"
+            >
+              {exporting ? (
+                <Spinner size="sm" />
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              )}
+              {exporting ? "…" : pl.export}
+            </button>
+          </div>
           <div className="mt-4">
             <DateRangePicker startDate={startDate} endDate={endDate} onChange={handleDateChange} />
           </div>

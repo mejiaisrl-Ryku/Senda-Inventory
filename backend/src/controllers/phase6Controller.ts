@@ -1,4 +1,5 @@
 import { Response, NextFunction } from "express";
+import ExcelJS from "exceljs";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 import logger from "../utils/logger";
@@ -238,6 +239,170 @@ export async function getOwnerPnlSummary(req: AuthRequest, res: Response, next: 
     });
   } catch (err) {
     logger.error("getOwnerPnlSummary: error", { userId: req.user.userId, message: (err as Error).message });
+    next(err);
+  }
+}
+
+// ── ENDPOINT 3: GET /api/owner/pnl/export ────────────────────────────────────
+
+/** Populate a two-column-plus-pct sheet (metric | value | %) */
+function fillSheet(
+  sheet: ExcelJS.Worksheet,
+  startDate: string,
+  endDate:   string,
+  pnl: {
+    revenue: number; foodCost: number; laborCost: number; primeCost: number;
+    grossProfit: number; foodCostPct: number; laborCostPct: number;
+    primeCostPct: number; grossProfitPct: number;
+  },
+  rankLine?: string,
+  ranking?: { best: string; worst: string; mostRevenue: string }
+) {
+  const fmtUSD = (n: number) =>
+    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+
+  // Column widths
+  sheet.columns = [
+    { key: "metric", width: 25 },
+    { key: "value",  width: 20 },
+    { key: "pct",    width: 15 },
+  ];
+
+  // Header row style helper
+  function addHeader(cells: string[]) {
+    const row = sheet.addRow(cells);
+    row.font      = { bold: true, color: { argb: "FFFFFFFF" } };
+    row.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1A1A1A" } };
+    row.alignment = { vertical: "middle" };
+    return row;
+  }
+
+  addHeader(["Metric", "Value", "%"]);
+  sheet.addRow(["Period", `${startDate} to ${endDate}`, ""]);
+  if (rankLine) sheet.addRow(["Rank", rankLine, ""]);
+  sheet.addRow([]);
+
+  const revRow = sheet.addRow(["Revenue", fmtUSD(pnl.revenue), "—"]);
+  revRow.font = { bold: true };
+  sheet.addRow(["Food Cost",   fmtUSD(pnl.foodCost),   `${pnl.foodCostPct.toFixed(1)}%`]);
+  sheet.addRow(["Labor Cost",  fmtUSD(pnl.laborCost),  `${pnl.laborCostPct.toFixed(1)}%`]);
+  sheet.addRow(["Prime Cost",  fmtUSD(pnl.primeCost),  `${pnl.primeCostPct.toFixed(1)}%`]);
+  sheet.addRow([]);
+
+  const gpRow = sheet.addRow(["Gross Profit", fmtUSD(pnl.grossProfit), `${pnl.grossProfitPct.toFixed(1)}%`]);
+  gpRow.font = {
+    bold: true,
+    color: { argb: pnl.grossProfit >= 0 ? "FF3DBF8A" : "FFEF4444" },
+  };
+
+  if (ranking) {
+    sheet.addRow([]);
+    sheet.addRow(["Profitability Ranking", "", ""]);
+    sheet.addRow(["Best Performer",    ranking.best,        "—"]);
+    sheet.addRow(["Needs Improvement", ranking.worst,       "—"]);
+    sheet.addRow(["Most Revenue",      ranking.mostRevenue, "—"]);
+  }
+}
+
+export async function exportOwnerPnl(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const ownerAccountId = req.user.ownerAccountId ?? "";
+
+    console.log("[exportOwnerPnl] raw req.query:", JSON.stringify(req.query));
+    const dateResult = validateDateParams(req.query.startDate, req.query.endDate);
+    if ("error" in dateResult) return res.status(400).json({ error: dateResult.error });
+    const { from, to, startStr: startDate, endStr: endDate } = dateResult;
+
+    logger.debug("exportOwnerPnl: entry", { userId: req.user.userId, ownerAccountId, startDate, endDate });
+
+    const restaurants = await prisma.restaurant.findMany({
+      where:   { ownerAccountId },
+      select:  { id: true, name: true, address: true },
+      orderBy: { name: "asc" },
+    });
+
+    if (restaurants.length === 0) {
+      return res.status(404).json({ error: "No locations found" });
+    }
+
+    const locationPnL = await Promise.all(
+      restaurants.map(async (r) => {
+        const pnl = await computePnL(r.id, from, to);
+        return { restaurant: r, ...pnl };
+      })
+    );
+
+    // Sort by primeCostPct ascending for ranking
+    const sorted = [...locationPnL].sort((a, b) => a.primeCostPct - b.primeCostPct);
+
+    // Consolidated
+    const revenue     = r2(locationPnL.reduce((s, l) => s + l.revenue,   0));
+    const foodCost    = r2(locationPnL.reduce((s, l) => s + l.foodCost,  0));
+    const laborCost   = r2(locationPnL.reduce((s, l) => s + l.laborCost, 0));
+    const primeCost   = r2(foodCost + laborCost);
+    const grossProfit = r2(revenue - primeCost);
+
+    const consolidated = {
+      revenue, foodCost, laborCost, primeCost, grossProfit,
+      foodCostPct:    safePct(foodCost,    revenue),
+      laborCostPct:   safePct(laborCost,   revenue),
+      primeCostPct:   safePct(primeCost,   revenue),
+      grossProfitPct: safePct(grossProfit, revenue),
+    };
+
+    const withData   = sorted.filter((l) => l.revenue > 0);
+    const best        = withData.length > 0 ? withData[0].restaurant.name                   : "—";
+    const worst       = withData.length > 0 ? withData[withData.length - 1].restaurant.name : "—";
+    const mostRevenue = withData.length > 0
+      ? withData.reduce((a, b) => b.revenue > a.revenue ? b : a).restaurant.name
+      : "—";
+
+    // ── Build workbook ────────────────────────────────────────────────────────
+    const wb = new ExcelJS.Workbook();
+    wb.creator  = "Kyru";
+    wb.modified = new Date();
+
+    // Sheet 1: Consolidated
+    const consolidatedSheet = wb.addWorksheet("Consolidated");
+    fillSheet(consolidatedSheet, startDate, endDate, consolidated, undefined, { best, worst, mostRevenue });
+
+    // Sheets 2+: one per location
+    sorted.forEach((loc, idx) => {
+      const name  = loc.restaurant.name.slice(0, 31); // Excel sheet name limit
+      const sheet = wb.addWorksheet(name);
+      fillSheet(
+        sheet,
+        startDate,
+        endDate,
+        {
+          revenue:        loc.revenue,
+          foodCost:       loc.foodCost,
+          laborCost:      loc.laborCost,
+          primeCost:      loc.primeCost,
+          grossProfit:    loc.grossProfit,
+          foodCostPct:    loc.foodCostPct,
+          laborCostPct:   loc.laborCostPct,
+          primeCostPct:   loc.primeCostPct,
+          grossProfitPct: loc.grossProfitPct,
+        },
+        `#${idx + 1} of ${sorted.length}`
+      );
+    });
+
+    // ── Stream to response ────────────────────────────────────────────────────
+    const filename = `pnl-${startDate}-to-${endDate}.xlsx`;
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+    await wb.xlsx.write(res);
+    res.end();
+
+    logger.debug("exportOwnerPnl: success", {
+      userId: req.user.userId, ownerAccountId, startDate, endDate,
+      locationCount: restaurants.length,
+    });
+  } catch (err) {
+    logger.error("exportOwnerPnl: error", { userId: req.user.userId, message: (err as Error).message });
     next(err);
   }
 }

@@ -767,4 +767,18 @@ export const ownerApi = {
     api.get<import("../types").PnLReport>(`/owner/pnl?startDate=${startDate}&endDate=${endDate}`).then((r) => r.data),
   getPnLSummary: (startDate: string, endDate: string) =>
     api.get<import("../types").PnLSummary>(`/owner/pnl/summary?startDate=${startDate}&endDate=${endDate}`).then((r) => r.data),
+  exportPnL: async (startDate: string, endDate: string) => {
+    const response = await api.get(
+      `/owner/pnl/export?startDate=${startDate}&endDate=${endDate}`,
+      { responseType: "blob" }
+    );
+    const url  = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement("a");
+    link.href  = url;
+    link.setAttribute("download", `pnl-${startDate}-to-${endDate}.xlsx`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
 };
