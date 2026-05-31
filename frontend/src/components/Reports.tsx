@@ -15,14 +15,13 @@ import { WeeklyReport, Unit, SalesCategory, CogsReport, CogsBucket, CogsPeriodTo
 import { reportsApi } from "../api";
 import { formatCurrency, unitLabel } from "../utils/stock";
 import { PageSpinner } from "./shared/Spinner";
+import DateRangePicker from "./shared/DateRangePicker";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
-// ── Period helpers ────────────────────────────────────────────────────────────
-
-type Period = "day" | "week" | "month" | "year";
+// ── Date helpers ──────────────────────────────────────────────────────────────
 
 function toISO(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -32,65 +31,10 @@ function todayISO(): string {
   return toISO(new Date());
 }
 
-/** Compute [startDate, endDate] for the period that contains the anchor date. */
-function getPeriodRange(period: Period, anchor: string): [string, string] {
-  const d = new Date(`${anchor}T00:00:00Z`);
-  switch (period) {
-    case "day":
-      return [anchor, anchor];
-    case "week": {
-      const dow = d.getUTCDay(); // 0 = Sun
-      const toMon = dow === 0 ? 6 : dow - 1;
-      const mon = new Date(d);
-      mon.setUTCDate(d.getUTCDate() - toMon);
-      const sun = new Date(mon);
-      sun.setUTCDate(mon.getUTCDate() + 6);
-      return [toISO(mon), toISO(sun)];
-    }
-    case "month": {
-      const y = d.getUTCFullYear(), m = d.getUTCMonth();
-      return [
-        toISO(new Date(Date.UTC(y, m, 1))),
-        toISO(new Date(Date.UTC(y, m + 1, 0))),
-      ];
-    }
-    case "year": {
-      const y = d.getUTCFullYear();
-      return [`${y}-01-01`, `${y}-12-31`];
-    }
-  }
-}
-
-/** Move anchor by one period in the given direction. */
-function movePeriod(anchor: string, period: Period, dir: -1 | 1): string {
-  const d = new Date(`${anchor}T00:00:00Z`);
-  switch (period) {
-    case "day":   d.setUTCDate(d.getUTCDate() + dir); break;
-    case "week":  d.setUTCDate(d.getUTCDate() + 7 * dir); break;
-    case "month": d.setUTCMonth(d.getUTCMonth() + dir); break;
-    case "year":  d.setUTCFullYear(d.getUTCFullYear() + dir); break;
-  }
+function daysAgoISO(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
   return toISO(d);
-}
-
-/** Human-readable label for a period range. */
-function periodLabel(period: Period, start: string, end: string): string {
-  const fmt = (iso: string, opts: Intl.DateTimeFormatOptions) =>
-    new Intl.DateTimeFormat("en-US", { ...opts, timeZone: "UTC" }).format(new Date(`${iso}T00:00:00Z`));
-
-  switch (period) {
-    case "day":
-      return fmt(start, { month: "long", day: "numeric", year: "numeric" });
-    case "week": {
-      const s = fmt(start, { month: "short", day: "numeric" });
-      const e = fmt(end,   { month: "short", day: "numeric" });
-      return `${s} – ${e}`;
-    }
-    case "month":
-      return fmt(start, { month: "long", year: "numeric" });
-    case "year":
-      return start.slice(0, 4);
-  }
 }
 
 /** Chart label per day */
@@ -98,100 +42,6 @@ function formatChartLabel(dateStr: string): string {
   return new Intl.DateTimeFormat("en-US", {
     month: "short", day: "numeric", timeZone: "UTC",
   }).format(new Date(`${dateStr}T00:00:00Z`));
-}
-
-// ── Period selector component ─────────────────────────────────────────────────
-
-function PeriodSelector({
-  period,
-  onChange,
-}: {
-  period: Period;
-  onChange: (p: Period) => void;
-}) {
-  const { t } = useLanguage();
-  const options: { id: Period; label: string }[] = [
-    { id: "day",   label: t.reports.day   },
-    { id: "week",  label: t.reports.week  },
-    { id: "month", label: t.reports.month },
-    { id: "year",  label: t.reports.year  },
-  ];
-  return (
-    <div className="flex rounded-xl overflow-hidden border border-[#2a2a2a] bg-[#0a0a0a]">
-      {options.map((opt) => (
-        <button
-          key={opt.id}
-          onClick={() => onChange(opt.id)}
-          className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-            period === opt.id
-              ? "bg-[#1a1a1a] text-white"
-              : "text-[#555] hover:text-[#888]"
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ── Navigation bar (shared) ───────────────────────────────────────────────────
-
-function PeriodNav({
-  period,
-  anchor,
-  label,
-  onPrev,
-  onNext,
-  onToday,
-  canGoNext,
-}: {
-  period: Period;
-  anchor: string;
-  label: string;
-  onPrev: () => void;
-  onNext: () => void;
-  onToday: () => void;
-  canGoNext: boolean;
-}) {
-  const todayLabel: Record<Period, string> = {
-    day: "Today", week: "This Week", month: "This Month", year: "This Year",
-  };
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={onPrev}
-        className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-[#2a2a2a] text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors"
-        aria-label="Previous period"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-
-      <span className="text-sm font-medium text-white min-w-[140px] text-center tabular-nums">
-        {label}
-      </span>
-
-      <button
-        onClick={onNext}
-        disabled={!canGoNext}
-        className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-[#2a2a2a] text-[#555] hover:text-white hover:bg-[#1a1a1a] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        aria-label="Next period"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
-
-      <button
-        onClick={onToday}
-        className="px-3 py-1.5 text-xs rounded-lg border border-[#2a2a2a] text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors"
-      >
-        {todayLabel[period]}
-      </button>
-    </div>
-  );
 }
 
 // ── SummaryCard ───────────────────────────────────────────────────────────────
@@ -299,24 +149,11 @@ function fmtMXN(n: number): string {
 
 // ── CogsReportSection ─────────────────────────────────────────────────────────
 
-function CogsReportSection() {
+function CogsReportSection({ startDate, endDate }: { startDate: string; endDate: string }) {
   const toast = useToast();
-  const [period, setPeriod]   = useState<Period>("week");
-  const [anchor, setAnchor]   = useState(todayISO);
   const [tab, setTab]         = useState<CogsTab>("weekly");
   const [data, setData]       = useState<CogsReport | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const [startDate, endDate] = useMemo(() => getPeriodRange(period, anchor), [period, anchor]);
-  const label = useMemo(() => periodLabel(period, startDate, endDate), [period, startDate, endDate]);
-
-  // When period changes, snap tab to a sensible default
-  useEffect(() => {
-    if (period === "day")   setTab("daily");
-    else if (period === "week") setTab("daily");
-    else if (period === "month") setTab("weekly");
-    else setTab("monthly");
-  }, [period]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -342,38 +179,19 @@ function CogsReportSection() {
     return aggregateToMonths(data.days);
   }, [data, tab]);
 
-  const availableTabs = useMemo<{ id: CogsTab; label: string }[]>(() => {
-    if (period === "day") return [{ id: "daily", label: "Daily" }];
-    if (period === "week") return [{ id: "daily", label: "Daily" }, { id: "weekly", label: "Weekly" }];
-    return [
-      { id: "daily",   label: "Daily"   },
-      { id: "weekly",  label: "Weekly"  },
-      { id: "monthly", label: "Monthly" },
-    ];
-  }, [period]);
-
-  const canGoNext = endDate < todayISO();
+  // Always offer all three grouping tabs — the DateRangePicker controls the range
+  const availableTabs: { id: CogsTab; label: string }[] = [
+    { id: "daily",   label: "Daily"   },
+    { id: "weekly",  label: "Weekly"  },
+    { id: "monthly", label: "Monthly" },
+  ];
 
   return (
     <div className="space-y-4">
-      {/* Section header + controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white">COGS Report</h2>
-          <p className="text-[13px] text-[#555]">Cost of Goods Sold vs. sales revenue by category</p>
-        </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <PeriodNav
-            period={period}
-            anchor={anchor}
-            label={label}
-            onPrev={() => setAnchor((a) => movePeriod(a, period, -1))}
-            onNext={() => setAnchor((a) => movePeriod(a, period,  1))}
-            onToday={() => setAnchor(todayISO())}
-            canGoNext={canGoNext}
-          />
-          <PeriodSelector period={period} onChange={(p) => { setPeriod(p); setAnchor(todayISO()); }} />
-        </div>
+      {/* Section header */}
+      <div>
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white">COGS Report</h2>
+        <p className="text-[13px] text-[#555]">Cost of Goods Sold vs. sales revenue by category</p>
       </div>
 
       {/* Grouping tabs */}
@@ -491,7 +309,7 @@ function CogsReportSection() {
             <p className="mt-1 text-2xl font-bold text-brand-500 tabular-nums">
               {fmtMXN((data.period as CogsPeriodSummary).totalSales)}
             </p>
-            <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{label}</p>
+            <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{startDate} – {endDate}</p>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total COGS</p>
@@ -533,14 +351,11 @@ export function Reports() {
   const toast = useToast();
   const { t } = useLanguage();
 
-  const [period, setPeriod]   = useState<Period>("week");
-  const [anchor, setAnchor]   = useState(todayISO());
-  const [report, setReport]   = useState<WeeklyReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
-
-  const [startDate, endDate] = useMemo(() => getPeriodRange(period, anchor), [period, anchor]);
-  const label = useMemo(() => periodLabel(period, startDate, endDate), [period, startDate, endDate]);
+  const [startDate,  setStartDate]  = useState(() => daysAgoISO(30));
+  const [endDate,    setEndDate]    = useState(() => todayISO());
+  const [report,     setReport]     = useState<WeeklyReport | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [exporting,  setExporting]  = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -553,6 +368,11 @@ export function Reports() {
 
   useEffect(() => { load(); }, [load]);
 
+  function handleDateChange(s: string, e: string) {
+    setStartDate(s);
+    setEndDate(e);
+  }
+
   async function handleExport() {
     if (!report) return;
     setExporting(true);
@@ -564,8 +384,6 @@ export function Reports() {
       setExporting(false);
     }
   }
-
-  const canGoNext = endDate < todayISO();
 
   const isDark = document.documentElement.classList.contains("dark");
   const muted = isDark ? "#6b7280" : "#9ca3af";
@@ -624,38 +442,18 @@ export function Reports() {
     },
   };
 
-  // Chart title reflects the period
-  const chartTitle: Record<Period, string> = {
-    day:   "Daily Stock Activity",
-    week:  "7-Day Stock Activity",
-    month: "Monthly Stock Activity",
-    year:  "Yearly Stock Activity",
-  };
-
   return (
     <div className="p-8 space-y-4">
       {/* Header ───────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
           <h1 className="text-[22px] font-semibold text-white">{t.reports.title}</h1>
-          <p className="text-[13px] text-[#555] mt-1">{label}</p>
+          <div className="mt-3">
+            <DateRangePicker startDate={startDate} endDate={endDate} onChange={handleDateChange} />
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Period Prev/Next nav */}
-          <PeriodNav
-            period={period}
-            anchor={anchor}
-            label={label}
-            onPrev={() => setAnchor((a) => movePeriod(a, period, -1))}
-            onNext={() => setAnchor((a) => movePeriod(a, period,  1))}
-            onToday={() => setAnchor(todayISO())}
-            canGoNext={canGoNext}
-          />
-
-          {/* Period selector pills */}
-          <PeriodSelector period={period} onChange={(p) => { setPeriod(p); setAnchor(todayISO()); }} />
-
+        <div className="flex items-center gap-3 flex-shrink-0 pt-1">
           {/* Export */}
           <button
             onClick={handleExport}
@@ -706,7 +504,7 @@ export function Reports() {
           {/* Trend chart */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5">
             <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-4">
-              {chartTitle[period]}
+              Stock Activity
             </h2>
             <div className="h-56 sm:h-72">
               {chartData && <Line data={chartData} options={chartOptions} />}
@@ -752,7 +550,7 @@ export function Reports() {
           </div>
 
           {/* COGS Report */}
-          <CogsReportSection />
+          <CogsReportSection startDate={startDate} endDate={endDate} />
 
           {/* Most used products */}
           {report.mostUsed.length > 0 ? (
