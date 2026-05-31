@@ -143,7 +143,7 @@ function RestaurantsTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[#1a1a1a]">
-              {["Partner", "Owner", "Users", "Products", "Created", ""].map((h) => (
+              {["Partner", "Owner", "Owner Group", "Users", "Products", "Created", ""].map((h) => (
                 <th key={h} className="text-left px-4 py-3 text-[11px] font-medium text-[#444] uppercase tracking-[0.08em] whitespace-nowrap">
                   {h}
                 </th>
@@ -170,6 +170,12 @@ function RestaurantsTable({
                   ) : (
                     <span className="text-[#444] text-[13px]">No admin</span>
                   )}
+                </td>
+                <td className="px-4 py-3">
+                  {r.ownerAccountName
+                    ? <span className="text-[#3dbf8a] text-[13px]">{r.ownerAccountName}</span>
+                    : <span className="text-[#444] text-[13px]">—</span>
+                  }
                 </td>
                 <td className="px-4 py-3 text-[#888] text-[13px]">{r.userCount}</td>
                 <td className="px-4 py-3 text-[#888] text-[13px]">{r.productCount}</td>
