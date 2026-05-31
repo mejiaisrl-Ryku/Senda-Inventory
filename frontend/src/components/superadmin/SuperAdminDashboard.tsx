@@ -505,6 +505,19 @@ function CreateOwnerAccountForm({
   const [loading,        setLoading]        = useState(false);
   const [error,          setError]          = useState("");
   const [successEmail,   setSuccessEmail]   = useState("");
+  const [dropdownOpen,   setDropdownOpen]   = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!dropdownOpen) return;
+    function handleOutsideClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [dropdownOpen]);
 
   function toggleRestaurant(id: string) {
     setSelectedIds((prev) =>
@@ -573,26 +586,45 @@ function CreateOwnerAccountForm({
       </div>
 
       {restaurants.length > 0 && (
-        <div>
+        <div ref={dropdownRef} className="relative">
           <label className={labelCls}>Assign restaurants (optional)</label>
-          <div className="max-h-[180px] overflow-y-auto rounded-[8px] border border-[#2a2a2a] bg-[#0a0a0a] divide-y divide-[#1a1a1a]">
-            {restaurants.map((r) => (
-              <label key={r.id} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-[#111] transition-colors">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.includes(r.id)}
-                  onChange={() => toggleRestaurant(r.id)}
-                  className="w-4 h-4 accent-[#3dbf8a] flex-shrink-0"
-                />
-                <span className="min-w-0">
-                  <span className="block text-[13px] text-white truncate">{r.name}</span>
-                  {r.address && <span className="block text-[11px] text-[#444] truncate">{r.address}</span>}
-                </span>
-              </label>
-            ))}
-          </div>
-          {selectedIds.length > 0 && (
-            <p className="text-[11px] text-[#555] mt-1">{selectedIds.length} restaurant{selectedIds.length !== 1 ? "s" : ""} selected</p>
+          {/* Trigger button */}
+          <button
+            type="button"
+            onClick={() => setDropdownOpen((v) => !v)}
+            className={`${inputCls} text-left flex items-center justify-between gap-2`}
+          >
+            <span className={selectedIds.length === 0 ? "text-[#444]" : "text-white"}>
+              {selectedIds.length === 0
+                ? "Select restaurants..."
+                : `${selectedIds.length} restaurant${selectedIds.length !== 1 ? "s" : ""} selected`}
+            </span>
+            <svg
+              className={`w-4 h-4 flex-shrink-0 transition-transform ${dropdownOpen ? "rotate-180 text-[#3dbf8a]" : "text-[#555]"}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {/* Dropdown panel */}
+          {dropdownOpen && (
+            <div className="absolute z-10 mt-1 w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-[8px] shadow-xl max-h-[200px] overflow-y-auto">
+              {restaurants.map((r) => (
+                <label key={r.id} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-[#111] transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.includes(r.id)}
+                    onChange={() => toggleRestaurant(r.id)}
+                    className="w-4 h-4 accent-[#3dbf8a] flex-shrink-0"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-[13px] text-white truncate">{r.name}</span>
+                    {r.address && <span className="block text-[11px] text-[#444] truncate">{r.address}</span>}
+                  </span>
+                </label>
+              ))}
+            </div>
           )}
         </div>
       )}
