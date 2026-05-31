@@ -36,7 +36,7 @@ function dateAgo(daysAgo: number): Date {
 
 // ── Config ─────────────────────────────────────────────────────────────────────
 
-const DAYS = 30;
+const DAYS = 90;
 
 const GM_PASSWORD_PLAIN    = "TrompasGM2026!";
 const OWNER_PASSWORD_PLAIN = "TrompasOwner2026!";

@@ -123,13 +123,15 @@ export function generateAlerts(data: AlertInput): Alert[] {
 async function computeLocationMetrics(restaurantId: string, locationName: string) {
   const now    = utcMidnight(0);
   const day30  = utcMidnight(30);
+  const day90  = utcMidnight(90);  // extended window for dailyTotals (chart history)
   const day7   = utcMidnight(7);
   const day14  = utcMidnight(14);
 
-  // Sales and labor for the last 30 days — single parallel fetch
+  // Sales: fetch 90 days so the chart can show monthly view.
+  // Labor: still 30 days — all metrics (laborPct, prime cost, alerts) stay 30-day scoped.
   const [salesRows, laborRows] = await Promise.all([
     prisma.salesEntry.findMany({
-      where:   { restaurantId, date: { gte: day30, lt: now } },
+      where:   { restaurantId, date: { gte: day90, lt: now } },
       select:  { date: true, category: true, amount: true },
       orderBy: { date: "asc" },
     }) as Promise<SalesEntry[]>,
@@ -141,6 +143,8 @@ async function computeLocationMetrics(restaurantId: string, locationName: string
   ]);
 
   // ── Sales aggregation ──────────────────────────────────────────────────────
+  // byCategory, salesTotal, trend window: scoped to the 30-day window only.
+  // dailyTotals: covers the full 90-day window for chart history.
   const byCategory: Record<string, number> = { FOOD: 0, BEER: 0, LIQUOR: 0, WINE: 0 };
   const dailyMap   = new Map<string, number>();
   let last7Total   = 0;
@@ -151,11 +155,15 @@ async function computeLocationMetrics(restaurantId: string, locationName: string
     const cat  = e.category;
     const dStr = toDateStr(e.date);
 
-    if (cat in byCategory) byCategory[cat] = (byCategory[cat] ?? 0) + amt;
+    // Always add to dailyTotals (full 90-day window)
     dailyMap.set(dStr, (dailyMap.get(dStr) ?? 0) + amt);
 
-    if (e.date >= day7)  last7Total  += amt;
-    if (e.date >= day14 && e.date < day7) prior7Total += amt;
+    // Only 30-day entries count toward metrics
+    if (e.date >= day30) {
+      if (cat in byCategory) byCategory[cat] = (byCategory[cat] ?? 0) + amt;
+      if (e.date >= day7)                        last7Total  += amt;
+      if (e.date >= day14 && e.date < day7)      prior7Total += amt;
+    }
   }
 
   const salesTotal  = Object.values(byCategory).reduce((s, v) => s + v, 0);

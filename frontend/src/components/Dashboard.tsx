@@ -44,11 +44,11 @@ function Sparkline({
   chartView = "daily",
 }: {
   points:     { date: string; total: number }[];
-  chartView?: "daily" | "weekly";
+  chartView?: "daily" | "weekly" | "monthly";
 }) {
   if (points.length < 2) return null;
 
-  // ── Weekly grouping ───────────────────────────────────────────────────────
+  // ── Weekly grouping (7-day chunks) ────────────────────────────────────────
   function toWeekly(raw: { date: string; total: number }[]) {
     const buckets: { date: string; total: number }[] = [];
     for (let i = 0; i < raw.length; i += 7) {
@@ -61,7 +61,22 @@ function Sparkline({
     return buckets;
   }
 
-  const displayPoints = chartView === "weekly" ? toWeekly(points) : points;
+  // ── Monthly grouping (calendar month) ─────────────────────────────────────
+  function toMonthly(raw: { date: string; total: number }[]) {
+    const monthMap = new Map<string, { date: string; total: number }>();
+    for (const p of raw) {
+      const key = p.date.slice(0, 7); // "YYYY-MM"
+      if (!monthMap.has(key)) monthMap.set(key, { date: p.date, total: 0 });
+      monthMap.get(key)!.total += p.total;
+    }
+    return [...monthMap.values()]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((b) => ({ ...b, total: Math.round(b.total * 100) / 100 }));
+  }
+
+  const displayPoints =
+    chartView === "weekly"  ? toWeekly(points)  :
+    chartView === "monthly" ? toMonthly(points)  : points;
 
   // ── Dimensions ────────────────────────────────────────────────────────────
   const W      = 600;
@@ -85,15 +100,19 @@ function Sparkline({
   const lowIdx  = vals.indexOf(minV);
   const avgY    = y(avg);
 
-  // Date labels: every 7 in daily view; all in weekly view (≤ 5 points)
-  const dateIndices = chartView === "weekly"
-    ? displayPoints.map((_, i) => i)
-    : [0, 7, 14, 21, displayPoints.length - 1].filter(
-        (i, pos, arr) => i < displayPoints.length && arr.indexOf(i) === pos
-      );
+  // Date labels: every 7 in daily view; all points in weekly/monthly (≤ ~5)
+  const dateIndices =
+    chartView === "daily"
+      ? [0, 7, 14, 21, 30, 37, 44, 51, 58, 65, 72, 79, displayPoints.length - 1].filter(
+          (i, pos, arr) => i < displayPoints.length && arr.indexOf(i) === pos
+        )
+      : displayPoints.map((_, i) => i);
 
   function shortDate(iso: string): string {
     const d = new Date(iso + "T00:00:00Z");
+    if (chartView === "monthly") {
+      return d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+    }
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   }
 
@@ -226,7 +245,7 @@ function GMPerformanceSection() {
   const [gmData,     setGmData]     = useState<GMDashboard | null>(null);
   const [gmLoading,  setGmLoading]  = useState(true);
   const [gmError,    setGmError]    = useState(false);
-  const [chartView,  setChartView]  = useState<"daily" | "weekly">("daily");
+  const [chartView,  setChartView]  = useState<"daily" | "weekly" | "monthly">("daily");
 
   useEffect(() => {
     gmApi.getDashboard()
@@ -315,16 +334,17 @@ function GMPerformanceSection() {
         ))}
       </div>
 
-      {/* Daily / Weekly sales sparkline */}
+      {/* Daily / Weekly / Monthly sales sparkline */}
       {sales.dailyTotals.length > 1 && (
         <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5">
           {/* Title row + toggle */}
           <div className="flex items-center justify-between mb-3">
             <p className="text-[13px] font-semibold text-white">
-              {chartView === "daily" ? p.dailySales : p.weeklySales}
+              {chartView === "daily"   ? p.dailySales   :
+               chartView === "weekly"  ? p.weeklySales  : p.monthlySales}
             </p>
             <div className="flex gap-1">
-              {(["daily", "weekly"] as const).map((view) => (
+              {(["daily", "weekly", "monthly"] as const).map((view) => (
                 <button
                   key={view}
                   onClick={() => setChartView(view)}
@@ -334,7 +354,7 @@ function GMPerformanceSection() {
                       : "border border-[#2a2a2a] text-[#555] hover:text-white"
                   }`}
                 >
-                  {view === "daily" ? p.viewDaily : p.viewWeekly}
+                  {view === "daily" ? p.viewDaily : view === "weekly" ? p.viewWeekly : p.viewMonthly}
                 </button>
               ))}
             </div>

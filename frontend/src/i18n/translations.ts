@@ -149,7 +149,9 @@ const en = {
     management:      "Management",
     viewDaily:       "Daily",
     viewWeekly:      "Weekly",
+    viewMonthly:     "Monthly",
     weeklySales:     "Weekly Sales (last 4 weeks)",
+    monthlySales:    "Monthly Sales (last 3 months)",
   },
 
   // ── Owner Dashboard (Phase 5) ─────────────────────────────────────────────────
@@ -824,7 +826,9 @@ const es: typeof en = {
     management:      "Gerencia",
     viewDaily:       "Diario",
     viewWeekly:      "Semanal",
+    viewMonthly:     "Mensual",
     weeklySales:     "Ventas Semanales (últimas 4 semanas)",
+    monthlySales:    "Ventas Mensuales (últimos 3 meses)",
   },
 
   owner: {
