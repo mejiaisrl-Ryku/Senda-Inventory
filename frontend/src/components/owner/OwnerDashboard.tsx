@@ -4,8 +4,12 @@ import { ownerApi } from "../../api";
 import { OwnerDashboard as OwnerDashboardData, OwnerLocationData, GMAlert } from "../../types";
 import { formatCurrency } from "../../utils/stock";
 import { PageSpinner } from "../shared/Spinner";
+import DateRangePicker from "../shared/DateRangePicker";
 import { useLanguage } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
+
+function toISO(d: Date) { return d.toISOString().slice(0, 10); }
+function daysAgoISO(n: number) { const d = new Date(); d.setDate(d.getDate() - n); return toISO(d); }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -190,16 +194,28 @@ export function OwnerDashboard() {
   const o = t.owner;
   const p = t.performance;
 
-  const [data,    setData]    = useState<OwnerDashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(false);
+  const [data,      setData]      = useState<OwnerDashboardData | null>(null);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(false);
+  const [startDate, setStartDate] = useState(() => daysAgoISO(30));
+  const [endDate,   setEndDate]   = useState(() => toISO(new Date()));
 
-  useEffect(() => {
-    ownerApi.getDashboard()
+  function fetchData(start: string, end: string) {
+    setLoading(true);
+    setError(false);
+    ownerApi.getDashboard(start, end)
       .then(setData)
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { fetchData(startDate, endDate); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleDateChange(s: string, e: string) {
+    setStartDate(s);
+    setEndDate(e);
+    fetchData(s, e);
+  }
 
   function handleLogout() {
     logout();
@@ -268,6 +284,9 @@ export function OwnerDashboard() {
         <div>
           <h1 className="text-[24px] font-semibold text-white">{o.title}</h1>
           <p className="text-[13px] text-[#555] mt-0.5">{o.subtitle}</p>
+          <div className="mt-4">
+            <DateRangePicker startDate={startDate} endDate={endDate} onChange={handleDateChange} />
+          </div>
         </div>
 
         {/* Summary stat cards */}

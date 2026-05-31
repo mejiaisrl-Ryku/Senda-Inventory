@@ -749,14 +749,18 @@ export const feedbackApi = {
 
 // ── Phase 5 GM API ────────────────────────────────────────────────────────────
 export const gmApi = {
-  getDashboard: () =>
-    api.get<import("../types").GMDashboard>("/gm/dashboard").then((r) => r.data),
+  getDashboard: (startDate?: string, endDate?: string) => {
+    const params = startDate && endDate ? { params: { startDate, endDate } } : {};
+    return api.get<import("../types").GMDashboard>("/gm/dashboard", params).then((r) => r.data);
+  },
 };
 
 // ── Phase 5 Owner API ─────────────────────────────────────────────────────────
 export const ownerApi = {
-  getDashboard: () =>
-    api.get<import("../types").OwnerDashboard>("/owner/dashboard").then((r) => r.data),
+  getDashboard: (startDate?: string, endDate?: string) => {
+    const params = startDate && endDate ? { params: { startDate, endDate } } : {};
+    return api.get<import("../types").OwnerDashboard>("/owner/dashboard", params).then((r) => r.data);
+  },
   getLocations: () =>
     api.get<Array<{ id: string; name: string; address: string | null; phone: string | null; locationCount: number; suspended: boolean }>>("/owner/locations").then((r) => r.data),
 };

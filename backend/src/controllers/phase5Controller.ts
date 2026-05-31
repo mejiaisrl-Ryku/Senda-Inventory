@@ -120,49 +120,85 @@ export function generateAlerts(data: AlertInput): Alert[] {
 
 // ── Core metrics computer (shared by GM and Owner endpoints) ──────────────────
 
-async function computeLocationMetrics(restaurantId: string, locationName: string) {
-  const now    = utcMidnight(0);
-  const day30  = utcMidnight(30);
-  const day90  = utcMidnight(90);  // extended window for dailyTotals (chart history)
-  const day7   = utcMidnight(7);
-  const day14  = utcMidnight(14);
+interface CustomRange { from: Date; to: Date }
 
-  // Sales: fetch 90 days so the chart can show monthly view.
-  // Labor: still 30 days — all metrics (laborPct, prime cost, alerts) stay 30-day scoped.
+async function computeLocationMetrics(
+  restaurantId: string,
+  locationName: string,
+  customRange?: CustomRange
+) {
+  const now   = utcMidnight(0);
+  const day30 = utcMidnight(30);
+  const day90 = utcMidnight(90);
+  const day7  = utcMidnight(7);
+  const day14 = utcMidnight(14);
+
+  // When a custom range is provided, use it uniformly for both sales and labor.
+  // Otherwise, keep the existing 90-day sales / 30-day labor default split.
+  const salesFrom = customRange ? customRange.from : day90;
+  const salesTo   = customRange ? customRange.to   : now;
+  const laborFrom = customRange ? customRange.from : day30;
+  const laborTo   = customRange ? customRange.to   : now;
+
   const [salesRows, laborRows] = await Promise.all([
     prisma.salesEntry.findMany({
-      where:   { restaurantId, date: { gte: day90, lt: now } },
+      where:   { restaurantId, date: { gte: salesFrom, lte: salesTo } },
       select:  { date: true, category: true, amount: true },
       orderBy: { date: "asc" },
     }) as Promise<SalesEntry[]>,
     prisma.laborEntry.findMany({
-      where:   { restaurantId, date: { gte: day30, lt: now } },
+      where:   { restaurantId, date: { gte: laborFrom, lte: laborTo } },
       select:  { date: true, fohLabor: true, bohLabor: true, management: true, total: true },
       orderBy: { date: "asc" },
     }) as Promise<LaborEntry[]>,
   ]);
 
   // ── Sales aggregation ──────────────────────────────────────────────────────
-  // byCategory, salesTotal, trend window: scoped to the 30-day window only.
-  // dailyTotals: covers the full 90-day window for chart history.
   const byCategory: Record<string, number> = { FOOD: 0, BEER: 0, LIQUOR: 0, WINE: 0, BUYOUTS: 0, EVENTS: 0, DELIVERY: 0 };
   const dailyMap   = new Map<string, number>();
   let last7Total   = 0;
   let prior7Total  = 0;
+
+  // For custom range: compare last 7 days of range vs 7 days before that.
+  // For default: compare last 7 days vs prior 7 days from today.
+  const trendLast7From  = customRange
+    ? new Date(customRange.to.getTime()  - 7  * 24 * 60 * 60 * 1000)
+    : day7;
+  const trendPrior7From = customRange
+    ? new Date(customRange.to.getTime()  - 14 * 24 * 60 * 60 * 1000)
+    : day14;
 
   for (const e of salesRows) {
     const amt  = typeof e.amount === "number" ? e.amount : e.amount.toNumber();
     const cat  = e.category;
     const dStr = toDateStr(e.date);
 
-    // Always add to dailyTotals (full 90-day window)
     dailyMap.set(dStr, (dailyMap.get(dStr) ?? 0) + amt);
 
-    // Only 30-day entries count toward metrics
-    if (e.date >= day30) {
-      if (cat in byCategory) byCategory[cat] = (byCategory[cat] ?? 0) + amt;
-      if (e.date >= day7)                        last7Total  += amt;
-      if (e.date >= day14 && e.date < day7)      prior7Total += amt;
+    if (cat in byCategory) byCategory[cat] = (byCategory[cat] ?? 0) + amt;
+
+    if (customRange) {
+      if (e.date >= trendLast7From)                              last7Total  += amt;
+      if (e.date >= trendPrior7From && e.date < trendLast7From) prior7Total += amt;
+    } else {
+      // Default: 30-day scope for KPIs
+      if (e.date >= day30) {
+        if (e.date >= day7)                        last7Total  += amt;
+        if (e.date >= day14 && e.date < day7)      prior7Total += amt;
+      }
+    }
+  }
+
+  // When using the default (no custom range), byCategory is only 30-day scoped
+  if (!customRange) {
+    // Re-zero and re-aggregate from 30 days only
+    Object.keys(byCategory).forEach((k) => { byCategory[k] = 0; });
+    for (const e of salesRows) {
+      if (e.date >= day30) {
+        const amt = typeof e.amount === "number" ? e.amount : e.amount.toNumber();
+        const cat = e.category;
+        if (cat in byCategory) byCategory[cat] = (byCategory[cat] ?? 0) + amt;
+      }
     }
   }
 
@@ -220,7 +256,22 @@ export async function getGmDashboard(req: AuthRequest, res: Response, next: Next
   try {
     const restaurantId = req.user.restaurantId ?? "";
 
-    logger.debug("getGmDashboard: entry", { userId: req.user.userId, restaurantId });
+    // Optional date range query params (YYYY-MM-DD)
+    const qStart = typeof req.query.startDate === "string" ? req.query.startDate : null;
+    const qEnd   = typeof req.query.endDate   === "string" ? req.query.endDate   : null;
+
+    let customRange: CustomRange | undefined;
+    if (qStart && qEnd) {
+      const from = new Date(qStart + "T00:00:00Z");
+      const to   = new Date(qEnd   + "T23:59:59Z");
+      if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+        return res.status(400).json({ error: "Invalid startDate or endDate" });
+      }
+      if (to < from) return res.status(400).json({ error: "endDate must be >= startDate" });
+      customRange = { from, to };
+    }
+
+    logger.debug("getGmDashboard: entry", { userId: req.user.userId, restaurantId, qStart, qEnd });
 
     const restaurant = await prisma.restaurant.findUnique({
       where:  { id: restaurantId },
@@ -228,7 +279,7 @@ export async function getGmDashboard(req: AuthRequest, res: Response, next: Next
     });
     if (!restaurant) return res.status(404).json({ error: "Restaurant not found" });
 
-    const metrics = await computeLocationMetrics(restaurantId, restaurant.name);
+    const metrics = await computeLocationMetrics(restaurantId, restaurant.name, customRange);
 
     logger.debug("getGmDashboard: success", {
       userId:       req.user.userId,
@@ -285,7 +336,22 @@ export async function getOwnerDashboard(req: AuthRequest, res: Response, next: N
   try {
     const ownerAccountId = req.user.ownerAccountId ?? "";
 
-    logger.debug("getOwnerDashboard: entry", { userId: req.user.userId, ownerAccountId });
+    // Optional date range query params (YYYY-MM-DD)
+    const qStart = typeof req.query.startDate === "string" ? req.query.startDate : null;
+    const qEnd   = typeof req.query.endDate   === "string" ? req.query.endDate   : null;
+
+    let customRange: CustomRange | undefined;
+    if (qStart && qEnd) {
+      const from = new Date(qStart + "T00:00:00Z");
+      const to   = new Date(qEnd   + "T23:59:59Z");
+      if (isNaN(from.getTime()) || isNaN(to.getTime())) {
+        return res.status(400).json({ error: "Invalid startDate or endDate" });
+      }
+      if (to < from) return res.status(400).json({ error: "endDate must be >= startDate" });
+      customRange = { from, to };
+    }
+
+    logger.debug("getOwnerDashboard: entry", { userId: req.user.userId, ownerAccountId, qStart, qEnd });
 
     const ownerAccount = await prisma.ownerAccount.findUnique({
       where:  { id: ownerAccountId },
@@ -302,7 +368,7 @@ export async function getOwnerDashboard(req: AuthRequest, res: Response, next: N
     // Compute metrics for every location in parallel
     const locationMetrics = await Promise.all(
       restaurants.map(async (r) => {
-        const m = await computeLocationMetrics(r.id, r.name);
+        const m = await computeLocationMetrics(r.id, r.name, customRange);
         return { restaurant: { id: r.id, name: r.name, address: r.address }, ...m };
       })
     );

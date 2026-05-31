@@ -661,6 +661,21 @@ const en = {
     locationSlots:        "locations used",
   },
 
+  // ── Date Range Picker ────────────────────────────────────────────────────────
+  dateRange: {
+    last7:        "Last 7 days",
+    last30:       "Last 30 days",
+    last90:       "Last 90 days",
+    thisMonth:    "This month",
+    lastMonth:    "Last month",
+    custom:       "Custom",
+    from:         "From",
+    to:           "To",
+    apply:        "Apply",
+    invalidRange: "End date must be after start date",
+    futureDate:   "End date cannot be in the future",
+  },
+
   // ── Onboarding checklist ─────────────────────────────────────────────────────
   onboarding: {
     title:         "Get started",
@@ -1341,6 +1356,20 @@ const es: typeof en = {
     locationLimitReached: "Has alcanzado el límite de ubicaciones.",
     locationAtLimit:      "de",
     locationSlots:        "ubicaciones usadas",
+  },
+
+  dateRange: {
+    last7:        "Últimos 7 días",
+    last30:       "Últimos 30 días",
+    last90:       "Últimos 90 días",
+    thisMonth:    "Este mes",
+    lastMonth:    "Mes anterior",
+    custom:       "Personalizado",
+    from:         "Desde",
+    to:           "Hasta",
+    apply:        "Aplicar",
+    invalidRange: "La fecha final debe ser posterior a la inicial",
+    futureDate:   "La fecha final no puede ser en el futuro",
   },
 
   onboarding: {

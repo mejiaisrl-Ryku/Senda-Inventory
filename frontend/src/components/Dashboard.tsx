@@ -6,6 +6,7 @@ import { formatCurrency } from "../utils/stock";
 import { LowStockAlerts } from "./LowStockAlerts";
 import { OnboardingChecklist } from "./OnboardingChecklist";
 import { PageSpinner, Spinner } from "./shared/Spinner";
+import DateRangePicker from "./shared/DateRangePicker";
 import { useStockSocket } from "../hooks/useStockSocket";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -205,6 +206,9 @@ function computeMetrics(period: Period, gmData: GMDashboard) {
 
 // ── GM Performance Section ────────────────────────────────────────────────────
 
+function toISO(d: Date) { return d.toISOString().slice(0, 10); }
+function daysAgoISO(n: number) { const d = new Date(); d.setDate(d.getDate() - n); return toISO(d); }
+
 function GMPerformanceSection() {
   const { t, lang } = useLanguage();
   const p = t.performance;
@@ -213,12 +217,25 @@ function GMPerformanceSection() {
   const [gmError,   setGmError]   = useState(false);
   const [period,    setPeriod]    = useState<Period>("weekly");
 
-  useEffect(() => {
-    gmApi.getDashboard()
+  const [startDate, setStartDate] = useState(() => daysAgoISO(90));
+  const [endDate,   setEndDate]   = useState(() => toISO(new Date()));
+
+  function fetchData(start: string, end: string) {
+    setGmLoading(true);
+    setGmError(false);
+    gmApi.getDashboard(start, end)
       .then(setGmData)
       .catch(() => setGmError(true))
       .finally(() => setGmLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { fetchData(startDate, endDate); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleDateChange(s: string, e: string) {
+    setStartDate(s);
+    setEndDate(e);
+    fetchData(s, e);
+  }
 
   if (gmLoading) {
     return (
@@ -253,11 +270,14 @@ function GMPerformanceSection() {
 
   return (
     <div className="space-y-4">
-      {/* Section header + period toggle */}
+      {/* Section header + date picker + period toggle */}
       <div>
         <h2 className="text-[16px] font-semibold text-white">{p.title}</h2>
-        <p className="text-[13px] text-[#555] mt-0.5">{periodSubtitle}</p>
-        <div className="flex gap-1 mt-3">
+        <div className="mt-3">
+          <DateRangePicker startDate={startDate} endDate={endDate} onChange={handleDateChange} />
+        </div>
+        <p className="text-[13px] text-[#555] mt-2">{periodSubtitle}</p>
+        <div className="flex gap-1 mt-2">
           {(["daily", "weekly", "monthly"] as const).map((v) => (
             <button
               key={v}
