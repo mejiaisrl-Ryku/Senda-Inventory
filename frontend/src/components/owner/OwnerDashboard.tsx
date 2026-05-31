@@ -282,8 +282,18 @@ export function OwnerDashboard() {
 
         {/* Page header */}
         <div>
-          <h1 className="text-[24px] font-semibold text-white">{o.title}</h1>
-          <p className="text-[13px] text-[#555] mt-0.5">{o.subtitle}</p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-[24px] font-semibold text-white">{o.title}</h1>
+              <p className="text-[13px] text-[#555] mt-0.5">{o.subtitle}</p>
+            </div>
+            <button
+              onClick={() => navigate("/owner/pnl")}
+              className="shrink-0 border border-[#3dbf8a] text-[#3dbf8a] hover:bg-[#3dbf8a] hover:text-white text-[12px] px-4 py-1.5 rounded-[6px] transition-colors"
+            >
+              {o.viewPnL}
+            </button>
+          </div>
           <div className="mt-4">
             <DateRangePicker startDate={startDate} endDate={endDate} onChange={handleDateChange} />
           </div>
