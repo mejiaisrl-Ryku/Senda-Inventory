@@ -145,7 +145,7 @@ async function computeLocationMetrics(restaurantId: string, locationName: string
   // ── Sales aggregation ──────────────────────────────────────────────────────
   // byCategory, salesTotal, trend window: scoped to the 30-day window only.
   // dailyTotals: covers the full 90-day window for chart history.
-  const byCategory: Record<string, number> = { FOOD: 0, BEER: 0, LIQUOR: 0, WINE: 0 };
+  const byCategory: Record<string, number> = { FOOD: 0, BEER: 0, LIQUOR: 0, WINE: 0, BUYOUTS: 0, EVENTS: 0, DELIVERY: 0 };
   const dailyMap   = new Map<string, number>();
   let last7Total   = 0;
   let prior7Total  = 0;
@@ -341,7 +341,7 @@ export async function getOwnerDashboard(req: AuthRequest, res: Response, next: N
       locations:    locationMetrics.map(({ restaurant, sales, labor, primeCost, alerts }) => ({
         restaurant,
         sales:     { total: sales.total, byCategory: sales.byCategory, trend: sales.trend },
-        labor:     { total: labor.total, laborPct:   labor.laborPct },
+        labor:     { total: labor.total, laborPct: labor.laborPct, breakdown: labor.breakdown },
         primeCost,
         alerts,
       })),

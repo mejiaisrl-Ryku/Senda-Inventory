@@ -78,48 +78,41 @@ function AlertList({ alerts, lang }: { alerts: GMAlert[]; lang: string }) {
 // ── Location card ─────────────────────────────────────────────────────────────
 
 const CAT_COLORS: Record<string, string> = {
-  FOOD:   "#3dbf8a",
-  BEER:   "#f59e0b",
-  LIQUOR: "#8b5cf6",
-  WINE:   "#ef4444",
+  FOOD:     "#3dbf8a",
+  BEER:     "#f59e0b",
+  LIQUOR:   "#8b5cf6",
+  WINE:     "#ef4444",
+  BUYOUTS:  "#06b6d4",
+  EVENTS:   "#f97316",
+  DELIVERY: "#84cc16",
 };
 
 function LocationCard({
   loc,
   catLabels,
+  laborLabels,
   lang,
   trendLabel,
 }: {
-  loc:        OwnerLocationData;
-  catLabels:  Record<string, string>;
-  lang:       string;
-  trendLabel: (t: "up" | "down" | "flat") => string;
+  loc:          OwnerLocationData;
+  catLabels:    Record<string, string>;
+  laborLabels:  { laborCost: string; foh: string; boh: string; mgmt: string };
+  lang:         string;
+  trendLabel:   (t: "up" | "down" | "flat") => string;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const arrow = trendArrow(loc.sales.trend);
+  const arrow     = trendArrow(loc.sales.trend);
   const hasAlerts = loc.alerts.length > 0;
+  const bd        = loc.labor.breakdown;
 
   return (
     <div className="bg-[#0a0a0a] rounded-[10px] border border-[#1a1a1a] overflow-hidden">
-      {/* Card header */}
+      {/* Card header — badge removed (Change 1) */}
       <div className="px-5 py-4 border-b border-[#111]">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[14px] font-semibold text-white truncate">{loc.restaurant.name}</p>
-            {loc.restaurant.address && (
-              <p className="text-[11px] text-[#444] mt-0.5 truncate">{loc.restaurant.address}</p>
-            )}
-          </div>
-          {/* Alert count badge */}
-          <span
-            className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${
-              hasAlerts ? "bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/20"
-                        : "bg-[#3dbf8a]/10 text-[#3dbf8a] border border-[#3dbf8a]/20"
-            }`}
-          >
-            {hasAlerts ? `${loc.alerts.length}` : "✓"}
-          </span>
-        </div>
+        <p className="text-[14px] font-semibold text-white truncate">{loc.restaurant.name}</p>
+        {loc.restaurant.address && (
+          <p className="text-[11px] text-[#444] mt-0.5 truncate">{loc.restaurant.address}</p>
+        )}
       </div>
 
       {/* Metrics row */}
@@ -146,17 +139,29 @@ function LocationCard({
         </div>
       </div>
 
-      {/* Category bars */}
+      {/* Category bars — all 7 categories, hide empties (Change 2) */}
       <div className="px-5 py-3 space-y-1.5 border-b border-[#111]">
-        {(Object.entries(loc.sales.byCategory) as [string, number][]).map(([cat, amt]) => (
-          <BarRow
-            key={cat}
-            label={catLabels[cat] ?? cat}
-            amount={amt}
-            total={loc.sales.total}
-            color={CAT_COLORS[cat] ?? "#555"}
-          />
-        ))}
+        {(Object.entries(loc.sales.byCategory) as [string, number][])
+          .filter(([, amt]) => amt > 0)
+          .map(([cat, amt]) => (
+            <BarRow
+              key={cat}
+              label={catLabels[cat] ?? cat}
+              amount={amt}
+              total={loc.sales.total}
+              color={CAT_COLORS[cat] ?? "#555"}
+            />
+          ))}
+      </div>
+
+      {/* Labor breakdown (Change 3) */}
+      <div className="px-5 py-3 space-y-1.5 border-b border-[#111]">
+        <p className="text-[10px] font-semibold text-[#444] uppercase tracking-wider mb-2">
+          {laborLabels.laborCost}
+        </p>
+        <BarRow label={laborLabels.foh}  amount={bd.fohLabor}   total={loc.labor.total} color="#3dbf8a" />
+        <BarRow label={laborLabels.boh}  amount={bd.bohLabor}   total={loc.labor.total} color="#f59e0b" />
+        <BarRow label={laborLabels.mgmt} amount={bd.management} total={loc.labor.total} color="#8b5cf6" />
       </div>
 
       {/* Alerts toggle */}
@@ -222,10 +227,20 @@ export function OwnerDashboard() {
   const { ownerAccount, locations, summary } = data;
 
   const catLabels: Record<string, string> = {
-    FOOD:   p.food,
-    BEER:   p.beer,
-    LIQUOR: p.liquor,
-    WINE:   p.wine,
+    FOOD:     p.food,
+    BEER:     p.beer,
+    LIQUOR:   p.liquor,
+    WINE:     p.wine,
+    BUYOUTS:  o.buyouts,
+    EVENTS:   o.events,
+    DELIVERY: o.delivery,
+  };
+
+  const laborLabels = {
+    laborCost: o.laborCost,
+    foh:       o.fohLabor,
+    boh:       o.bohLabor,
+    mgmt:      o.management,
   };
 
   function trendLabel(trend: "up" | "down" | "flat") {
@@ -304,6 +319,7 @@ export function OwnerDashboard() {
                 key={loc.restaurant.id}
                 loc={loc}
                 catLabels={catLabels}
+                laborLabels={laborLabels}
                 lang={lang}
                 trendLabel={trendLabel}
               />

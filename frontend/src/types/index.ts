@@ -314,11 +314,18 @@ export interface WeeklyReport {
 export interface OwnerLocationData {
   restaurant: { id: string; name: string; address: string | null };
   sales: {
-    total:       number;
-    byCategory:  { FOOD: number; BEER: number; LIQUOR: number; WINE: number };
-    trend:       "up" | "down" | "flat";
+    total:      number;
+    byCategory: {
+      FOOD: number; BEER: number; LIQUOR: number; WINE: number;
+      BUYOUTS?: number; EVENTS?: number; DELIVERY?: number;
+    };
+    trend: "up" | "down" | "flat";
   };
-  labor:     { total: number; laborPct: number };
+  labor: {
+    total:    number;
+    laborPct: number;
+    breakdown: { fohLabor: number; bohLabor: number; management: number };
+  };
   primeCost: { value: number; pct: number };
   alerts:    GMAlert[];
 }

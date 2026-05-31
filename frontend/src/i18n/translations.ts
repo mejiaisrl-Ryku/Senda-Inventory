@@ -177,6 +177,13 @@ const en = {
     trend:           "Trend",
     alerts:          "Alerts",
     viewAll:         "All Locations",
+    buyouts:         "Buyouts",
+    events:          "Events",
+    delivery:        "Delivery",
+    laborCost:       "Labor Cost",
+    fohLabor:        "FOH Labor",
+    bohLabor:        "BOH Labor",
+    management:      "Management",
   },
 
   // ── Invoices / Product List ──────────────────────────────────────────────────
@@ -859,6 +866,13 @@ const es: typeof en = {
     trend:           "Tendencia",
     alerts:          "Alertas",
     viewAll:         "Todas las Ubicaciones",
+    buyouts:         "Buyouts",
+    events:          "Eventos",
+    delivery:        "Delivery",
+    laborCost:       "Costo de Labor",
+    fohLabor:        "Labor FOH",
+    bohLabor:        "Labor BOH",
+    management:      "Gerencia",
   },
 
   invoices: {
