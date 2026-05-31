@@ -37,107 +37,6 @@ function StatCard({
   );
 }
 
-// ── Sparkline SVG chart ───────────────────────────────────────────────────────
-// Receives already-sliced daily points — no internal grouping.
-
-function Sparkline({ points }: { points: { date: string; total: number }[] }) {
-  if (points.length < 2) return null;
-
-  const W        = 600;
-  const H        = 160;
-  const PADX     = 80;   // wider right margin so axis labels don't overlap dots
-  const PADY_T   = 24;
-  const PADY_B   = 32;
-  const EDGE_THR = 80;   // px from right edge — flip label anchor when dot is this close
-
-  const vals  = points.map((p) => p.total);
-  const minV  = Math.min(...vals);
-  const maxV  = Math.max(...vals);
-  const range = maxV - minV || 1;
-  const avg   = vals.reduce((s, v) => s + v, 0) / vals.length;
-
-  const x = (i: number) => PADX + (i / (points.length - 1)) * (W - PADX * 2);
-  const y = (v: number) => PADY_T + ((maxV - v) / range) * (H - PADY_T - PADY_B);
-
-  const d       = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.total).toFixed(1)}`).join(" ");
-  const highIdx = vals.indexOf(maxV);
-  const lowIdx  = vals.indexOf(minV);
-  const avgY    = y(avg);
-
-  // Dot positions
-  const highX = x(highIdx);
-  const highY = y(maxV);
-  const lowX  = x(lowIdx);
-  const lowY  = y(minV);
-
-  // Right-side axis label positions
-  const maxLabelY = PADY_T - 6;
-  const minLabelY = H - PADY_B + 12;
-
-  // Flip dot label anchor if dot is near the right edge
-  const highNearRight = highX > W - EDGE_THR;
-  const lowNearRight  = lowX  > W - EDGE_THR;
-
-  // Vertical collision: if high dot label (highY - 7) and max axis label are within 20px, offset
-  const highDotLabelY   = highY - 7;
-  const highLabelOffset = Math.abs(highDotLabelY - maxLabelY) < 20 ? 14 : 0;
-
-  // Adaptive date labels
-  const step        = points.length <= 7 ? 1 : points.length <= 35 ? 7 : 15;
-  const dateIndices = points
-    .map((_, i) => i)
-    .filter((i) => i % step === 0 || i === points.length - 1);
-
-  function shortDate(iso: string): string {
-    const d = new Date(iso + "T00:00:00Z");
-    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-  }
-
-  return (
-    <div className="w-full overflow-hidden">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 160 }}>
-        {/* Average dashed line */}
-        <line x1={PADX} y1={avgY.toFixed(1)} x2={W - PADX} y2={avgY.toFixed(1)}
-          stroke="#333" strokeWidth="1" strokeDasharray="4 4" />
-        <text x={PADX} y={(avgY - 3).toFixed(1)} fill="#444" fontSize="10">avg</text>
-
-        {/* Main line */}
-        <path d={d} fill="none" stroke="#3dbf8a" strokeWidth="2" strokeLinejoin="round" />
-
-        {/* High dot + label — flip anchor near right edge; offset if too close to max label */}
-        <circle cx={highX.toFixed(1)} cy={highY.toFixed(1)} r="4" fill="#3dbf8a" />
-        <text
-          x={highX.toFixed(1)}
-          y={(highDotLabelY - highLabelOffset).toFixed(1)}
-          fill="#3dbf8a" fontSize="10"
-          textAnchor={highNearRight ? "end" : "middle"}
-        >
-          {formatCurrency(maxV)}
-        </text>
-
-        {/* Low dot + label — flip anchor near right edge */}
-        <circle cx={lowX.toFixed(1)} cy={lowY.toFixed(1)} r="4" fill="#ef4444" />
-        <text
-          x={lowX.toFixed(1)}
-          y={(lowY + 15).toFixed(1)}
-          fill="#ef4444" fontSize="10"
-          textAnchor={lowNearRight ? "end" : "middle"}
-        >
-          {formatCurrency(minV)}
-        </text>
-
-        {/* Date labels */}
-        {dateIndices.map((i) => (
-          <text key={i} x={x(i).toFixed(1)} y={H - 8} fill="#555" fontSize="10"
-            textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}>
-            {shortDate(points[i].date)}
-          </text>
-        ))}
-      </svg>
-    </div>
-  );
-}
-
 // ── Single bar row ────────────────────────────────────────────────────────────
 
 function BarRow({ label, amount, total, color }: { label: string; amount: number; total: number; color: string }) {
@@ -343,7 +242,6 @@ function GMPerformanceSection() {
   const trendColor = m.trend === "up" ? "text-[#3dbf8a]" : m.trend === "down" ? "text-[#ef4444]" : "text-[#555]";
 
   const periodSubtitle = period === "daily" ? p.last7days : period === "weekly" ? p.last30days : p.last90days;
-  const chartTitle     = period === "daily" ? p.chartSalesDaily : period === "weekly" ? p.chartSalesWeekly : p.chartSalesMontly;
 
   const catColors: Record<string, string> = {
     FOOD: "#3dbf8a", BEER: "#f59e0b", LIQUOR: "#8b5cf6", WINE: "#ef4444",
@@ -420,13 +318,6 @@ function GMPerformanceSection() {
         ))}
       </div>
 
-      {/* Sales sparkline — shows sliced daily data for the selected period */}
-      {m.slicedPoints.length > 1 && (
-        <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5">
-          <p className="text-[13px] font-semibold text-white mb-3">{chartTitle}</p>
-          <Sparkline points={m.slicedPoints} />
-        </div>
-      )}
     </div>
   );
 }
