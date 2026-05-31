@@ -43,11 +43,12 @@ function StatCard({
 function Sparkline({ points }: { points: { date: string; total: number }[] }) {
   if (points.length < 2) return null;
 
-  const W      = 600;
-  const H      = 160;
-  const PADX   = 10;
-  const PADY_T = 24;
-  const PADY_B = 32;
+  const W        = 600;
+  const H        = 160;
+  const PADX     = 80;   // wider right margin so axis labels don't overlap dots
+  const PADY_T   = 24;
+  const PADY_B   = 32;
+  const EDGE_THR = 80;   // px from right edge — flip label anchor when dot is this close
 
   const vals  = points.map((p) => p.total);
   const minV  = Math.min(...vals);
@@ -63,7 +64,25 @@ function Sparkline({ points }: { points: { date: string; total: number }[] }) {
   const lowIdx  = vals.indexOf(minV);
   const avgY    = y(avg);
 
-  // Adaptive date labels: avoid overlap for any data density
+  // Dot positions
+  const highX = x(highIdx);
+  const highY = y(maxV);
+  const lowX  = x(lowIdx);
+  const lowY  = y(minV);
+
+  // Right-side axis label positions
+  const maxLabelY = PADY_T - 6;
+  const minLabelY = H - PADY_B + 12;
+
+  // Flip dot label anchor if dot is near the right edge
+  const highNearRight = highX > W - EDGE_THR;
+  const lowNearRight  = lowX  > W - EDGE_THR;
+
+  // Vertical collision: if high dot label (highY - 7) and max axis label are within 20px, offset
+  const highDotLabelY   = highY - 7;
+  const highLabelOffset = Math.abs(highDotLabelY - maxLabelY) < 20 ? 14 : 0;
+
+  // Adaptive date labels
   const step        = points.length <= 7 ? 1 : points.length <= 35 ? 7 : 15;
   const dateIndices = points
     .map((_, i) => i)
@@ -85,25 +104,35 @@ function Sparkline({ points }: { points: { date: string; total: number }[] }) {
         {/* Main line */}
         <path d={d} fill="none" stroke="#3dbf8a" strokeWidth="2" strokeLinejoin="round" />
 
-        {/* High dot + label */}
-        <circle cx={x(highIdx).toFixed(1)} cy={y(maxV).toFixed(1)} r="4" fill="#3dbf8a" />
-        <text x={x(highIdx).toFixed(1)} y={(y(maxV) - 7).toFixed(1)} fill="#3dbf8a" fontSize="10" textAnchor="middle">
+        {/* High dot + label — flip anchor near right edge; offset if too close to max label */}
+        <circle cx={highX.toFixed(1)} cy={highY.toFixed(1)} r="4" fill="#3dbf8a" />
+        <text
+          x={highX.toFixed(1)}
+          y={(highDotLabelY - highLabelOffset).toFixed(1)}
+          fill="#3dbf8a" fontSize="10"
+          textAnchor={highNearRight ? "end" : "middle"}
+        >
           {formatCurrency(maxV)}
         </text>
 
-        {/* Low dot + label */}
-        <circle cx={x(lowIdx).toFixed(1)} cy={y(minV).toFixed(1)} r="4" fill="#ef4444" />
-        <text x={x(lowIdx).toFixed(1)} y={(y(minV) + 15).toFixed(1)} fill="#ef4444" fontSize="10" textAnchor="middle">
+        {/* Low dot + label — flip anchor near right edge */}
+        <circle cx={lowX.toFixed(1)} cy={lowY.toFixed(1)} r="4" fill="#ef4444" />
+        <text
+          x={lowX.toFixed(1)}
+          y={(lowY + 15).toFixed(1)}
+          fill="#ef4444" fontSize="10"
+          textAnchor={lowNearRight ? "end" : "middle"}
+        >
           {formatCurrency(minV)}
         </text>
 
-        {/* Max label — top-right */}
-        <text x={W - PADX} y={PADY_T - 6} fill="#555" fontSize="10" textAnchor="end">
+        {/* Max axis label — top-right, inside chart area */}
+        <text x={(W - PADX + 6).toFixed(1)} y={maxLabelY} fill="#555" fontSize="10" textAnchor="start">
           {formatCurrency(maxV)}
         </text>
 
-        {/* Min label — bottom-right */}
-        <text x={W - PADX} y={H - PADY_B + 12} fill="#555" fontSize="10" textAnchor="end">
+        {/* Min axis label — bottom-right, inside chart area */}
+        <text x={(W - PADX + 6).toFixed(1)} y={minLabelY} fill="#555" fontSize="10" textAnchor="start">
           {formatCurrency(minV)}
         </text>
 
