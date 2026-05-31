@@ -765,4 +765,6 @@ export const ownerApi = {
     api.get<Array<{ id: string; name: string; address: string | null; phone: string | null; locationCount: number; suspended: boolean }>>("/owner/locations").then((r) => r.data),
   getPnL: (startDate: string, endDate: string) =>
     api.get<import("../types").PnLReport>(`/owner/pnl?startDate=${startDate}&endDate=${endDate}`).then((r) => r.data),
+  getPnLSummary: (startDate: string, endDate: string) =>
+    api.get<import("../types").PnLSummary>(`/owner/pnl/summary?startDate=${startDate}&endDate=${endDate}`).then((r) => r.data),
 };

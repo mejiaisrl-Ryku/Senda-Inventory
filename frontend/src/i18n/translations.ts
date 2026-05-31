@@ -684,6 +684,7 @@ const en = {
     location:       "Location",
     noData:         "No data for this period",
     foodCostNote:   "Food cost requires invoice data",
+    viewFull:       "View Full Report →",
   },
 
   // ── Date Range Picker ────────────────────────────────────────────────────────
@@ -1405,6 +1406,7 @@ const es: typeof en = {
     location:       "Ubicación",
     noData:         "Sin datos para este período",
     foodCostNote:   "El costo de alimentos requiere datos de facturas",
+    viewFull:       "Ver Reporte Completo →",
   },
 
   dateRange: {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ownerApi } from "../../api";
-import { OwnerDashboard as OwnerDashboardData, OwnerLocationData, GMAlert } from "../../types";
+import { OwnerDashboard as OwnerDashboardData, OwnerLocationData, GMAlert, PnLSummary } from "../../types";
 import { formatCurrency } from "../../utils/stock";
 import { PageSpinner } from "../shared/Spinner";
 import DateRangePicker from "../shared/DateRangePicker";
@@ -23,6 +23,14 @@ function primeColor(pct: number): string {
   if (pct > 75) return "text-[#ef4444]";
   if (pct > 65) return "text-[#f59e0b]";
   return "text-[#3dbf8a]";
+}
+
+function pnlPrimeColor(pct: number): string {
+  return pct > 70 ? "text-[#ef4444]" : pct > 60 ? "text-[#f59e0b]" : "text-white";
+}
+
+function grossColor(pct: number): string {
+  return pct >= 35 ? "text-[#3dbf8a]" : pct >= 20 ? "text-[#f59e0b]" : "text-[#ef4444]";
 }
 
 function trendArrow(trend: "up" | "down" | "flat"): { symbol: string; color: string } {
@@ -194,11 +202,14 @@ export function OwnerDashboard() {
   const o = t.owner;
   const p = t.performance;
 
-  const [data,      setData]      = useState<OwnerDashboardData | null>(null);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(false);
-  const [startDate, setStartDate] = useState(() => daysAgoISO(30));
-  const [endDate,   setEndDate]   = useState(() => toISO(new Date()));
+  const [data,         setData]         = useState<OwnerDashboardData | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState(false);
+  const [startDate,    setStartDate]    = useState(() => daysAgoISO(30));
+  const [endDate,      setEndDate]      = useState(() => toISO(new Date()));
+  const [pnlSummary,   setPnlSummary]   = useState<PnLSummary | null>(null);
+  const [pnlLoading,   setPnlLoading]   = useState(true);
+  const [pnlError,     setPnlError]     = useState(false);
 
   function fetchData(start: string, end: string) {
     setLoading(true);
@@ -209,12 +220,22 @@ export function OwnerDashboard() {
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { fetchData(startDate, endDate); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  function fetchPnLSummary(start: string, end: string) {
+    setPnlLoading(true);
+    setPnlError(false);
+    ownerApi.getPnLSummary(start, end)
+      .then(setPnlSummary)
+      .catch(() => setPnlError(true))
+      .finally(() => setPnlLoading(false));
+  }
+
+  useEffect(() => { fetchData(startDate, endDate); fetchPnLSummary(startDate, endDate); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleDateChange(s: string, e: string) {
     setStartDate(s);
     setEndDate(e);
     fetchData(s, e);
+    fetchPnLSummary(s, e);
   }
 
   function handleLogout() {
@@ -354,6 +375,88 @@ export function OwnerDashboard() {
               />
             ))}
           </div>
+        </div>
+
+        {/* P&L Summary section */}
+        <div className="border-t border-[#1a1a1a] pt-8">
+          {/* Section header */}
+          <div className="flex items-center justify-between mb-5">
+            <div>
+              <h2 className="text-[16px] font-semibold text-white">{t.pnl.title}</h2>
+              <p className="text-[13px] text-[#555] mt-0.5">{t.pnl.subtitle}</p>
+            </div>
+            <button
+              onClick={() => navigate("/owner/pnl")}
+              className="text-[12px] text-[#3dbf8a] hover:underline transition-colors shrink-0"
+            >
+              {t.pnl.viewFull}
+            </button>
+          </div>
+
+          {/* Loading skeleton */}
+          {pnlLoading && (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="bg-[#0a0a0a] rounded-[8px] px-4 py-5 border border-[#1a1a1a] h-20" />
+              ))}
+            </div>
+          )}
+
+          {/* Error */}
+          {!pnlLoading && pnlError && (
+            <p className="text-[13px] text-[#555] italic">Unable to load P&L summary.</p>
+          )}
+
+          {/* Summary cards */}
+          {!pnlLoading && pnlSummary && (
+            <>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatCard
+                  label={t.pnl.revenue}
+                  value={formatCurrency(pnlSummary.totalRevenue)}
+                />
+                <StatCard
+                  label={t.pnl.primeCostPct}
+                  value={`${pnlSummary.primeCostPct.toFixed(1)}%`}
+                  valueColor={pnlPrimeColor(pnlSummary.primeCostPct)}
+                />
+                <StatCard
+                  label={t.pnl.grossProfit}
+                  value={formatCurrency(pnlSummary.grossProfit)}
+                  valueColor="text-[#3dbf8a]"
+                />
+                <StatCard
+                  label={t.pnl.grossProfitPct}
+                  value={`${pnlSummary.grossProfitPct.toFixed(1)}%`}
+                  valueColor={grossColor(pnlSummary.grossProfitPct)}
+                />
+              </div>
+
+              {/* Best / Worst ranking badges */}
+              {(pnlSummary.bestLocation || pnlSummary.worstLocation) && (
+                <div className="flex flex-wrap gap-3 mt-4">
+                  {pnlSummary.bestLocation && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-[8px] bg-[#0a0a0a] border border-[#1a1a1a]">
+                      <span className="text-[15px]">🏆</span>
+                      <div>
+                        <p className="text-[10px] text-[#555] uppercase tracking-wider">{t.pnl.best}</p>
+                        <p className="text-[13px] font-semibold text-yellow-400 truncate">{pnlSummary.bestLocation}</p>
+                      </div>
+                    </div>
+                  )}
+                  {pnlSummary.worstLocation && pnlSummary.worstLocation !== pnlSummary.bestLocation && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 rounded-[8px] bg-[#0a0a0a] border border-[#1a1a1a]">
+                      <span className="text-[15px]">⚠</span>
+                      <div>
+                        <p className="text-[10px] text-[#555] uppercase tracking-wider">{t.pnl.worst}</p>
+                        <p className="text-[13px] font-semibold text-amber-400 truncate">{pnlSummary.worstLocation}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
       </div>

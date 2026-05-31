@@ -389,6 +389,18 @@ export interface PnLLocation {
   rank:           number;
 }
 
+export interface PnLSummary {
+  period:         { startDate: string; endDate: string };
+  totalRevenue:   number;
+  totalPrimeCost: number;
+  primeCostPct:   number;
+  grossProfit:    number;
+  grossProfitPct: number;
+  bestLocation:   string;
+  worstLocation:  string;
+  locationCount:  number;
+}
+
 export interface PnLReport {
   period: { startDate: string; endDate: string };
   consolidated: {
