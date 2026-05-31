@@ -41,22 +41,98 @@ function StatCard({
 
 function Sparkline({ points }: { points: { date: string; total: number }[] }) {
   if (points.length < 2) return null;
-  const W = 600; const H = 100; const PAD = 8;
+
+  // ── Dimensions — FIX 5: taller chart, more y-padding for labels ──────────
+  const W      = 600;
+  const H      = 160;
+  const PADX   = 10;   // left/right padding
+  const PADY_T = 24;   // top padding (room for high-dot label)
+  const PADY_B = 32;   // bottom padding (room for date labels)
+
   const vals  = points.map((p) => p.total);
   const minV  = Math.min(...vals);
   const maxV  = Math.max(...vals);
   const range = maxV - minV || 1;
-  const x = (i: number) => PAD + (i / (points.length - 1)) * (W - PAD * 2);
-  const y = (v: number) => PAD + ((maxV - v) / range) * (H - PAD * 2);
+  const avg   = vals.reduce((s, v) => s + v, 0) / vals.length;
+
+  const x = (i: number) => PADX + (i / (points.length - 1)) * (W - PADX * 2);
+  const y = (v: number) => PADY_T + ((maxV - v) / range) * (H - PADY_T - PADY_B);
+
   const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.total).toFixed(1)}`).join(" ");
+
+  // ── FIX 4: high and low dot indices ──────────────────────────────────────
+  const highIdx = vals.indexOf(maxV);
+  const lowIdx  = vals.indexOf(minV);
+
+  // ── FIX 3: average line y position ───────────────────────────────────────
+  const avgY = y(avg);
+
+  // ── FIX 2: date labels every 7 days ─────────────────────────────────────
+  const dateIndices = [0, 7, 14, 21, points.length - 1].filter(
+    (i, pos, arr) => i < points.length && arr.indexOf(i) === pos
+  );
+
+  function shortDate(iso: string): string {
+    const d = new Date(iso + "T00:00:00Z");
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  }
+
   return (
     <div className="w-full overflow-hidden">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 120 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 160 }}>
+
+        {/* FIX 3: Average dashed line */}
+        <line
+          x1={PADX} y1={avgY.toFixed(1)}
+          x2={W - PADX} y2={avgY.toFixed(1)}
+          stroke="#333" strokeWidth="1" strokeDasharray="4 4"
+        />
+        <text x={PADX} y={(avgY - 3).toFixed(1)} fill="#444" fontSize="10">avg</text>
+
+        {/* Main line */}
         <path d={d} fill="none" stroke="#3dbf8a" strokeWidth="2" strokeLinejoin="round" />
-        <text x={PAD} y={PAD + 8}  fill="#555" fontSize="11">{formatCurrency(maxV)}</text>
-        <text x={PAD} y={H - PAD}  fill="#555" fontSize="11">{formatCurrency(minV)}</text>
-        <text x={PAD} y={H - 1}    fill="#333" fontSize="10">{points[0].date}</text>
-        <text x={W - PAD} y={H - 1} fill="#333" fontSize="10" textAnchor="end">{points[points.length - 1].date}</text>
+
+        {/* FIX 4: High dot + label */}
+        <circle cx={x(highIdx).toFixed(1)} cy={y(maxV).toFixed(1)} r="4" fill="#3dbf8a" />
+        <text
+          x={x(highIdx).toFixed(1)} y={(y(maxV) - 7).toFixed(1)}
+          fill="#3dbf8a" fontSize="10" textAnchor="middle"
+        >
+          {formatCurrency(maxV)}
+        </text>
+
+        {/* FIX 4: Low dot + label */}
+        <circle cx={x(lowIdx).toFixed(1)} cy={y(minV).toFixed(1)} r="4" fill="#ef4444" />
+        <text
+          x={x(lowIdx).toFixed(1)} y={(y(minV) + 15).toFixed(1)}
+          fill="#ef4444" fontSize="10" textAnchor="middle"
+        >
+          {formatCurrency(minV)}
+        </text>
+
+        {/* FIX 1: Max label — top-right */}
+        <text x={W - PADX} y={PADY_T - 6} fill="#555" fontSize="10" textAnchor="end">
+          {formatCurrency(maxV)}
+        </text>
+
+        {/* FIX 1: Min label — bottom-right (above date row) */}
+        <text x={W - PADX} y={H - PADY_B + 12} fill="#555" fontSize="10" textAnchor="end">
+          {formatCurrency(minV)}
+        </text>
+
+        {/* FIX 2: Date labels every 7 days */}
+        {dateIndices.map((i) => (
+          <text
+            key={i}
+            x={x(i).toFixed(1)}
+            y={H - 8}
+            fill="#555"
+            fontSize="10"
+            textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
+          >
+            {shortDate(points[i].date)}
+          </text>
+        ))}
       </svg>
     </div>
   );
