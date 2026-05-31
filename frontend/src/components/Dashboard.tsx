@@ -39,38 +39,58 @@ function StatCard({
 
 // ── Sparkline SVG chart ───────────────────────────────────────────────────────
 
-function Sparkline({ points }: { points: { date: string; total: number }[] }) {
+function Sparkline({
+  points,
+  chartView = "daily",
+}: {
+  points:     { date: string; total: number }[];
+  chartView?: "daily" | "weekly";
+}) {
   if (points.length < 2) return null;
 
-  // ── Dimensions — FIX 5: taller chart, more y-padding for labels ──────────
+  // ── Weekly grouping ───────────────────────────────────────────────────────
+  function toWeekly(raw: { date: string; total: number }[]) {
+    const buckets: { date: string; total: number }[] = [];
+    for (let i = 0; i < raw.length; i += 7) {
+      const chunk = raw.slice(i, i + 7);
+      buckets.push({
+        date:  chunk[0].date,
+        total: Math.round(chunk.reduce((s, p) => s + p.total, 0) * 100) / 100,
+      });
+    }
+    return buckets;
+  }
+
+  const displayPoints = chartView === "weekly" ? toWeekly(points) : points;
+
+  // ── Dimensions ────────────────────────────────────────────────────────────
   const W      = 600;
   const H      = 160;
-  const PADX   = 10;   // left/right padding
-  const PADY_T = 24;   // top padding (room for high-dot label)
-  const PADY_B = 32;   // bottom padding (room for date labels)
+  const PADX   = 10;
+  const PADY_T = 24;
+  const PADY_B = 32;
 
-  const vals  = points.map((p) => p.total);
+  const vals  = displayPoints.map((p) => p.total);
   const minV  = Math.min(...vals);
   const maxV  = Math.max(...vals);
   const range = maxV - minV || 1;
   const avg   = vals.reduce((s, v) => s + v, 0) / vals.length;
 
-  const x = (i: number) => PADX + (i / (points.length - 1)) * (W - PADX * 2);
+  const x = (i: number) => PADX + (i / (displayPoints.length - 1)) * (W - PADX * 2);
   const y = (v: number) => PADY_T + ((maxV - v) / range) * (H - PADY_T - PADY_B);
 
-  const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.total).toFixed(1)}`).join(" ");
+  const d = displayPoints.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.total).toFixed(1)}`).join(" ");
 
-  // ── FIX 4: high and low dot indices ──────────────────────────────────────
   const highIdx = vals.indexOf(maxV);
   const lowIdx  = vals.indexOf(minV);
+  const avgY    = y(avg);
 
-  // ── FIX 3: average line y position ───────────────────────────────────────
-  const avgY = y(avg);
-
-  // ── FIX 2: date labels every 7 days ─────────────────────────────────────
-  const dateIndices = [0, 7, 14, 21, points.length - 1].filter(
-    (i, pos, arr) => i < points.length && arr.indexOf(i) === pos
-  );
+  // Date labels: every 7 in daily view; all in weekly view (≤ 5 points)
+  const dateIndices = chartView === "weekly"
+    ? displayPoints.map((_, i) => i)
+    : [0, 7, 14, 21, displayPoints.length - 1].filter(
+        (i, pos, arr) => i < displayPoints.length && arr.indexOf(i) === pos
+      );
 
   function shortDate(iso: string): string {
     const d = new Date(iso + "T00:00:00Z");
@@ -120,7 +140,7 @@ function Sparkline({ points }: { points: { date: string; total: number }[] }) {
           {formatCurrency(minV)}
         </text>
 
-        {/* FIX 2: Date labels every 7 days */}
+        {/* Date labels */}
         {dateIndices.map((i) => (
           <text
             key={i}
@@ -128,9 +148,9 @@ function Sparkline({ points }: { points: { date: string; total: number }[] }) {
             y={H - 8}
             fill="#555"
             fontSize="10"
-            textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
+            textAnchor={i === 0 ? "start" : i === displayPoints.length - 1 ? "end" : "middle"}
           >
-            {shortDate(points[i].date)}
+            {shortDate(displayPoints[i].date)}
           </text>
         ))}
       </svg>
@@ -203,9 +223,10 @@ function ColorStatCard({ label, value, valueColor }: { label: string; value: str
 function GMPerformanceSection() {
   const { t, lang } = useLanguage();
   const p = t.performance;
-  const [gmData,    setGmData]    = useState<GMDashboard | null>(null);
-  const [gmLoading, setGmLoading] = useState(true);
-  const [gmError,   setGmError]   = useState(false);
+  const [gmData,     setGmData]     = useState<GMDashboard | null>(null);
+  const [gmLoading,  setGmLoading]  = useState(true);
+  const [gmError,    setGmError]    = useState(false);
+  const [chartView,  setChartView]  = useState<"daily" | "weekly">("daily");
 
   useEffect(() => {
     gmApi.getDashboard()
@@ -294,11 +315,31 @@ function GMPerformanceSection() {
         ))}
       </div>
 
-      {/* Daily sales sparkline */}
+      {/* Daily / Weekly sales sparkline */}
       {sales.dailyTotals.length > 1 && (
         <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5">
-          <p className="text-[13px] font-semibold text-white mb-3">{p.dailySales}</p>
-          <Sparkline points={sales.dailyTotals} />
+          {/* Title row + toggle */}
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[13px] font-semibold text-white">
+              {chartView === "daily" ? p.dailySales : p.weeklySales}
+            </p>
+            <div className="flex gap-1">
+              {(["daily", "weekly"] as const).map((view) => (
+                <button
+                  key={view}
+                  onClick={() => setChartView(view)}
+                  className={`text-[11px] px-3 py-1 rounded-[6px] transition-colors ${
+                    chartView === view
+                      ? "bg-[#3dbf8a] text-white"
+                      : "border border-[#2a2a2a] text-[#555] hover:text-white"
+                  }`}
+                >
+                  {view === "daily" ? p.viewDaily : p.viewWeekly}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Sparkline points={sales.dailyTotals} chartView={chartView} />
         </div>
       )}
     </div>

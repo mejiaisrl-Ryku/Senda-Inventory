@@ -147,6 +147,9 @@ const en = {
     fohLabor:        "FOH Labor",
     bohLabor:        "BOH Labor",
     management:      "Management",
+    viewDaily:       "Daily",
+    viewWeekly:      "Weekly",
+    weeklySales:     "Weekly Sales (last 4 weeks)",
   },
 
   // ── Owner Dashboard (Phase 5) ─────────────────────────────────────────────────
@@ -819,6 +822,9 @@ const es: typeof en = {
     fohLabor:        "Labor FOH",
     bohLabor:        "Labor BOH",
     management:      "Gerencia",
+    viewDaily:       "Diario",
+    viewWeekly:      "Semanal",
+    weeklySales:     "Ventas Semanales (últimas 4 semanas)",
   },
 
   owner: {
