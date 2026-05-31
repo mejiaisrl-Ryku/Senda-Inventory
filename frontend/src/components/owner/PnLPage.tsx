@@ -5,7 +5,7 @@ import { PnLReport, PnLLocation } from "../../types";
 import { formatCurrency } from "../../utils/stock";
 import { PageSpinner } from "../shared/Spinner";
 import DateRangePicker from "../shared/DateRangePicker";
-import { useLanguage } from "../../context/LanguageContext";
+import { useLanguage, LangToggle } from "../../context/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
 
 function toISO(d: Date) { return d.toISOString().slice(0, 10); }
@@ -122,9 +122,15 @@ export function PnLPage() {
             </>
           )}
         </div>
-        <button onClick={handleLogout} className="text-[12px] text-[#333] hover:text-[#666] transition-colors">
-          Sign out
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          <LangToggle />
+          <button
+            onClick={handleLogout}
+            className="text-[12px] text-[#888] border border-[#2a2a2a] hover:border-[#444] hover:text-white px-3 py-1.5 rounded-[6px] transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       <div className="p-8 space-y-8">
