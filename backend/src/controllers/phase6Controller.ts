@@ -245,62 +245,204 @@ export async function getOwnerPnlSummary(req: AuthRequest, res: Response, next: 
 
 // ── ENDPOINT 3: GET /api/owner/pnl/export ────────────────────────────────────
 
-/** Populate a two-column-plus-pct sheet (metric | value | %) */
-function fillSheet(
-  sheet: ExcelJS.Worksheet,
-  startDate: string,
-  endDate:   string,
-  pnl: {
-    revenue: number; foodCost: number; laborCost: number; primeCost: number;
-    grossProfit: number; foodCostPct: number; laborCostPct: number;
-    primeCostPct: number; grossProfitPct: number;
-  },
-  rankLine?: string,
-  ranking?: { best: string; worst: string; mostRevenue: string }
-) {
-  const fmtUSD = (n: number) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+// ── xlsx formatting helpers ───────────────────────────────────────────────────
 
-  // Column widths
+const fmtUSD = (n: number) =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+
+function fmtDateDisplay(iso: string): string {
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric", timeZone: "UTC",
+  });
+}
+
+function argb(hex: string): { argb: string } {
+  const clean = hex.replace("#", "");
+  return { argb: clean.length === 8 ? clean : `FF${clean}` };
+}
+
+function solidFill(hex: string): ExcelJS.Fill {
+  return { type: "pattern", pattern: "solid", fgColor: argb(hex) };
+}
+
+function thinBorder(hex = "E5E7EB"): Partial<ExcelJS.Borders> {
+  const side: ExcelJS.Border = { style: "thin", color: argb(hex) };
+  return { top: side, bottom: side, left: side, right: side };
+}
+
+/** Return ARGB color for Food Cost % */
+function foodPctColor(pct: number): string {
+  return pct > 35 ? "dc2626" : pct > 30 ? "d97706" : "1a1a1a";
+}
+/** Return ARGB color for Labor Cost % */
+function laborPctColor(pct: number): string {
+  return pct > 45 ? "dc2626" : pct > 35 ? "d97706" : "1a1a1a";
+}
+/** Return ARGB color for Prime Cost % */
+function primePctColor(pct: number): string {
+  return pct > 70 ? "dc2626" : pct > 60 ? "d97706" : "1a1a1a";
+}
+/** Return ARGB color for Gross Profit % */
+function grossPctColor(pct: number): string {
+  return pct >= 35 ? "16a34a" : pct >= 20 ? "d97706" : "dc2626";
+}
+
+interface SheetPnL {
+  revenue: number; foodCost: number; laborCost: number; primeCost: number;
+  grossProfit: number; foodCostPct: number; laborCostPct: number;
+  primeCostPct: number; grossProfitPct: number;
+}
+
+/** Populate a sheet with professional P&L formatting. */
+function fillSheet(
+  sheet:        ExcelJS.Worksheet,
+  ownerName:    string,
+  startDate:    string,
+  endDate:      string,
+  pnl:          SheetPnL,
+  options: {
+    locationName?: string;  // per-location sheets
+    rankLine?:     string;  // e.g. "#1 of 3"
+    ranking?:      { best: string; worst: string; mostRevenue: string };
+    tabColor?:     string;  // 6-char hex
+  } = {}
+) {
+  const { locationName, rankLine, ranking, tabColor } = options;
+
+  // ── Sheet properties ────────────────────────────────────────────────────────
+  if (tabColor) sheet.properties.tabColor = argb(tabColor);
+
   sheet.columns = [
-    { key: "metric", width: 25 },
-    { key: "value",  width: 20 },
-    { key: "pct",    width: 15 },
+    { key: "a", width: 28 },
+    { key: "b", width: 22 },
+    { key: "c", width: 14 },
   ];
 
-  // Header row style helper
-  function addHeader(cells: string[]) {
-    const row = sheet.addRow(cells);
-    row.font      = { bold: true, color: { argb: "FFFFFFFF" } };
-    row.fill      = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1A1A1A" } };
-    row.alignment = { vertical: "middle" };
+  sheet.pageSetup = {
+    orientation:  "landscape",
+    fitToPage:    true,
+    fitToWidth:   1,
+    fitToHeight:  0,
+  };
+
+  // ── Header section (rows 1–4) ───────────────────────────────────────────────
+
+  // Row 1: Owner name
+  const r1 = sheet.addRow([ownerName, "", ""]);
+  r1.getCell(1).font      = { bold: true, size: 16, color: argb("1a1a1a") };
+  r1.getCell(1).alignment = { vertical: "middle" };
+  sheet.mergeCells(`A${r1.number}:C${r1.number}`);
+
+  // Row 2: Report title or location name
+  const row2Label = locationName ? `Location: ${locationName}` : "P&L Report";
+  const r2 = sheet.addRow([row2Label, "", ""]);
+  r2.getCell(1).font = { bold: true, size: 12, color: argb("555555") };
+  sheet.mergeCells(`A${r2.number}:C${r2.number}`);
+
+  // Row 3: Rank (location) or Period (consolidated)
+  if (locationName && rankLine) {
+    const r3 = sheet.addRow([`Rank: ${rankLine}`, "", ""]);
+    r3.getCell(1).font = { size: 11, color: argb("777777") };
+    sheet.mergeCells(`A${r3.number}:C${r3.number}`);
+
+    // Row 4: Period
+    const r4 = sheet.addRow([`Period: ${fmtDateDisplay(startDate)} – ${fmtDateDisplay(endDate)}`, "", ""]);
+    r4.getCell(1).font = { size: 11, color: argb("777777") };
+    sheet.mergeCells(`A${r4.number}:C${r4.number}`);
+  } else {
+    // Row 3: Period
+    const r3 = sheet.addRow([`Period: ${fmtDateDisplay(startDate)} – ${fmtDateDisplay(endDate)}`, "", ""]);
+    r3.getCell(1).font = { size: 11, color: argb("777777") };
+    sheet.mergeCells(`A${r3.number}:C${r3.number}`);
+
+    // Row 4: blank separator
+    sheet.addRow(["", "", ""]);
+  }
+
+  // ── Row 5: Column header ────────────────────────────────────────────────────
+  const headerRow = sheet.addRow(["Metric", "Value", "%"]);
+  headerRow.eachCell((cell) => {
+    cell.font      = { bold: true, size: 11, color: argb("FFFFFF") };
+    cell.fill      = solidFill("2d6a4f");
+    cell.border    = { bottom: { style: "medium", color: argb("1a1a1a") } };
+    cell.alignment = { vertical: "middle" };
+  });
+
+  // Freeze rows 1–5
+  sheet.views = [{ state: "frozen", ySplit: 5, xSplit: 0, topLeftCell: "A6", activeCell: "A6" }];
+
+  // ── Data rows (rows 6+) ─────────────────────────────────────────────────────
+
+  let dataIdx = 0;  // alternating background counter
+
+  function dataRow(
+    metric:   string,
+    value:    string,
+    pctStr:   string,
+    opts: {
+      bold?:      boolean;
+      size?:      number;
+      fontHex?:   string;
+      pctHex?:    string;
+      italic?:    boolean;
+      noBg?:      boolean;
+    } = {}
+  ) {
+    const row = sheet.addRow([metric, value, pctStr]);
+    const bg  = opts.noBg
+      ? undefined
+      : (dataIdx % 2 === 0 ? "FFFFFF" : "F9FAFB");
+
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      if (bg) cell.fill = solidFill(bg);
+      cell.border = thinBorder();
+      cell.font   = {
+        size:   opts.size   ?? 11,
+        bold:   opts.bold   ?? false,
+        italic: opts.italic ?? false,
+        color:  argb(col === 3 && opts.pctHex ? opts.pctHex : (opts.fontHex ?? "1a1a1a")),
+      };
+    });
+
+    dataIdx++;
     return row;
   }
 
-  addHeader(["Metric", "Value", "%"]);
-  sheet.addRow(["Period", `${startDate} to ${endDate}`, ""]);
-  if (rankLine) sheet.addRow(["Rank", rankLine, ""]);
-  sheet.addRow([]);
+  // Revenue
+  dataRow("Revenue", fmtUSD(pnl.revenue), "—", { bold: true, size: 12 });
 
-  const revRow = sheet.addRow(["Revenue", fmtUSD(pnl.revenue), "—"]);
-  revRow.font = { bold: true };
-  sheet.addRow(["Food Cost",   fmtUSD(pnl.foodCost),   `${pnl.foodCostPct.toFixed(1)}%`]);
-  sheet.addRow(["Labor Cost",  fmtUSD(pnl.laborCost),  `${pnl.laborCostPct.toFixed(1)}%`]);
-  sheet.addRow(["Prime Cost",  fmtUSD(pnl.primeCost),  `${pnl.primeCostPct.toFixed(1)}%`]);
-  sheet.addRow([]);
+  // Food Cost
+  dataRow("Food Cost", fmtUSD(pnl.foodCost), `${pnl.foodCostPct.toFixed(1)}%`,
+    { pctHex: foodPctColor(pnl.foodCostPct) });
 
-  const gpRow = sheet.addRow(["Gross Profit", fmtUSD(pnl.grossProfit), `${pnl.grossProfitPct.toFixed(1)}%`]);
-  gpRow.font = {
-    bold: true,
-    color: { argb: pnl.grossProfit >= 0 ? "FF3DBF8A" : "FFEF4444" },
-  };
+  // Labor Cost
+  dataRow("Labor Cost", fmtUSD(pnl.laborCost), `${pnl.laborCostPct.toFixed(1)}%`,
+    { pctHex: laborPctColor(pnl.laborCostPct) });
 
+  // Prime Cost
+  dataRow("Prime Cost", fmtUSD(pnl.primeCost), `${pnl.primeCostPct.toFixed(1)}%`,
+    { bold: true, pctHex: primePctColor(pnl.primeCostPct) });
+
+  // Blank separator (no bg, no border)
+  sheet.addRow(["", "", ""]);
+
+  // Gross Profit
+  const gpHex  = pnl.grossProfit >= 0 ? "16a34a" : "dc2626";
+  const gpPHex = grossPctColor(pnl.grossProfitPct);
+  dataRow("Gross Profit", fmtUSD(pnl.grossProfit), `${pnl.grossProfitPct.toFixed(1)}%`,
+    { bold: true, size: 12, fontHex: gpHex, pctHex: gpPHex });
+
+  // Ranking section (consolidated only)
   if (ranking) {
-    sheet.addRow([]);
-    sheet.addRow(["Profitability Ranking", "", ""]);
-    sheet.addRow(["Best Performer",    ranking.best,        "—"]);
-    sheet.addRow(["Needs Improvement", ranking.worst,       "—"]);
-    sheet.addRow(["Most Revenue",      ranking.mostRevenue, "—"]);
+    sheet.addRow(["", "", ""]);
+
+    const rankLabel = sheet.addRow(["Profitability Ranking", "", ""]);
+    rankLabel.getCell(1).font  = { bold: true, italic: true, size: 11, color: argb("555555") };
+    rankLabel.getCell(1).fill  = solidFill("FFFFFF");
+
+    dataRow("Best Performer",    ranking.best,        "—");
+    dataRow("Needs Improvement", ranking.worst,       "—");
+    dataRow("Most Revenue",      ranking.mostRevenue, "—");
   }
 }
 
@@ -315,11 +457,16 @@ export async function exportOwnerPnl(req: AuthRequest, res: Response, next: Next
 
     logger.debug("exportOwnerPnl: entry", { userId: req.user.userId, ownerAccountId, startDate, endDate });
 
-    const restaurants = await prisma.restaurant.findMany({
-      where:   { ownerAccountId },
-      select:  { id: true, name: true, address: true },
-      orderBy: { name: "asc" },
-    });
+    const [ownerAccount, restaurants] = await Promise.all([
+      prisma.ownerAccount.findUnique({ where: { id: ownerAccountId }, select: { name: true } }),
+      prisma.restaurant.findMany({
+        where:   { ownerAccountId },
+        select:  { id: true, name: true, address: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
+
+    const ownerName = ownerAccount?.name ?? "Kyru";
 
     if (restaurants.length === 0) {
       return res.status(404).json({ error: "No locations found" });
@@ -364,29 +511,30 @@ export async function exportOwnerPnl(req: AuthRequest, res: Response, next: Next
 
     // Sheet 1: Consolidated
     const consolidatedSheet = wb.addWorksheet("Consolidated");
-    fillSheet(consolidatedSheet, startDate, endDate, consolidated, undefined, { best, worst, mostRevenue });
+    fillSheet(consolidatedSheet, ownerName, startDate, endDate, consolidated, {
+      ranking:  { best, worst, mostRevenue },
+      tabColor: "16a34a",
+    });
 
     // Sheets 2+: one per location
     sorted.forEach((loc, idx) => {
-      const name  = loc.restaurant.name.slice(0, 31); // Excel sheet name limit
-      const sheet = wb.addWorksheet(name);
-      fillSheet(
-        sheet,
-        startDate,
-        endDate,
-        {
-          revenue:        loc.revenue,
-          foodCost:       loc.foodCost,
-          laborCost:      loc.laborCost,
-          primeCost:      loc.primeCost,
-          grossProfit:    loc.grossProfit,
-          foodCostPct:    loc.foodCostPct,
-          laborCostPct:   loc.laborCostPct,
-          primeCostPct:   loc.primeCostPct,
-          grossProfitPct: loc.grossProfitPct,
-        },
-        `#${idx + 1} of ${sorted.length}`
-      );
+      const sheetName = loc.restaurant.name.slice(0, 31); // Excel tab name limit
+      const sheet = wb.addWorksheet(sheetName);
+      fillSheet(sheet, ownerName, startDate, endDate, {
+        revenue:        loc.revenue,
+        foodCost:       loc.foodCost,
+        laborCost:      loc.laborCost,
+        primeCost:      loc.primeCost,
+        grossProfit:    loc.grossProfit,
+        foodCostPct:    loc.foodCostPct,
+        laborCostPct:   loc.laborCostPct,
+        primeCostPct:   loc.primeCostPct,
+        grossProfitPct: loc.grossProfitPct,
+      }, {
+        locationName: loc.restaurant.name,
+        rankLine:     `#${idx + 1} of ${sorted.length}`,
+        tabColor:     "2563eb",
+      });
     });
 
     // ── Stream to response ────────────────────────────────────────────────────
