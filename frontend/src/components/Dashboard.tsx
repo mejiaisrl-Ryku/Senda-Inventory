@@ -126,16 +126,6 @@ function Sparkline({ points }: { points: { date: string; total: number }[] }) {
           {formatCurrency(minV)}
         </text>
 
-        {/* Max axis label — top-right, inside chart area */}
-        <text x={(W - PADX + 6).toFixed(1)} y={maxLabelY} fill="#555" fontSize="10" textAnchor="start">
-          {formatCurrency(maxV)}
-        </text>
-
-        {/* Min axis label — bottom-right, inside chart area */}
-        <text x={(W - PADX + 6).toFixed(1)} y={minLabelY} fill="#555" fontSize="10" textAnchor="start">
-          {formatCurrency(minV)}
-        </text>
-
         {/* Date labels */}
         {dateIndices.map((i) => (
           <text key={i} x={x(i).toFixed(1)} y={H - 8} fill="#555" fontSize="10"
