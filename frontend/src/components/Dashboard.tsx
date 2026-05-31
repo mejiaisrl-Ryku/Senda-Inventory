@@ -38,138 +38,80 @@ function StatCard({
 }
 
 // ── Sparkline SVG chart ───────────────────────────────────────────────────────
+// Receives already-sliced daily points — no internal grouping.
 
-function Sparkline({
-  points,
-  chartView = "daily",
-}: {
-  points:     { date: string; total: number }[];
-  chartView?: "daily" | "weekly" | "monthly";
-}) {
+function Sparkline({ points }: { points: { date: string; total: number }[] }) {
   if (points.length < 2) return null;
 
-  // ── Weekly grouping (7-day chunks) ────────────────────────────────────────
-  function toWeekly(raw: { date: string; total: number }[]) {
-    const buckets: { date: string; total: number }[] = [];
-    for (let i = 0; i < raw.length; i += 7) {
-      const chunk = raw.slice(i, i + 7);
-      buckets.push({
-        date:  chunk[0].date,
-        total: Math.round(chunk.reduce((s, p) => s + p.total, 0) * 100) / 100,
-      });
-    }
-    return buckets;
-  }
-
-  // ── Monthly grouping (calendar month) ─────────────────────────────────────
-  function toMonthly(raw: { date: string; total: number }[]) {
-    const monthMap = new Map<string, { date: string; total: number }>();
-    for (const p of raw) {
-      const key = p.date.slice(0, 7); // "YYYY-MM"
-      if (!monthMap.has(key)) monthMap.set(key, { date: p.date, total: 0 });
-      monthMap.get(key)!.total += p.total;
-    }
-    return [...monthMap.values()]
-      .sort((a, b) => a.date.localeCompare(b.date))
-      .map((b) => ({ ...b, total: Math.round(b.total * 100) / 100 }));
-  }
-
-  const displayPoints =
-    chartView === "weekly"  ? toWeekly(points)  :
-    chartView === "monthly" ? toMonthly(points)  : points;
-
-  // ── Dimensions ────────────────────────────────────────────────────────────
   const W      = 600;
   const H      = 160;
   const PADX   = 10;
   const PADY_T = 24;
   const PADY_B = 32;
 
-  const vals  = displayPoints.map((p) => p.total);
+  const vals  = points.map((p) => p.total);
   const minV  = Math.min(...vals);
   const maxV  = Math.max(...vals);
   const range = maxV - minV || 1;
   const avg   = vals.reduce((s, v) => s + v, 0) / vals.length;
 
-  const x = (i: number) => PADX + (i / (displayPoints.length - 1)) * (W - PADX * 2);
+  const x = (i: number) => PADX + (i / (points.length - 1)) * (W - PADX * 2);
   const y = (v: number) => PADY_T + ((maxV - v) / range) * (H - PADY_T - PADY_B);
 
-  const d = displayPoints.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.total).toFixed(1)}`).join(" ");
-
+  const d       = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.total).toFixed(1)}`).join(" ");
   const highIdx = vals.indexOf(maxV);
   const lowIdx  = vals.indexOf(minV);
   const avgY    = y(avg);
 
-  // Date labels: every 7 in daily view; all points in weekly/monthly (≤ ~5)
-  const dateIndices =
-    chartView === "daily"
-      ? [0, 7, 14, 21, 30, 37, 44, 51, 58, 65, 72, 79, displayPoints.length - 1].filter(
-          (i, pos, arr) => i < displayPoints.length && arr.indexOf(i) === pos
-        )
-      : displayPoints.map((_, i) => i);
+  // Adaptive date labels: avoid overlap for any data density
+  const step        = points.length <= 7 ? 1 : points.length <= 35 ? 7 : 15;
+  const dateIndices = points
+    .map((_, i) => i)
+    .filter((i) => i % step === 0 || i === points.length - 1);
 
   function shortDate(iso: string): string {
     const d = new Date(iso + "T00:00:00Z");
-    if (chartView === "monthly") {
-      return d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
-    }
     return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   }
 
   return (
     <div className="w-full overflow-hidden">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 160 }}>
-
-        {/* FIX 3: Average dashed line */}
-        <line
-          x1={PADX} y1={avgY.toFixed(1)}
-          x2={W - PADX} y2={avgY.toFixed(1)}
-          stroke="#333" strokeWidth="1" strokeDasharray="4 4"
-        />
+        {/* Average dashed line */}
+        <line x1={PADX} y1={avgY.toFixed(1)} x2={W - PADX} y2={avgY.toFixed(1)}
+          stroke="#333" strokeWidth="1" strokeDasharray="4 4" />
         <text x={PADX} y={(avgY - 3).toFixed(1)} fill="#444" fontSize="10">avg</text>
 
         {/* Main line */}
         <path d={d} fill="none" stroke="#3dbf8a" strokeWidth="2" strokeLinejoin="round" />
 
-        {/* FIX 4: High dot + label */}
+        {/* High dot + label */}
         <circle cx={x(highIdx).toFixed(1)} cy={y(maxV).toFixed(1)} r="4" fill="#3dbf8a" />
-        <text
-          x={x(highIdx).toFixed(1)} y={(y(maxV) - 7).toFixed(1)}
-          fill="#3dbf8a" fontSize="10" textAnchor="middle"
-        >
+        <text x={x(highIdx).toFixed(1)} y={(y(maxV) - 7).toFixed(1)} fill="#3dbf8a" fontSize="10" textAnchor="middle">
           {formatCurrency(maxV)}
         </text>
 
-        {/* FIX 4: Low dot + label */}
+        {/* Low dot + label */}
         <circle cx={x(lowIdx).toFixed(1)} cy={y(minV).toFixed(1)} r="4" fill="#ef4444" />
-        <text
-          x={x(lowIdx).toFixed(1)} y={(y(minV) + 15).toFixed(1)}
-          fill="#ef4444" fontSize="10" textAnchor="middle"
-        >
+        <text x={x(lowIdx).toFixed(1)} y={(y(minV) + 15).toFixed(1)} fill="#ef4444" fontSize="10" textAnchor="middle">
           {formatCurrency(minV)}
         </text>
 
-        {/* FIX 1: Max label — top-right */}
+        {/* Max label — top-right */}
         <text x={W - PADX} y={PADY_T - 6} fill="#555" fontSize="10" textAnchor="end">
           {formatCurrency(maxV)}
         </text>
 
-        {/* FIX 1: Min label — bottom-right (above date row) */}
+        {/* Min label — bottom-right */}
         <text x={W - PADX} y={H - PADY_B + 12} fill="#555" fontSize="10" textAnchor="end">
           {formatCurrency(minV)}
         </text>
 
         {/* Date labels */}
         {dateIndices.map((i) => (
-          <text
-            key={i}
-            x={x(i).toFixed(1)}
-            y={H - 8}
-            fill="#555"
-            fontSize="10"
-            textAnchor={i === 0 ? "start" : i === displayPoints.length - 1 ? "end" : "middle"}
-          >
-            {shortDate(displayPoints[i].date)}
+          <text key={i} x={x(i).toFixed(1)} y={H - 8} fill="#555" fontSize="10"
+            textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}>
+            {shortDate(points[i].date)}
           </text>
         ))}
       </svg>
@@ -237,15 +179,121 @@ function ColorStatCard({ label, value, valueColor }: { label: string; value: str
   );
 }
 
+// ── Period metric helpers ─────────────────────────────────────────────────────
+
+type Period = "daily" | "weekly" | "monthly";
+
+function periodDays(period: Period) {
+  return period === "daily" ? 7 : period === "weekly" ? 30 : 90;
+}
+
+function deriveTrend(slice: { date: string; total: number }[]): "up" | "down" | "flat" {
+  const last7  = slice.slice(-7).reduce((s, d) => s + d.total, 0);
+  const prior7 = slice.slice(-14, -7).reduce((s, d) => s + d.total, 0);
+  if (prior7 === 0) return "flat";
+  if (last7 > prior7 * 1.01) return "up";
+  if (last7 < prior7 * 0.99) return "down";
+  return "flat";
+}
+
+function deriveAlerts(
+  laborPct:     number,
+  primeCostPct: number,
+  trend:        "up" | "down" | "flat",
+  slice:        { date: string; total: number }[],
+  name:         string
+): GMAlert[] {
+  const alerts: GMAlert[] = [];
+  if (laborPct > 45)
+    alerts.push({ type: "HIGH_LABOR", severity: "critical",  locationName: name, message: `Labor cost is critically high at ${laborPct.toFixed(1)}%`, messagEs: `El costo de labor está en nivel crítico: ${laborPct.toFixed(1)}%` });
+  else if (laborPct > 35)
+    alerts.push({ type: "HIGH_LABOR", severity: "warning",   locationName: name, message: "Labor cost is above 35% — review scheduling",             messagEs: "El costo de labor supera el 35% — revisa los horarios" });
+  if (primeCostPct > 75)
+    alerts.push({ type: "HIGH_PRIME_COST", severity: "critical", locationName: name, message: `Prime cost is critically high at ${primeCostPct.toFixed(1)}%`, messagEs: `El costo primo está en nivel crítico: ${primeCostPct.toFixed(1)}%` });
+  else if (primeCostPct > 65)
+    alerts.push({ type: "HIGH_PRIME_COST", severity: "warning",  locationName: name, message: "Prime cost above 65% — review food and labor spend",         messagEs: "El costo primo supera el 65% — revisa gastos de comida y labor" });
+  if (trend === "down") {
+    const last7  = slice.slice(-7).reduce((s, d) => s + d.total, 0);
+    const prior7 = slice.slice(-14, -7).reduce((s, d) => s + d.total, 0);
+    if (prior7 > 0) {
+      const drop = ((prior7 - last7) / prior7) * 100;
+      if (drop > 20)
+        alerts.push({ type: "SALES_DROP", severity: "critical", locationName: name, message: "Sales dropped more than 20% vs prior week — immediate attention needed", messagEs: "Las ventas bajaron más del 20% vs la semana anterior — atención inmediata" });
+      else if (drop > 10)
+        alerts.push({ type: "SALES_DROP", severity: "warning",  locationName: name, message: "Sales dropped more than 10% vs prior week",                             messagEs: "Las ventas bajaron más del 10% vs la semana anterior" });
+    }
+  }
+  return alerts;
+}
+
+function computeMetrics(period: Period, gmData: GMDashboard) {
+  const r2    = (v: number) => Math.round(v * 100) / 100;
+  const all   = gmData.sales.dailyTotals;
+  const N     = periodDays(period);
+  const slice = all.slice(-N);
+
+  if (period === "weekly") {
+    // Weekly is the native 30-day window — use API values directly (most accurate)
+    const { sales, labor, primeCost, restaurant } = gmData;
+    const trend  = deriveTrend(slice);
+    return {
+      salesTotal:   sales.total,
+      byCategory:   { ...sales.byCategory } as Record<string, number>,
+      laborTotal:   labor.total,
+      laborPct:     labor.laborPct,
+      breakdown:    { ...labor.breakdown },
+      primeCostValue: primeCost.value,
+      primeCostPct: primeCost.pct,
+      trend,
+      alerts:       deriveAlerts(labor.laborPct, primeCost.pct, trend, slice, restaurant.name),
+      slicedPoints: slice,
+    };
+  }
+
+  // For daily (7 days) and monthly (90 days): scale the 30-day API values proportionally
+  const weeklySlice    = all.slice(-30);
+  const weeklySales    = weeklySlice.reduce((s, d) => s + d.total, 0);
+  const periodSales    = slice.reduce((s, d) => s + d.total, 0);
+  const ratio          = weeklySales > 0 ? periodSales / weeklySales : 0;
+
+  const byCategory = Object.fromEntries(
+    Object.entries(gmData.sales.byCategory).map(([k, v]) => [k, r2(v * ratio)])
+  ) as Record<string, number>;
+
+  const laborTotal = r2(gmData.labor.total * ratio);
+  const breakdown  = {
+    fohLabor:   r2(gmData.labor.breakdown.fohLabor   * ratio),
+    bohLabor:   r2(gmData.labor.breakdown.bohLabor   * ratio),
+    management: r2(gmData.labor.breakdown.management * ratio),
+  };
+  const laborPct       = periodSales > 0 ? r2((laborTotal / periodSales) * 100) : 0;
+  const primeCostValue = r2((byCategory.FOOD ?? 0) + laborTotal);
+  const primeCostPct   = periodSales > 0 ? r2((primeCostValue / periodSales) * 100) : 0;
+  const trend          = deriveTrend(slice);
+
+  return {
+    salesTotal:     r2(periodSales),
+    byCategory,
+    laborTotal,
+    laborPct,
+    breakdown,
+    primeCostValue,
+    primeCostPct,
+    trend,
+    alerts:         deriveAlerts(laborPct, primeCostPct, trend, slice, gmData.restaurant.name),
+    slicedPoints:   slice,
+  };
+}
+
 // ── GM Performance Section ────────────────────────────────────────────────────
 
 function GMPerformanceSection() {
   const { t, lang } = useLanguage();
   const p = t.performance;
-  const [gmData,     setGmData]     = useState<GMDashboard | null>(null);
-  const [gmLoading,  setGmLoading]  = useState(true);
-  const [gmError,    setGmError]    = useState(false);
-  const [chartView,  setChartView]  = useState<"daily" | "weekly" | "monthly">("daily");
+  const [gmData,    setGmData]    = useState<GMDashboard | null>(null);
+  const [gmLoading, setGmLoading] = useState(true);
+  const [gmError,   setGmError]   = useState(false);
+  const [period,    setPeriod]    = useState<Period>("weekly");
 
   useEffect(() => {
     gmApi.getDashboard()
@@ -270,9 +318,13 @@ function GMPerformanceSection() {
     );
   }
 
-  const { sales, labor, primeCost, alerts } = gmData;
-  const trendText  = sales.trend === "up" ? p.trendUp : sales.trend === "down" ? p.trendDown : p.trendFlat;
-  const trendColor = sales.trend === "up" ? "text-[#3dbf8a]" : sales.trend === "down" ? "text-[#ef4444]" : "text-[#555]";
+  const m = computeMetrics(period, gmData);
+
+  const trendText  = m.trend === "up" ? p.trendUp : m.trend === "down" ? p.trendDown : p.trendFlat;
+  const trendColor = m.trend === "up" ? "text-[#3dbf8a]" : m.trend === "down" ? "text-[#ef4444]" : "text-[#555]";
+
+  const periodSubtitle = period === "daily" ? p.last7days : period === "weekly" ? p.last30days : p.last90days;
+  const chartTitle     = period === "daily" ? p.chartSalesDaily : period === "weekly" ? p.chartSalesWeekly : p.chartSalesMontly;
 
   const catColors: Record<string, string> = {
     FOOD: "#3dbf8a", BEER: "#f59e0b", LIQUOR: "#8b5cf6", WINE: "#ef4444",
@@ -284,39 +336,54 @@ function GMPerformanceSection() {
 
   return (
     <div className="space-y-4">
-      {/* Section header */}
+      {/* Section header + period toggle */}
       <div>
         <h2 className="text-[16px] font-semibold text-white">{p.title}</h2>
-        <p className="text-[13px] text-[#555] mt-0.5">{p.subtitle}</p>
+        <p className="text-[13px] text-[#555] mt-0.5">{periodSubtitle}</p>
+        <div className="flex gap-1 mt-3">
+          {(["daily", "weekly", "monthly"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setPeriod(v)}
+              className={`text-[11px] px-3 py-1 rounded-[6px] transition-colors ${
+                period === v
+                  ? "bg-[#3dbf8a] text-white"
+                  : "border border-[#2a2a2a] text-[#555] hover:text-white"
+              }`}
+            >
+              {v === "daily" ? p.viewDaily : v === "weekly" ? p.viewWeekly : p.viewMonthly}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Alerts */}
       <div className="rounded-[8px] border border-[#1a1a1a] bg-[#0a0a0a] p-4">
         <p className="text-[11px] font-semibold text-[#555] uppercase tracking-[0.08em] mb-3">{p.alerts}</p>
-        {alerts.length === 0 ? (
+        {m.alerts.length === 0 ? (
           <p className="text-[13px] text-[#3dbf8a]">{p.noAlerts}</p>
         ) : (
-          <AlertBanner alerts={alerts} lang={lang} />
+          <AlertBanner alerts={m.alerts} lang={lang} />
         )}
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label={p.totalSales}   value={formatCurrency(sales.total)} />
-        <ColorStatCard label={p.laborPct}     value={`${labor.laborPct.toFixed(1)}%`}    valueColor={laborColor(labor.laborPct)} />
-        <ColorStatCard label={p.primeCostPct} value={`${primeCost.pct.toFixed(1)}%`}     valueColor={primeColor(primeCost.pct)} />
-        <ColorStatCard label={p.trend}        value={trendText}                           valueColor={trendColor} />
+        <StatCard       label={p.totalSales}   value={formatCurrency(m.salesTotal)} />
+        <ColorStatCard  label={p.laborPct}     value={`${m.laborPct.toFixed(1)}%`}     valueColor={laborColor(m.laborPct)} />
+        <ColorStatCard  label={p.primeCostPct} value={`${m.primeCostPct.toFixed(1)}%`} valueColor={primeColor(m.primeCostPct)} />
+        <ColorStatCard  label={p.trend}        value={trendText}                        valueColor={trendColor} />
       </div>
 
       {/* Sales by category */}
       <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5 space-y-3">
         <p className="text-[13px] font-semibold text-white">{p.salesByCategory}</p>
-        {Object.entries(sales.byCategory).map(([cat, amount]) => (
+        {Object.entries(m.byCategory).map(([cat, amount]) => (
           <BarRow
             key={cat}
             label={catLabels[cat] ?? cat}
             amount={amount}
-            total={sales.total}
+            total={m.salesTotal}
             color={catColors[cat] ?? "#555"}
           />
         ))}
@@ -326,40 +393,19 @@ function GMPerformanceSection() {
       <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5 space-y-3">
         <p className="text-[13px] font-semibold text-white">{p.laborCost}</p>
         {[
-          { label: p.fohLabor,   amount: labor.breakdown.fohLabor,   color: laborColors[0] },
-          { label: p.bohLabor,   amount: labor.breakdown.bohLabor,   color: laborColors[1] },
-          { label: p.management, amount: labor.breakdown.management, color: laborColors[2] },
+          { label: p.fohLabor,   amount: m.breakdown.fohLabor,   color: laborColors[0] },
+          { label: p.bohLabor,   amount: m.breakdown.bohLabor,   color: laborColors[1] },
+          { label: p.management, amount: m.breakdown.management, color: laborColors[2] },
         ].map(({ label, amount, color }) => (
-          <BarRow key={label} label={label} amount={amount} total={labor.total} color={color} />
+          <BarRow key={label} label={label} amount={amount} total={m.laborTotal} color={color} />
         ))}
       </div>
 
-      {/* Daily / Weekly / Monthly sales sparkline */}
-      {sales.dailyTotals.length > 1 && (
+      {/* Sales sparkline — shows sliced daily data for the selected period */}
+      {m.slicedPoints.length > 1 && (
         <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5">
-          {/* Title row + toggle */}
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[13px] font-semibold text-white">
-              {chartView === "daily"   ? p.dailySales   :
-               chartView === "weekly"  ? p.weeklySales  : p.monthlySales}
-            </p>
-            <div className="flex gap-1">
-              {(["daily", "weekly", "monthly"] as const).map((view) => (
-                <button
-                  key={view}
-                  onClick={() => setChartView(view)}
-                  className={`text-[11px] px-3 py-1 rounded-[6px] transition-colors ${
-                    chartView === view
-                      ? "bg-[#3dbf8a] text-white"
-                      : "border border-[#2a2a2a] text-[#555] hover:text-white"
-                  }`}
-                >
-                  {view === "daily" ? p.viewDaily : view === "weekly" ? p.viewWeekly : p.viewMonthly}
-                </button>
-              ))}
-            </div>
-          </div>
-          <Sparkline points={sales.dailyTotals} chartView={chartView} />
+          <p className="text-[13px] font-semibold text-white mb-3">{chartTitle}</p>
+          <Sparkline points={m.slicedPoints} />
         </div>
       )}
     </div>
