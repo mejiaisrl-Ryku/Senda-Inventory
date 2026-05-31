@@ -98,112 +98,6 @@ function ColorStatCard({ label, value, valueColor }: { label: string; value: str
   );
 }
 
-// ── Period metric helpers ─────────────────────────────────────────────────────
-
-type Period = "daily" | "weekly" | "monthly";
-
-function periodDays(period: Period) {
-  return period === "daily" ? 7 : period === "weekly" ? 30 : 90;
-}
-
-function deriveTrend(slice: { date: string; total: number }[]): "up" | "down" | "flat" {
-  const last7  = slice.slice(-7).reduce((s, d) => s + d.total, 0);
-  const prior7 = slice.slice(-14, -7).reduce((s, d) => s + d.total, 0);
-  if (prior7 === 0) return "flat";
-  if (last7 > prior7 * 1.01) return "up";
-  if (last7 < prior7 * 0.99) return "down";
-  return "flat";
-}
-
-function deriveAlerts(
-  laborPct:     number,
-  primeCostPct: number,
-  trend:        "up" | "down" | "flat",
-  slice:        { date: string; total: number }[],
-  name:         string
-): GMAlert[] {
-  const alerts: GMAlert[] = [];
-  if (laborPct > 45)
-    alerts.push({ type: "HIGH_LABOR", severity: "critical",  locationName: name, message: `Labor cost is critically high at ${laborPct.toFixed(1)}%`, messagEs: `El costo de labor está en nivel crítico: ${laborPct.toFixed(1)}%` });
-  else if (laborPct > 35)
-    alerts.push({ type: "HIGH_LABOR", severity: "warning",   locationName: name, message: "Labor cost is above 35% — review scheduling",             messagEs: "El costo de labor supera el 35% — revisa los horarios" });
-  if (primeCostPct > 75)
-    alerts.push({ type: "HIGH_PRIME_COST", severity: "critical", locationName: name, message: `Prime cost is critically high at ${primeCostPct.toFixed(1)}%`, messagEs: `El costo primo está en nivel crítico: ${primeCostPct.toFixed(1)}%` });
-  else if (primeCostPct > 65)
-    alerts.push({ type: "HIGH_PRIME_COST", severity: "warning",  locationName: name, message: "Prime cost above 65% — review food and labor spend",         messagEs: "El costo primo supera el 65% — revisa gastos de comida y labor" });
-  if (trend === "down") {
-    const last7  = slice.slice(-7).reduce((s, d) => s + d.total, 0);
-    const prior7 = slice.slice(-14, -7).reduce((s, d) => s + d.total, 0);
-    if (prior7 > 0) {
-      const drop = ((prior7 - last7) / prior7) * 100;
-      if (drop > 20)
-        alerts.push({ type: "SALES_DROP", severity: "critical", locationName: name, message: "Sales dropped more than 20% vs prior week — immediate attention needed", messagEs: "Las ventas bajaron más del 20% vs la semana anterior — atención inmediata" });
-      else if (drop > 10)
-        alerts.push({ type: "SALES_DROP", severity: "warning",  locationName: name, message: "Sales dropped more than 10% vs prior week",                             messagEs: "Las ventas bajaron más del 10% vs la semana anterior" });
-    }
-  }
-  return alerts;
-}
-
-function computeMetrics(period: Period, gmData: GMDashboard) {
-  const r2    = (v: number) => Math.round(v * 100) / 100;
-  const all   = gmData.sales.dailyTotals;
-  const N     = periodDays(period);
-  const slice = all.slice(-N);
-
-  if (period === "weekly") {
-    // Weekly is the native 30-day window — use API values directly (most accurate)
-    const { sales, labor, primeCost, restaurant } = gmData;
-    const trend  = deriveTrend(slice);
-    return {
-      salesTotal:   sales.total,
-      byCategory:   { ...sales.byCategory } as Record<string, number>,
-      laborTotal:   labor.total,
-      laborPct:     labor.laborPct,
-      breakdown:    { ...labor.breakdown },
-      primeCostValue: primeCost.value,
-      primeCostPct: primeCost.pct,
-      trend,
-      alerts:       deriveAlerts(labor.laborPct, primeCost.pct, trend, slice, restaurant.name),
-      slicedPoints: slice,
-    };
-  }
-
-  // For daily (7 days) and monthly (90 days): scale the 30-day API values proportionally
-  const weeklySlice    = all.slice(-30);
-  const weeklySales    = weeklySlice.reduce((s, d) => s + d.total, 0);
-  const periodSales    = slice.reduce((s, d) => s + d.total, 0);
-  const ratio          = weeklySales > 0 ? periodSales / weeklySales : 0;
-
-  const byCategory = Object.fromEntries(
-    Object.entries(gmData.sales.byCategory).map(([k, v]) => [k, r2(v * ratio)])
-  ) as Record<string, number>;
-
-  const laborTotal = r2(gmData.labor.total * ratio);
-  const breakdown  = {
-    fohLabor:   r2(gmData.labor.breakdown.fohLabor   * ratio),
-    bohLabor:   r2(gmData.labor.breakdown.bohLabor   * ratio),
-    management: r2(gmData.labor.breakdown.management * ratio),
-  };
-  const laborPct       = periodSales > 0 ? r2((laborTotal / periodSales) * 100) : 0;
-  const primeCostValue = r2((byCategory.FOOD ?? 0) + laborTotal);
-  const primeCostPct   = periodSales > 0 ? r2((primeCostValue / periodSales) * 100) : 0;
-  const trend          = deriveTrend(slice);
-
-  return {
-    salesTotal:     r2(periodSales),
-    byCategory,
-    laborTotal,
-    laborPct,
-    breakdown,
-    primeCostValue,
-    primeCostPct,
-    trend,
-    alerts:         deriveAlerts(laborPct, primeCostPct, trend, slice, gmData.restaurant.name),
-    slicedPoints:   slice,
-  };
-}
-
 // ── GM Performance Section ────────────────────────────────────────────────────
 
 function toISO(d: Date) { return d.toISOString().slice(0, 10); }
@@ -215,7 +109,6 @@ function GMPerformanceSection() {
   const [gmData,    setGmData]    = useState<GMDashboard | null>(null);
   const [gmLoading, setGmLoading] = useState(true);
   const [gmError,   setGmError]   = useState(false);
-  const [period,    setPeriod]    = useState<Period>("weekly");
 
   const [startDate, setStartDate] = useState(() => daysAgoISO(90));
   const [endDate,   setEndDate]   = useState(() => toISO(new Date()));
@@ -253,12 +146,9 @@ function GMPerformanceSection() {
     );
   }
 
-  const m = computeMetrics(period, gmData);
-
-  const trendText  = m.trend === "up" ? p.trendUp : m.trend === "down" ? p.trendDown : p.trendFlat;
-  const trendColor = m.trend === "up" ? "text-[#3dbf8a]" : m.trend === "down" ? "text-[#ef4444]" : "text-[#555]";
-
-  const periodSubtitle = period === "daily" ? p.last7days : period === "weekly" ? p.last30days : p.last90days;
+  const { sales, labor, primeCost, alerts } = gmData;
+  const trendText  = sales.trend === "up" ? p.trendUp : sales.trend === "down" ? p.trendDown : p.trendFlat;
+  const trendColor = sales.trend === "up" ? "text-[#3dbf8a]" : sales.trend === "down" ? "text-[#ef4444]" : "text-[#555]";
 
   const catColors: Record<string, string> = {
     FOOD: "#3dbf8a", BEER: "#f59e0b", LIQUOR: "#8b5cf6", WINE: "#ef4444",
@@ -270,57 +160,41 @@ function GMPerformanceSection() {
 
   return (
     <div className="space-y-4">
-      {/* Section header + date picker + period toggle */}
+      {/* Section header + date picker */}
       <div>
         <h2 className="text-[16px] font-semibold text-white">{p.title}</h2>
         <div className="mt-3">
           <DateRangePicker startDate={startDate} endDate={endDate} onChange={handleDateChange} />
-        </div>
-        <p className="text-[13px] text-[#555] mt-2">{periodSubtitle}</p>
-        <div className="flex gap-1 mt-2">
-          {(["daily", "weekly", "monthly"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setPeriod(v)}
-              className={`text-[11px] px-3 py-1 rounded-[6px] transition-colors ${
-                period === v
-                  ? "bg-[#3dbf8a] text-white"
-                  : "border border-[#2a2a2a] text-[#555] hover:text-white"
-              }`}
-            >
-              {v === "daily" ? p.viewDaily : v === "weekly" ? p.viewWeekly : p.viewMonthly}
-            </button>
-          ))}
         </div>
       </div>
 
       {/* Alerts */}
       <div className="rounded-[8px] border border-[#1a1a1a] bg-[#0a0a0a] p-4">
         <p className="text-[11px] font-semibold text-[#555] uppercase tracking-[0.08em] mb-3">{p.alerts}</p>
-        {m.alerts.length === 0 ? (
+        {alerts.length === 0 ? (
           <p className="text-[13px] text-[#3dbf8a]">{p.noAlerts}</p>
         ) : (
-          <AlertBanner alerts={m.alerts} lang={lang} />
+          <AlertBanner alerts={alerts} lang={lang} />
         )}
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard       label={p.totalSales}   value={formatCurrency(m.salesTotal)} />
-        <ColorStatCard  label={p.laborPct}     value={`${m.laborPct.toFixed(1)}%`}     valueColor={laborColor(m.laborPct)} />
-        <ColorStatCard  label={p.primeCostPct} value={`${m.primeCostPct.toFixed(1)}%`} valueColor={primeColor(m.primeCostPct)} />
-        <ColorStatCard  label={p.trend}        value={trendText}                        valueColor={trendColor} />
+        <StatCard       label={p.totalSales}   value={formatCurrency(sales.total)} />
+        <ColorStatCard  label={p.laborPct}     value={`${labor.laborPct.toFixed(1)}%`}     valueColor={laborColor(labor.laborPct)} />
+        <ColorStatCard  label={p.primeCostPct} value={`${primeCost.pct.toFixed(1)}%`}      valueColor={primeColor(primeCost.pct)} />
+        <ColorStatCard  label={p.trend}        value={trendText}                            valueColor={trendColor} />
       </div>
 
       {/* Sales by category */}
       <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5 space-y-3">
         <p className="text-[13px] font-semibold text-white">{p.salesByCategory}</p>
-        {Object.entries(m.byCategory).map(([cat, amount]) => (
+        {Object.entries(sales.byCategory).map(([cat, amount]) => (
           <BarRow
             key={cat}
             label={catLabels[cat] ?? cat}
             amount={amount}
-            total={m.salesTotal}
+            total={sales.total}
             color={catColors[cat] ?? "#555"}
           />
         ))}
@@ -330,11 +204,11 @@ function GMPerformanceSection() {
       <div className="bg-[#0a0a0a] rounded-[8px] border border-[#1a1a1a] p-5 space-y-3">
         <p className="text-[13px] font-semibold text-white">{p.laborCost}</p>
         {[
-          { label: p.fohLabor,   amount: m.breakdown.fohLabor,   color: laborColors[0] },
-          { label: p.bohLabor,   amount: m.breakdown.bohLabor,   color: laborColors[1] },
-          { label: p.management, amount: m.breakdown.management, color: laborColors[2] },
+          { label: p.fohLabor,   amount: labor.breakdown.fohLabor,   color: laborColors[0] },
+          { label: p.bohLabor,   amount: labor.breakdown.bohLabor,   color: laborColors[1] },
+          { label: p.management, amount: labor.breakdown.management, color: laborColors[2] },
         ].map(({ label, amount, color }) => (
-          <BarRow key={label} label={label} amount={amount} total={m.laborTotal} color={color} />
+          <BarRow key={label} label={label} amount={amount} total={labor.total} color={color} />
         ))}
       </div>
 
