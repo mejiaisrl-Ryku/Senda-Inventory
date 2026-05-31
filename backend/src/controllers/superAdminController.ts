@@ -231,6 +231,7 @@ export async function listRestaurants(req: AuthRequest, res: Response, next: Nex
           take: 1,
           orderBy: { email: "asc" },
         },
+        ownerAccount: { select: { id: true, name: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -245,6 +246,7 @@ export async function listRestaurants(req: AuthRequest, res: Response, next: Nex
       userCount: r._count.users,
       productCount: r._count.products,
       owner: r.users[0] ?? null,
+      ownerAccountName: r.ownerAccount?.name ?? null,
     }));
 
     res.json(response);
