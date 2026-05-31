@@ -13,22 +13,33 @@ function parseDateEnd(str: string): Date {
   return new Date(`${str}T23:59:59Z`);
 }
 
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
 function validateDateParams(
   qStart: unknown,
   qEnd:   unknown
-): { from: Date; to: Date } | { error: string } {
+): { from: Date; to: Date; startStr: string; endStr: string } | { error: string } {
   if (typeof qStart !== "string" || typeof qEnd !== "string") {
     return { error: "startDate and endDate are required (YYYY-MM-DD)" };
   }
-  const from = parseDate(qStart);
-  const to   = parseDateEnd(qEnd);
+
+  const startStr = qStart.trim();
+  const endStr   = qEnd.trim();
+
+  if (!ISO_DATE_RE.test(startStr) || !ISO_DATE_RE.test(endStr)) {
+    return { error: `startDate and endDate must be YYYY-MM-DD (received: "${startStr}", "${endStr}")` };
+  }
+
+  const from = parseDate(startStr);
+  const to   = parseDateEnd(endStr);
+
   if (isNaN(from.getTime()) || isNaN(to.getTime())) {
-    return { error: "Invalid startDate or endDate" };
+    return { error: `Could not parse dates (received: "${startStr}", "${endStr}")` };
   }
   if (to < from) {
     return { error: "endDate must be >= startDate" };
   }
-  return { from, to };
+  return { from, to, startStr, endStr };
 }
 
 // ── P&L calculation per restaurant ───────────────────────────────────────────
@@ -91,11 +102,10 @@ export async function getOwnerPnl(req: AuthRequest, res: Response, next: NextFun
   try {
     const ownerAccountId = req.user.ownerAccountId ?? "";
 
+    console.log("[getOwnerPnl] raw req.query:", JSON.stringify(req.query));
     const dateResult = validateDateParams(req.query.startDate, req.query.endDate);
     if ("error" in dateResult) return res.status(400).json({ error: dateResult.error });
-    const { from, to } = dateResult;
-    const startDate = req.query.startDate as string;
-    const endDate   = req.query.endDate   as string;
+    const { from, to, startStr: startDate, endStr: endDate } = dateResult;
 
     logger.debug("getOwnerPnl: entry", { userId: req.user.userId, ownerAccountId, startDate, endDate });
 
@@ -175,11 +185,10 @@ export async function getOwnerPnlSummary(req: AuthRequest, res: Response, next: 
   try {
     const ownerAccountId = req.user.ownerAccountId ?? "";
 
+    console.log("[getOwnerPnlSummary] raw req.query:", JSON.stringify(req.query));
     const dateResult = validateDateParams(req.query.startDate, req.query.endDate);
     if ("error" in dateResult) return res.status(400).json({ error: dateResult.error });
-    const { from, to } = dateResult;
-    const startDate = req.query.startDate as string;
-    const endDate   = req.query.endDate   as string;
+    const { from, to, startStr: startDate, endStr: endDate } = dateResult;
 
     logger.debug("getOwnerPnlSummary: entry", { userId: req.user.userId, ownerAccountId, startDate, endDate });
 
