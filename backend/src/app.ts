@@ -23,6 +23,7 @@ import locationsRouter from "./routes/locations";
 import feedbackRouter from "./routes/feedback";
 import ownerRouter from "./routes/owner";
 import { gmRouter, ownerDashRouter } from "./routes/phase5Routes";
+import { ownerPnlRouter } from "./routes/phase6Routes";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -86,6 +87,7 @@ app.use("/api/feedback",      feedbackRouter);
 app.use("/api/owner-account", ownerRouter);
 app.use("/api/gm",            gmRouter);
 app.use("/api/owner",         ownerDashRouter);
+app.use("/api/owner",         ownerPnlRouter);
 
 app.use(errorHandler);
 
