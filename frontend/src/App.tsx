@@ -8,6 +8,7 @@ import { ManagerProvider, useManager } from "./context/ManagerContext";
 import { ManagerLogin } from "./components/manager/ManagerLogin";
 import { ManagerDashboard } from "./components/manager/ManagerDashboard";
 import { OwnerDashboard } from "./components/owner/OwnerDashboard";
+import { PnLPage } from "./components/owner/PnLPage";
 import { Layout } from "./components/Layout";
 import { Login } from "./components/Login";
 import { Register } from "./components/Register";
@@ -168,6 +169,7 @@ function AppRoutes() {
         <Route element={<ProtectedRoutes />}>
           <Route element={<OwnerRoute />}>
             <Route path="owner/dashboard" element={<OwnerDashboard />} />
+            <Route path="owner/pnl"       element={<PnLPage />} />
           </Route>
         </Route>
 

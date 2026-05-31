@@ -661,6 +661,30 @@ const en = {
     locationSlots:        "locations used",
   },
 
+  // ── P&L Report (Phase 6) ─────────────────────────────────────────────────────
+  pnl: {
+    title:          "P&L Report",
+    subtitle:       "Profit & Loss across all locations",
+    consolidated:   "Consolidated",
+    revenue:        "Revenue",
+    foodCost:       "Food Cost",
+    laborCost:      "Labor Cost",
+    primeCost:      "Prime Cost",
+    grossProfit:    "Gross Profit",
+    foodCostPct:    "Food Cost %",
+    laborCostPct:   "Labor Cost %",
+    primeCostPct:   "Prime Cost %",
+    grossProfitPct: "Gross Profit %",
+    ranking:        "Profitability Ranking",
+    best:           "Best Performer",
+    worst:          "Needs Improvement",
+    mostRevenue:    "Most Revenue",
+    rank:           "Rank",
+    location:       "Location",
+    noData:         "No data for this period",
+    foodCostNote:   "Food cost requires invoice data",
+  },
+
   // ── Date Range Picker ────────────────────────────────────────────────────────
   dateRange: {
     last7:        "Last 7 days",
@@ -1356,6 +1380,29 @@ const es: typeof en = {
     locationLimitReached: "Has alcanzado el límite de ubicaciones.",
     locationAtLimit:      "de",
     locationSlots:        "ubicaciones usadas",
+  },
+
+  pnl: {
+    title:          "Reporte de P&G",
+    subtitle:       "Pérdidas y Ganancias de todas las ubicaciones",
+    consolidated:   "Consolidado",
+    revenue:        "Ingresos",
+    foodCost:       "Costo de Alimentos",
+    laborCost:      "Costo de Labor",
+    primeCost:      "Costo Primo",
+    grossProfit:    "Utilidad Bruta",
+    foodCostPct:    "% Costo de Alimentos",
+    laborCostPct:   "% Costo de Labor",
+    primeCostPct:   "% Costo Primo",
+    grossProfitPct: "% Utilidad Bruta",
+    ranking:        "Ranking de Rentabilidad",
+    best:           "Mejor Desempeño",
+    worst:          "Requiere Mejora",
+    mostRevenue:    "Mayor Ingreso",
+    rank:           "Posición",
+    location:       "Ubicación",
+    noData:         "Sin datos para este período",
+    foodCostNote:   "El costo de alimentos requiere datos de facturas",
   },
 
   dateRange: {

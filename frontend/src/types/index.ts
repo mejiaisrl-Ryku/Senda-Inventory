@@ -372,3 +372,40 @@ export interface GMDashboard {
   primeCost: { value: number; pct: number };
   alerts:    GMAlert[];
 }
+
+// ── Phase 6 P&L ───────────────────────────────────────────────────────────────
+
+export interface PnLLocation {
+  restaurant:     { id: string; name: string; address: string | null };
+  revenue:        number;
+  foodCost:       number;
+  laborCost:      number;
+  primeCost:      number;
+  grossProfit:    number;
+  foodCostPct:    number;
+  laborCostPct:   number;
+  primeCostPct:   number;
+  grossProfitPct: number;
+  rank:           number;
+}
+
+export interface PnLReport {
+  period: { startDate: string; endDate: string };
+  consolidated: {
+    revenue:        number;
+    foodCost:       number;
+    laborCost:      number;
+    primeCost:      number;
+    grossProfit:    number;
+    foodCostPct:    number;
+    laborCostPct:   number;
+    primeCostPct:   number;
+    grossProfitPct: number;
+  };
+  locations: PnLLocation[];
+  ranking: {
+    best:        string;
+    worst:       string;
+    mostRevenue: string;
+  };
+}
