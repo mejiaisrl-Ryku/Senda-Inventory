@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { superAdminApi, SARestaurant, SAUser } from "../../api/superAdmin";
+import { superAdminApi, SARestaurant, SAUser, SAOwnerAccount } from "../../api/superAdmin";
 import { Spinner } from "../shared/Spinner";
 import { useToast } from "../../context/ToastContext";
 
@@ -443,6 +443,172 @@ function InviteAdminForm({ restaurants }: { restaurants: SARestaurant[] }) {
   );
 }
 
+// ── Owner Accounts table ──────────────────────────────────────────────────────
+
+function OwnerAccountsTable({ accounts }: { accounts: SAOwnerAccount[] }) {
+  function formatDate(iso: string) {
+    return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  if (accounts.length === 0) {
+    return <div className="py-10 text-center text-[13px] text-[#444]">No owner accounts yet.</div>;
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-[#1a1a1a]">
+            {["Group Name", "Email", "Restaurants", "Created", "Status"].map((h) => (
+              <th key={h} className="text-left px-4 py-3 text-[11px] font-medium text-[#444] uppercase tracking-[0.08em] whitespace-nowrap">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[#111]">
+          {accounts.map((acc) => (
+            <tr key={acc.id} className="hover:bg-[#0f0f0f] transition-colors">
+              <td className="px-4 py-3 text-white font-medium text-[13px]">{acc.name}</td>
+              <td className="px-4 py-3 text-[#888] text-[13px]">{acc.email}</td>
+              <td className="px-4 py-3 text-[#888] text-[13px]">{acc.restaurantCount}</td>
+              <td className="px-4 py-3 text-[#888] text-[13px] whitespace-nowrap">{formatDate(acc.createdAt)}</td>
+              <td className="px-4 py-3">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+                  acc.active
+                    ? "bg-[#3dbf8a]/10 text-[#3dbf8a] border-[#3dbf8a]/20"
+                    : "bg-[#1a1a1a] text-[#555] border-[#2a2a2a]"
+                }`}>
+                  {acc.active ? "Active" : "Inactive"}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ── Create Owner Account form ──────────────────────────────────────────────────
+
+function CreateOwnerAccountForm({
+  restaurants,
+  onCreated,
+}: {
+  restaurants:  SARestaurant[];
+  onCreated:    () => void;
+}) {
+  const [ownerName,      setOwnerName]      = useState("");
+  const [ownerEmail,     setOwnerEmail]     = useState("");
+  const [selectedIds,    setSelectedIds]    = useState<string[]>([]);
+  const [loading,        setLoading]        = useState(false);
+  const [error,          setError]          = useState("");
+  const [successEmail,   setSuccessEmail]   = useState("");
+
+  function toggleRestaurant(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSuccessEmail("");
+    setLoading(true);
+    try {
+      const result = await superAdminApi.createOwnerAccount({
+        ownerName,
+        ownerEmail,
+        restaurantIds: selectedIds.length > 0 ? selectedIds : undefined,
+      });
+      setSuccessEmail(result.ownerEmail);
+      setOwnerName(""); setOwnerEmail(""); setSelectedIds([]);
+      onCreated();
+    } catch (err: any) {
+      setError(err?.response?.data?.error ?? "Failed to create owner account.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      {error && (
+        <div className="px-3 py-2.5 rounded-[8px] bg-red-900/20 border border-red-800/40 text-red-400 text-[13px]">
+          {error}
+        </div>
+      )}
+      {successEmail && (
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-[8px] bg-[#3dbf8a]/10 border border-[#3dbf8a]/20 text-[#3dbf8a] text-[13px]">
+          <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Owner account created · invite sent to <span className="font-medium ml-1">{successEmail}</span>
+        </div>
+      )}
+
+      <div>
+        <label className={labelCls}>Group / Owner name</label>
+        <input
+          required
+          value={ownerName}
+          onChange={(e) => setOwnerName(e.target.value)}
+          placeholder="Trompas Restaurant Group"
+          className={inputCls}
+        />
+      </div>
+
+      <div>
+        <label className={labelCls}>Owner email</label>
+        <input
+          type="email"
+          required
+          value={ownerEmail}
+          onChange={(e) => setOwnerEmail(e.target.value)}
+          placeholder="owner@restaurantgroup.com"
+          className={inputCls}
+        />
+      </div>
+
+      {restaurants.length > 0 && (
+        <div>
+          <label className={labelCls}>Assign restaurants (optional)</label>
+          <div className="max-h-[180px] overflow-y-auto rounded-[8px] border border-[#2a2a2a] bg-[#0a0a0a] divide-y divide-[#1a1a1a]">
+            {restaurants.map((r) => (
+              <label key={r.id} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-[#111] transition-colors">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(r.id)}
+                  onChange={() => toggleRestaurant(r.id)}
+                  className="w-4 h-4 accent-[#3dbf8a] flex-shrink-0"
+                />
+                <span className="min-w-0">
+                  <span className="block text-[13px] text-white truncate">{r.name}</span>
+                  {r.address && <span className="block text-[11px] text-[#444] truncate">{r.address}</span>}
+                </span>
+              </label>
+            ))}
+          </div>
+          {selectedIds.length > 0 && (
+            <p className="text-[11px] text-[#555] mt-1">{selectedIds.length} restaurant{selectedIds.length !== 1 ? "s" : ""} selected</p>
+          )}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-[13px] font-semibold transition-colors flex items-center justify-center gap-2"
+      >
+        {loading && <Spinner size="sm" />}
+        Create Owner Account
+      </button>
+    </form>
+  );
+}
+
 // ── Users table ───────────────────────────────────────────────────────────────
 
 function UsersTable({ users }: { users: SAUser[] }) {
@@ -520,10 +686,12 @@ function UsersTable({ users }: { users: SAUser[] }) {
 // ── Main dashboard ────────────────────────────────────────────────────────────
 
 export function SuperAdminDashboard() {
-  const [restaurants, setRestaurants] = useState<SARestaurant[]>([]);
-  const [users, setUsers] = useState<SAUser[]>([]);
-  const [loadingR, setLoadingR] = useState(true);
-  const [loadingU, setLoadingU] = useState(true);
+  const [restaurants,    setRestaurants]    = useState<SARestaurant[]>([]);
+  const [users,          setUsers]          = useState<SAUser[]>([]);
+  const [ownerAccounts,  setOwnerAccounts]  = useState<SAOwnerAccount[]>([]);
+  const [loadingR,       setLoadingR]       = useState(true);
+  const [loadingU,       setLoadingU]       = useState(true);
+  const [loadingOwners,  setLoadingOwners]  = useState(true);
 
   const loadRestaurants = useCallback(() => {
     setLoadingR(true);
@@ -539,8 +707,17 @@ export function SuperAdminDashboard() {
       .finally(() => setLoadingU(false));
   }, []);
 
+  const loadOwnerAccounts = useCallback(() => {
+    setLoadingOwners(true);
+    superAdminApi.listOwnerAccounts()
+      .then(setOwnerAccounts)
+      .catch(() => {}) // graceful — endpoint may not exist yet in all envs
+      .finally(() => setLoadingOwners(false));
+  }, []);
+
   useEffect(() => { loadRestaurants(); }, [loadRestaurants]);
   useEffect(() => { loadUsers(); }, [loadUsers]);
+  useEffect(() => { loadOwnerAccounts(); }, [loadOwnerAccounts]);
 
   function onRestaurantDeleted(id: string) {
     setRestaurants((prev) => prev.filter((r) => r.id !== id));
@@ -554,8 +731,24 @@ export function SuperAdminDashboard() {
         <h1 className="text-[22px] font-semibold text-white">Platform Overview</h1>
         <p className="text-[13px] text-[#555] mt-1">
           {restaurants.length} partner{restaurants.length !== 1 ? "s" : ""} ·{" "}
-          {users.length} user{users.length !== 1 ? "s" : ""}
+          {users.length} user{users.length !== 1 ? "s" : ""} ·{" "}
+          {ownerAccounts.length} owner account{ownerAccounts.length !== 1 ? "s" : ""}
         </p>
+      </div>
+
+      {/* ── Owner Accounts ─────────────────────────────────────────────────── */}
+      <div>
+        <SectionHeader
+          title="Owner Accounts"
+          sub="Multi-location restaurant groups"
+        />
+        <Card>
+          {loadingOwners ? (
+            <div className="flex items-center justify-center py-12"><Spinner size="lg" /></div>
+          ) : (
+            <OwnerAccountsTable accounts={ownerAccounts} />
+          )}
+        </Card>
       </div>
 
       {/* ── Restaurants ────────────────────────────────────────────────────── */}
@@ -573,8 +766,8 @@ export function SuperAdminDashboard() {
         </Card>
       </div>
 
-      {/* ── Add restaurant + Invite admin ──────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* ── Create Partner + Invite Admin + Create Owner Account ───────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         <div>
           <SectionHeader
             title="Create Partner"
@@ -592,6 +785,19 @@ export function SuperAdminDashboard() {
           />
           <Card className="p-5">
             <InviteAdminForm restaurants={restaurants} />
+          </Card>
+        </div>
+
+        <div>
+          <SectionHeader
+            title="Create Owner Account"
+            sub="Create a multi-location group owner"
+          />
+          <Card className="p-5">
+            <CreateOwnerAccountForm
+              restaurants={restaurants}
+              onCreated={loadOwnerAccounts}
+            />
           </Card>
         </div>
       </div>

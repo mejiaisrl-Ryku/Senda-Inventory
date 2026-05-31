@@ -41,6 +41,18 @@ export interface SARestaurant {
   userCount: number;
   productCount: number;
   owner: { name: string | null; email: string } | null;
+  /** ownerAccountName is returned when the backend includes it — may be absent on older responses */
+  ownerAccountName?: string | null;
+}
+
+export interface SAOwnerAccount {
+  id:              string;
+  name:            string;
+  email:           string;
+  active:          boolean;
+  restaurantCount: number;
+  createdAt:       string;
+  updatedAt:       string;
 }
 
 export interface SAUser {
@@ -160,4 +172,14 @@ export const superAdminApi = {
 
   deletePartnerLocation: (partnerId: string, locationId: string) =>
     saApi.delete<{ ok: boolean }>(`/super-admin/partners/${partnerId}/locations/${locationId}`).then((r) => r.data),
+
+  // -- Owner Accounts (KYRU_MANAGER) --
+  createOwnerAccount: (data: { ownerName: string; ownerEmail: string; restaurantIds?: string[] }) =>
+    saApi.post<{
+      ownerAccountId: string; ownerName: string; ownerEmail: string;
+      inviteToken: string; sentEmail: string; restaurantCount: number;
+    }>("/super-admin/owner-accounts", data).then((r) => r.data),
+
+  listOwnerAccounts: () =>
+    saApi.get<SAOwnerAccount[]>("/super-admin/owner-accounts").then((r) => r.data),
 };
