@@ -308,6 +308,14 @@ export function OwnerDashboard() {
         <div>
           <h1 className="text-[24px] font-semibold text-white">{o.title}</h1>
           <p className="text-[13px] text-[#555] mt-0.5">{o.subtitle}</p>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => navigate("/owner/budgets")}
+              className="border border-[#2a2a2a] text-[#888] hover:border-[#444] hover:text-white text-[12px] px-4 py-1.5 rounded-[6px] transition-colors"
+            >
+              {o.manageBudgets}
+            </button>
+          </div>
           <div className="mt-4">
             <DateRangePicker startDate={startDate} endDate={endDate} onChange={handleDateChange} />
           </div>
