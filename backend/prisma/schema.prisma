@@ -141,6 +141,7 @@ model Restaurant {
   laborEntries  LaborEntry[]
   countSessions CountSession[]
   recipes       Recipe[]
+  budgets       LocationBudget[]
 
   @@index([ownerAccountId])
   @@map("restaurants")
@@ -383,4 +384,25 @@ model RecipeIngredient {
   @@index([recipeId])
   @@index([productId])
   @@map("recipe_ingredients")
+}
+
+// ── Budgeting ─────────────────────────────────────────────────────────────────
+
+model LocationBudget {
+  id              String     @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  ownerAccountId  String
+  year            Int
+  month           Int?       // null = annual budget, 1–12 = monthly budget
+  revenueTarget   Float
+  laborPctTarget  Float      // target labor % (e.g. 35.0)
+  primeCostTarget Float      // target prime cost % (e.g. 62.0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@unique([restaurantId, year, month])
+  @@index([restaurantId])
+  @@index([ownerAccountId])
+  @@map("location_budgets")
 }
