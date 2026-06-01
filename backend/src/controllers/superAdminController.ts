@@ -1216,3 +1216,76 @@ export async function deleteOwnerAccount(
     next(err);
   }
 }
+
+/**
+ * PATCH /api/super-admin/owner-accounts/:ownerAccountId/archive
+ * Toggle active flag (archive = false, restore = true).
+ */
+export async function archiveOwnerAccount(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { ownerAccountId } = req.params;
+
+    const existing = await prisma.ownerAccount.findUnique({ where: { id: ownerAccountId }, select: { active: true, name: true } });
+    if (!existing) return res.status(404).json({ error: "Owner account not found" });
+
+    const newActive = !existing.active;
+
+    logger.warn("archiveOwnerAccount: entry", { userId: req.user.userId, ownerAccountId, newActive });
+
+    const account = await prisma.ownerAccount.update({
+      where: { id: ownerAccountId },
+      data:  { active: newActive },
+    });
+
+    logger.warn("archiveOwnerAccount: success", { ownerAccountId, active: account.active });
+
+    res.json({ id: account.id, active: account.active, name: account.name });
+  } catch (err) {
+    logger.error("archiveOwnerAccount: error", { userId: req.user.userId, ownerAccountId: req.params.ownerAccountId, message: (err as Error).message });
+    next(err);
+  }
+}
+
+/**
+ * DELETE /api/super-admin/owner-accounts/:ownerAccountId/hard-delete
+ * Permanently deletes the owner account and unlinks all restaurants.
+ * Requires confirmation header: X-Confirm-Delete: permanent
+ */
+export async function hardDeleteOwnerAccount(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    const { ownerAccountId } = req.params;
+    const confirmHeader = req.headers["x-confirm-delete"];
+
+    if (confirmHeader !== "permanent") {
+      return res.status(400).json({ error: "Missing confirmation header: X-Confirm-Delete: permanent" });
+    }
+
+    const existing = await prisma.ownerAccount.findUnique({ where: { id: ownerAccountId }, select: { id: true, name: true } });
+    if (!existing) return res.status(404).json({ error: "Owner account not found" });
+
+    logger.warn("hardDeleteOwnerAccount: entry", { userId: req.user.userId, ownerAccountId, name: existing.name });
+
+    // Unlink all restaurants before deleting
+    await prisma.restaurant.updateMany({
+      where: { ownerAccountId },
+      data:  { ownerAccountId: null },
+    });
+
+    await prisma.ownerAccount.delete({ where: { id: ownerAccountId } });
+
+    logger.warn("hardDeleteOwnerAccount: success", { userId: req.user.userId, ownerAccountId, name: existing.name });
+
+    res.json({ deleted: true, id: ownerAccountId });
+  } catch (err) {
+    logger.error("hardDeleteOwnerAccount: error", { userId: req.user.userId, ownerAccountId: req.params.ownerAccountId, message: (err as Error).message });
+    next(err);
+  }
+}

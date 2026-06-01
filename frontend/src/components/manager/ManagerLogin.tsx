@@ -22,7 +22,7 @@ export function ManagerLogin() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate("/manager", { replace: true });
+      navigate("/super-admin", { replace: true });
     } catch (err: any) {
       const msg: string =
         err?.message === "Access restricted to Kyru Managers only"

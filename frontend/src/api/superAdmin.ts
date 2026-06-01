@@ -182,4 +182,15 @@ export const superAdminApi = {
 
   listOwnerAccounts: () =>
     saApi.get<SAOwnerAccount[]>("/super-admin/owner-accounts").then((r) => r.data),
+
+  archiveOwnerAccount: (id: string) =>
+    saApi.patch<{ id: string; active: boolean; name: string }>(
+      `/super-admin/owner-accounts/${id}/archive`
+    ).then((r) => r.data),
+
+  hardDeleteOwnerAccount: (id: string) =>
+    saApi.delete<{ deleted: boolean; id: string }>(
+      `/super-admin/owner-accounts/${id}/hard-delete`,
+      { headers: { "X-Confirm-Delete": "permanent" } }
+    ).then((r) => r.data),
 };

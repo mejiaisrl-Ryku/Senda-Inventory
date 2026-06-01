@@ -451,9 +451,42 @@ function InviteAdminForm({ restaurants }: { restaurants: SARestaurant[] }) {
 
 // ── Owner Accounts table ──────────────────────────────────────────────────────
 
-function OwnerAccountsTable({ accounts }: { accounts: SAOwnerAccount[] }) {
+function OwnerAccountsTable({ accounts, onRefresh }: { accounts: SAOwnerAccount[]; onRefresh: () => void }) {
+  const [archiving,    setArchiving]    = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<SAOwnerAccount | null>(null);
+  const [hardDeleting, setHardDeleting] = useState(false);
+  const [actionError,  setActionError]  = useState("");
+
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  async function handleArchive(id: string) {
+    setArchiving(id);
+    setActionError("");
+    try {
+      await superAdminApi.archiveOwnerAccount(id);
+      onRefresh();
+    } catch (err: any) {
+      setActionError(err?.response?.data?.error ?? "Action failed.");
+    } finally {
+      setArchiving(null);
+    }
+  }
+
+  async function handleHardDelete() {
+    if (!deleteTarget) return;
+    setHardDeleting(true);
+    setActionError("");
+    try {
+      await superAdminApi.hardDeleteOwnerAccount(deleteTarget.id);
+      setDeleteTarget(null);
+      onRefresh();
+    } catch (err: any) {
+      setActionError(err?.response?.data?.error ?? "Delete failed.");
+    } finally {
+      setHardDeleting(false);
+    }
   }
 
   if (accounts.length === 0) {
@@ -461,38 +494,106 @@ function OwnerAccountsTable({ accounts }: { accounts: SAOwnerAccount[] }) {
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-[#1a1a1a]">
-            {["Group Name", "Email", "Restaurants", "Created", "Status"].map((h) => (
-              <th key={h} className="text-left px-4 py-3 text-[11px] font-medium text-[#444] uppercase tracking-[0.08em] whitespace-nowrap">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#111]">
-          {accounts.map((acc) => (
-            <tr key={acc.id} className="hover:bg-[#0f0f0f] transition-colors">
-              <td className="px-4 py-3 text-white font-medium text-[13px]">{acc.name}</td>
-              <td className="px-4 py-3 text-[#888] text-[13px]">{acc.email}</td>
-              <td className="px-4 py-3 text-[#888] text-[13px]">{acc.restaurantCount}</td>
-              <td className="px-4 py-3 text-[#888] text-[13px] whitespace-nowrap">{formatDate(acc.createdAt)}</td>
-              <td className="px-4 py-3">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${
-                  acc.active
-                    ? "bg-[#3dbf8a]/10 text-[#3dbf8a] border-[#3dbf8a]/20"
-                    : "bg-[#1a1a1a] text-[#555] border-[#2a2a2a]"
-                }`}>
-                  {acc.active ? "Active" : "Inactive"}
-                </span>
-              </td>
+    <>
+      {actionError && (
+        <div className="mb-3 px-3 py-2 rounded-[8px] bg-red-900/20 border border-red-800/40 text-red-400 text-[13px]">
+          {actionError}
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-[#1a1a1a]">
+              {["Group Name", "Email", "Restaurants", "Created", "Status", ""].map((h) => (
+                <th key={h} className="text-left px-4 py-3 text-[11px] font-medium text-[#444] uppercase tracking-[0.08em] whitespace-nowrap">
+                  {h}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-[#111]">
+            {accounts.map((acc) => (
+              <tr key={acc.id} className="hover:bg-[#0f0f0f] transition-colors">
+                <td className="px-4 py-3 text-white font-medium text-[13px]">{acc.name}</td>
+                <td className="px-4 py-3 text-[#888] text-[13px]">{acc.email}</td>
+                <td className="px-4 py-3 text-[#888] text-[13px]">{acc.restaurantCount}</td>
+                <td className="px-4 py-3 text-[#888] text-[13px] whitespace-nowrap">{formatDate(acc.createdAt)}</td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+                    acc.active
+                      ? "bg-[#3dbf8a]/10 text-[#3dbf8a] border-[#3dbf8a]/20"
+                      : "bg-[#1a1a1a] text-[#555] border-[#2a2a2a]"
+                  }`}>
+                    {acc.active ? "Active" : "Inactive"}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    {/* Archive / Restore */}
+                    <button
+                      onClick={() => handleArchive(acc.id)}
+                      disabled={archiving === acc.id}
+                      className={`text-[12px] px-2.5 py-1 rounded-[6px] border transition-colors disabled:opacity-40 ${
+                        acc.active
+                          ? "border-amber-800/30 text-amber-400 hover:bg-amber-900/20"
+                          : "border-[#3dbf8a]/30 text-[#3dbf8a] hover:bg-[#3dbf8a]/10"
+                      }`}
+                    >
+                      {archiving === acc.id ? <Spinner size="sm" /> : acc.active ? "Archive" : "Restore"}
+                    </button>
+                    {/* Hard delete */}
+                    <button
+                      onClick={() => { setDeleteTarget(acc); setActionError(""); }}
+                      className="text-[#555] hover:text-red-400 transition-colors p-1.5 rounded-[6px] hover:bg-red-900/10"
+                      title="Permanently delete"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Hard delete confirmation */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+          <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-[12px] p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-[16px] font-semibold text-white mb-2">Permanently delete owner account</h3>
+            <p className="text-[13px] text-[#888] mb-5">
+              This will permanently delete{" "}
+              <span className="text-white font-medium">"{deleteTarget.name}"</span>{" "}
+              and unlink all restaurants. This cannot be undone.
+            </p>
+            {actionError && (
+              <p className="text-red-400 text-[13px] mb-3">{actionError}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setDeleteTarget(null); setActionError(""); }}
+                disabled={hardDeleting}
+                className="flex-1 py-2 rounded-[8px] border border-[#2a2a2a] text-[13px] text-[#888] hover:text-white hover:border-[#444] disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleHardDelete}
+                disabled={hardDeleting}
+                className="flex-1 py-2 rounded-[8px] bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-[13px] font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {hardDeleting && <Spinner size="sm" />}
+                Delete permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -784,7 +885,7 @@ export function SuperAdminDashboard() {
           {loadingOwners ? (
             <div className="flex items-center justify-center py-12"><Spinner size="lg" /></div>
           ) : (
-            <OwnerAccountsTable accounts={ownerAccounts} />
+            <OwnerAccountsTable accounts={ownerAccounts} onRefresh={loadOwnerAccounts} />
           )}
         </Card>
       </div>

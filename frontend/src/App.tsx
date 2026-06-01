@@ -195,7 +195,7 @@ function AppRoutes() {
             <Route path="login" element={<ManagerLogin />} />
           </Route>
           <Route element={<MgrProtectedRoute />}>
-            <Route index element={<ManagerDashboard />} />
+            <Route index element={<Navigate to="/super-admin" replace />} />
           </Route>
         </Route>
 
