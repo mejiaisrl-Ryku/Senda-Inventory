@@ -373,6 +373,33 @@ export interface GMDashboard {
   alerts:    GMAlert[];
 }
 
+// ── Budget ────────────────────────────────────────────────────────────────────
+
+export interface BudgetActual {
+  revenue:             number;
+  laborPct:            number;
+  primeCostPct:        number;
+  revenueVariance:     number;
+  laborPctVariance:    number;
+  primeCostVariance:   number;
+}
+
+export interface LocationBudget {
+  restaurantId:    string;
+  restaurantName:  string;
+  revenueTarget:   number | null;
+  laborPctTarget:  number | null;
+  primeCostTarget: number | null;
+  budgetId:        string | null;
+  actual:          BudgetActual | null;
+}
+
+export interface BudgetResponse {
+  year:    number;
+  month:   number | null;
+  budgets: LocationBudget[];
+}
+
 // ── Phase 6 P&L ───────────────────────────────────────────────────────────────
 
 export interface PnLLocation {

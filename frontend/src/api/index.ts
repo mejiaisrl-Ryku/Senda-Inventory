@@ -767,6 +767,20 @@ export const ownerApi = {
     api.get<import("../types").PnLReport>(`/owner/pnl?startDate=${startDate}&endDate=${endDate}`).then((r) => r.data),
   getPnLSummary: (startDate: string, endDate: string) =>
     api.get<import("../types").PnLSummary>(`/owner/pnl/summary?startDate=${startDate}&endDate=${endDate}`).then((r) => r.data),
+  getBudgets: (year: number, month?: number) => {
+    const qs = month != null ? `year=${year}&month=${month}` : `year=${year}`;
+    return api.get<import("../types").BudgetResponse>(`/owner/budgets?${qs}`).then((r) => r.data);
+  },
+  upsertBudget: (body: {
+    restaurantId:    string;
+    year:            number;
+    month?:          number;
+    revenueTarget:   number;
+    laborPctTarget:  number;
+    primeCostTarget: number;
+  }) => api.post<import("../types").LocationBudget>("/owner/budgets", body).then((r) => r.data),
+  deleteBudget: (budgetId: string) =>
+    api.delete<{ deleted: boolean }>(`/owner/budgets/${budgetId}`).then((r) => r.data),
   exportPnL: async (startDate: string, endDate: string) => {
     const response = await api.get(
       `/owner/pnl/export?startDate=${startDate}&endDate=${endDate}`,
