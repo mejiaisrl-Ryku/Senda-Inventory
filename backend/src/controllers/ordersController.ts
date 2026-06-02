@@ -2,6 +2,7 @@ import { Response, NextFunction } from "express";
 import { z } from "zod";
 import { OrderStatus, StockReason } from "@prisma/client";
 import { prisma } from "../lib/prisma";
+import { weightedAverageCost } from "../lib/costing";
 import { AuthRequest } from "../types";
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -12,7 +13,7 @@ const invoiceItemSchema = z.object({
   category:    z.string().optional(),
   unit:        z.string().optional(),
   quantity:    z.number().positive(),
-  unitCost:    z.number().nonnegative(),
+  unitCost:    z.number().positive("Unit cost must be greater than $0.00"),
   productId:   z.string().cuid().optional(), // optional link to product catalogue
 });
 
@@ -123,43 +124,60 @@ export async function receiveOrder(req: AuthRequest, res: Response, next: NextFu
       return res.status(400).json({ error: `Order is already ${order.status.toLowerCase()}` });
     }
 
-    // Only items linked to a product catalogue entry get their stock updated.
-    const linkedItems = order.orderItems.filter((item) => item.productId && item.product);
+    const linkedItems   = order.orderItems.filter((item) => item.productId && item.product);
+    const unlinkedItems = order.orderItems.filter((item) => !item.productId);
 
-    const stockLogCreates = linkedItems.map((item) =>
-      prisma.stockLog.create({
-        data: {
-          productId:        item.productId!,
-          previousQuantity: item.product!.currentStock,
-          newQuantity:      item.product!.currentStock + item.quantity,
-          change:           item.quantity,
-          reason:           StockReason.RECEIVED,
-          userId:           req.user.userId,
-          notes:            `Invoice ${order.id} received`,
-        },
-      })
-    );
+    const updated = await prisma.$transaction(async (tx) => {
+      for (const item of linkedItems) {
+        const product = item.product!;
 
-    const productUpdates = linkedItems.map((item) =>
-      prisma.product.update({
-        where: { id: item.productId! },
-        data:  { currentStock: { increment: item.quantity } },
-      })
-    );
+        // Snapshot existing cost, then compute new weighted average — both use
+        // pre-receipt stock so we read product state captured before this loop.
+        const newCostPerUnit = weightedAverageCost(
+          product.currentStock,
+          product.costPerUnit,
+          item.quantity,
+          item.unitCost,
+        );
 
-    const orderUpdate = prisma.order.update({
-      where: { id: order.id },
-      data:  { status: OrderStatus.RECEIVED, deliveredAt: new Date() },
-      include: { orderItems: { include: { product: true } } },
+        await tx.stockLog.create({
+          data: {
+            productId:        item.productId!,
+            previousQuantity: product.currentStock,
+            newQuantity:      product.currentStock + item.quantity,
+            change:           item.quantity,
+            reason:           StockReason.RECEIVED,
+            unitCost:         product.costPerUnit, // snapshot BEFORE cost update
+            userId:           req.user.userId,
+            notes:            `Invoice ${order.invoiceNumber ?? order.id} received`,
+          },
+        });
+
+        await tx.product.update({
+          where: { id: item.productId! },
+          data:  { costPerUnit: newCostPerUnit, currentStock: { increment: item.quantity } },
+        });
+      }
+
+      return tx.order.update({
+        where:   { id: order.id },
+        data:    { status: OrderStatus.RECEIVED, deliveredAt: new Date() },
+        include: { orderItems: { include: { product: true } } },
+      });
     });
 
-    const results = await prisma.$transaction([
-      ...stockLogCreates,
-      ...productUpdates,
-      orderUpdate,
-    ]);
-
-    res.json(results[results.length - 1]);
+    res.json({
+      ...updated,
+      metadata: {
+        linkedItemsProcessed: linkedItems.length,
+        skippedItems: unlinkedItems.map((item) => ({
+          productName: item.productName,
+          quantity:    item.quantity,
+          unitCost:    item.unitCost,
+          reason:      "No product linked — cost not updated",
+        })),
+      },
+    });
   } catch (err) {
     next(err);
   }

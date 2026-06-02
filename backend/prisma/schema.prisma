@@ -206,6 +206,7 @@ model StockLog {
   newQuantity      Float
   change           Float
   reason           StockReason
+  unitCost         Float?      // snapshot of Product.costPerUnit at log time; null on legacy records
   timestamp        DateTime    @default(now())
   userId           String
   user             User        @relation(fields: [userId], references: [id])

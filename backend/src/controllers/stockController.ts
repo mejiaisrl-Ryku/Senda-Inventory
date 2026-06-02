@@ -47,6 +47,7 @@ export async function adjustStock(req: AuthRequest, res: Response, next: NextFun
           newQuantity,
           change,
           reason,
+          unitCost: product.costPerUnit, // snapshot at adjustment time for stable COGS history
           userId: req.user.userId,
           notes,
         },
