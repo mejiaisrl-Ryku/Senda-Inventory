@@ -328,6 +328,28 @@ export const countsApi = {
       }),
 };
 
+// ── AI Scan ───────────────────────────────────────────────────────────────────
+export interface ScanItem {
+  extractedName:      string;
+  matchedProductId:   string | null;
+  matchedProductName: string | null;
+  quantity:           number;
+  unit:               string | null;
+  confidence:         "high" | "medium" | "low";
+}
+
+export const scanApi = {
+  scanInventory: (imageFile: File) => {
+    const fd = new FormData();
+    fd.append("image", imageFile);
+    return api.post<{ items: ScanItem[]; rawText: string }>(
+      "/inventory/scan",
+      fd,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    ).then((r) => r.data);
+  },
+};
+
 // ── Recipes ───────────────────────────────────────────────────────────────────
 export const recipesApi = {
   list: (department?: RecipeDepartment) =>

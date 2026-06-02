@@ -527,6 +527,29 @@ const en = {
     CS:     "CS – Case",
   } as Record<string, string>,
 
+  // ── AI Inventory Scan ────────────────────────────────────────────────────────
+  inventoryScan: {
+    title:        "AI Inventory Scan",
+    subtitle:     "Take a photo of your count sheet",
+    capture:      "Scan Count Sheet",
+    scanning:     "Analyzing image...",
+    retake:       "Retake Photo",
+    reviewTitle:  "Review Extracted Counts",
+    reviewSubtitle: "AI extracted these items. Edit any quantities before creating the count.",
+    matched:      "Matched",
+    unmatched:    "No match found",
+    confidence:   "Confidence",
+    high:         "High",
+    medium:       "Medium",
+    low:          "Low",
+    quantity:     "Quantity",
+    createCount:  "Create Count from Scan",
+    creating:     "Creating...",
+    skipItem:     "Skip",
+    noItems:      "No items could be extracted. Try a clearer photo.",
+    cameraError:  "Camera not available. Please check permissions.",
+  },
+
   // ── Scan Invoice Modal ───────────────────────────────────────────────────────
   scan: {
     title:         "Scan Invoice",
@@ -1267,6 +1290,28 @@ const es: typeof en = {
     DOZ:    "DOZ – Docena",
     CS:     "CS – Caja",
   } as Record<string, string>,
+
+  inventoryScan: {
+    title:        "Escaneo IA de Inventario",
+    subtitle:     "Toma una foto de tu hoja de conteo",
+    capture:      "Escanear Hoja de Conteo",
+    scanning:     "Analizando imagen...",
+    retake:       "Tomar otra foto",
+    reviewTitle:  "Revisar Conteos Extraídos",
+    reviewSubtitle: "La IA extrajo estos artículos. Edita las cantidades antes de crear el conteo.",
+    matched:      "Coincidencia",
+    unmatched:    "Sin coincidencia",
+    confidence:   "Confianza",
+    high:         "Alta",
+    medium:       "Media",
+    low:          "Baja",
+    quantity:     "Cantidad",
+    createCount:  "Crear Conteo desde Escaneo",
+    creating:     "Creando...",
+    skipItem:     "Omitir",
+    noItems:      "No se pudieron extraer artículos. Intenta con una foto más clara.",
+    cameraError:  "Cámara no disponible. Verifica los permisos.",
+  },
 
   scan: {
     title:             "Escanear Factura",

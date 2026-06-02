@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { CountDepartment, CountSession } from "../types";
 import { useLanguage } from "../context/LanguageContext";
 import { countsApi } from "../api";
+import { ScanCountModal } from "./ScanCountModal";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
 import { PageSpinner } from "./shared/Spinner";
@@ -158,6 +159,7 @@ export function CountsPage() {
   const [sessions, setSessions] = useState<CountSession[]>([]);
   const [loading, setLoading]  = useState(true);
   const [newOpen, setNewOpen]  = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -182,15 +184,23 @@ export function CountsPage() {
           <h1 className="text-[22px] font-semibold text-white">{t.counts.title}</h1>
           <p className="text-[13px] text-[#555] mt-1">{t.counts.subtitle}</p>
         </div>
-        <button
-          onClick={() => setNewOpen(true)}
-          className="inline-flex items-center gap-2 min-h-[44px] px-4 bg-[#3dbf8a] hover:bg-[#35a87a] text-white text-sm font-medium rounded-xl transition-colors flex-shrink-0"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          {t.counts.newCount}
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => setScanOpen(true)}
+            className="inline-flex items-center gap-2 min-h-[44px] px-4 border border-[#3dbf8a] text-[#3dbf8a] hover:bg-[#3dbf8a]/10 text-sm font-medium rounded-xl transition-colors"
+          >
+            🤖 {t.inventoryScan.capture}
+          </button>
+          <button
+            onClick={() => setNewOpen(true)}
+            className="inline-flex items-center gap-2 min-h-[44px] px-4 bg-[#3dbf8a] hover:bg-[#35a87a] text-white text-sm font-medium rounded-xl transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            {t.counts.newCount}
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -271,6 +281,7 @@ export function CountsPage() {
       )}
 
       <NewCountModal open={newOpen} onClose={() => setNewOpen(false)} onCreated={handleCreated} />
+      <ScanCountModal open={scanOpen} onClose={() => setScanOpen(false)} onCreated={handleCreated} />
     </div>
   );
 }
