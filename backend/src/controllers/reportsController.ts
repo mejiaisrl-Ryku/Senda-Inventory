@@ -335,7 +335,7 @@ export async function getCogsToSales(req: AuthRequest, res: Response, next: Next
       if (!log.product?.cogsCategory) continue; // uncategorized — skip
       const dk = log.timestamp.toISOString().slice(0, 10);
       const wk = weekStart(log.timestamp);
-      const cogs = Math.abs(log.change) * log.product.costPerUnit;
+      const cogs = Math.abs(log.change) * (log.unitCost ?? log.product.costPerUnit);
       getDayBucket(dk)[log.product.cogsCategory].cogs += cogs;
       getWeekBucket(wk)[log.product.cogsCategory].cogs += cogs;
       categoryTotals[log.product.cogsCategory].cogs += cogs;

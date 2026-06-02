@@ -564,7 +564,7 @@ export async function exportXlsx(req: AuthRequest, res: Response, next: NextFunc
     for (const log of stockLogs) {
       const cat = log.product?.cogsCategory;
       if (!cat) continue;
-      cogsByCat[cat] = (cogsByCat[cat] ?? 0) + Math.abs(log.change) * (log.product?.costPerUnit ?? 0);
+      cogsByCat[cat] = (cogsByCat[cat] ?? 0) + Math.abs(log.change) * (log.unitCost ?? log.product?.costPerUnit ?? 0);
     }
 
     // Aggregate labor
