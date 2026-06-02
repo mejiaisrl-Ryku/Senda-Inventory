@@ -6,8 +6,9 @@ import { AuthRequest } from "../types";
 // Use z.enum for both Department and Unit so the schemas compile regardless of
 // whether prisma generate has been run yet (the Prisma client enum may lag behind
 // schema.prisma until after db push + generate).
-const DepartmentEnum = z.enum(["BOH", "FOH", "BAR", "BOTH"]);
-const UnitEnum = z.enum(["KG", "LITERS", "PIECES", "LB", "OZ", "G", "EA", "DOZ", "CS"]);
+const DepartmentEnum   = z.enum(["BOH", "FOH", "BAR", "BOTH"]);
+const UnitEnum         = z.enum(["KG", "LITERS", "PIECES", "LB", "OZ", "G", "EA", "DOZ", "CS"]);
+const COGSCategoryEnum = z.enum(["BEER", "LIQUOR", "WINE", "FOOD", "NON_ALCOHOLIC"]);
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,7 @@ export const createProductSchema = z
     minimumStock: z.number({ invalid_type_error: "Minimum stock must be a number" })
       .nonnegative("Minimum stock cannot be negative")
       .default(0),
+    cogsCategory: COGSCategoryEnum.optional().nullable(),
   })
   .refine(
     (d) => d.minimumStock <= d.currentStock,
@@ -48,9 +50,10 @@ export const updateProductSchema = z.object({
   invoiceDate: z.string().optional().nullable(),
   department: DepartmentEnum.optional(),
   unit: UnitEnum.optional(),
-  costPerUnit: z.number().positive("Cost must be greater than 0").optional(),
+  costPerUnit:  z.number().positive("Cost must be greater than 0").optional(),
   currentStock: z.number().nonnegative("Stock cannot be negative").optional(),
   minimumStock: z.number().nonnegative("Minimum stock cannot be negative").optional(),
+  cogsCategory: COGSCategoryEnum.optional().nullable(),
 });
 
 // ── Controllers ───────────────────────────────────────────────────────────────

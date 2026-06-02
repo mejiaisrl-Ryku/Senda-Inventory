@@ -43,6 +43,8 @@ export interface LaborEntry {
   createdAt: string;
 }
 
+export type COGSCategory = "BEER" | "LIQUOR" | "WINE" | "FOOD" | "NON_ALCOHOLIC";
+
 export interface Product {
   id: string;
   name: string;
@@ -55,6 +57,7 @@ export interface Product {
   costPerUnit: number;
   currentStock: number;
   minimumStock: number;
+  cogsCategory?: COGSCategory | null;
   restaurantId: string;
   createdAt: string;
   updatedAt: string;

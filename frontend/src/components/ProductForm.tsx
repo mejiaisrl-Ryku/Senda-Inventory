@@ -1,5 +1,5 @@
 import React, { useState, FormEvent, useEffect } from "react";
-import { Product, Unit, Department } from "../types";
+import { Product, Unit, Department, COGSCategory } from "../types";
 import { productsApi } from "../api";
 import { Spinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
@@ -40,6 +40,15 @@ const DEPARTMENTS: { value: Department; label: string }[] = [
   { value: "BAR", label: "BAR" },
 ];
 
+const COGS_OPTIONS: { value: COGSCategory | ""; label: string }[] = [
+  { value: "",             label: "— None —"       },
+  { value: "FOOD",         label: "Food"           },
+  { value: "BEER",         label: "Beer"           },
+  { value: "LIQUOR",       label: "Liquor"         },
+  { value: "WINE",         label: "Wine"           },
+  { value: "NON_ALCOHOLIC", label: "Non-Alcoholic" },
+];
+
 type FieldErrors = Partial<Record<
   "name" | "sku" | "category" | "purveyor" | "invoiceDate" | "costPerUnit" | "currentStock" | "minimumStock",
   string
@@ -53,6 +62,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
   const [invoiceDate, setInvoiceDate] = useState(initial?.invoiceDate ? initial.invoiceDate.slice(0, 10) : "");
   const [sku, setSku] = useState(initial?.sku ?? "");
   const [category, setCategory] = useState(initial?.category ?? "");
+  const [cogsCategory, setCogsCategory] = useState<COGSCategory | "">(initial?.cogsCategory ?? "");
   const [department, setDepartment] = useState<Department>(initial?.department ?? "BOH");
   const [unit, setUnit] = useState<Unit>(initial?.unit ?? "PIECES");
   const [costPerUnit, setCostPerUnit] = useState(String(initial?.costPerUnit ?? ""));
@@ -68,6 +78,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
       setInvoiceDate(initial.invoiceDate ? initial.invoiceDate.slice(0, 10) : "");
       setSku(initial.sku ?? "");
       setCategory(initial.category ?? "");
+      setCogsCategory(initial.cogsCategory ?? "");
       setDepartment(initial.department ?? "BOH");
       setUnit(initial.unit);
       setCostPerUnit(String(initial.costPerUnit));
@@ -108,6 +119,7 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
       invoiceDate: invoiceDate || undefined,
       sku: sku.trim() || undefined,
       category: category || undefined,
+      cogsCategory: (cogsCategory || null) as COGSCategory | null | undefined,
       department,
       unit,
       costPerUnit: parseFloat(costPerUnit),
@@ -223,6 +235,22 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
             <option value="">{t.productForm.categoryPlaceholder}</option>
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>{t.categories[c] ?? c}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* COGS Category */}
+        <div>
+          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+            {t.productForm.cogsCategory}
+          </label>
+          <select
+            className={fieldClass()}
+            value={cogsCategory}
+            onChange={(e) => setCogsCategory(e.target.value as COGSCategory | "")}
+          >
+            {COGS_OPTIONS.map(({ value, label }) => (
+              <option key={value} value={value}>{label}</option>
             ))}
           </select>
         </div>

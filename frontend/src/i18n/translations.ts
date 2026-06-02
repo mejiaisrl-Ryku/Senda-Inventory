@@ -228,6 +228,7 @@ const en = {
     categoryPlaceholder: "— Select —",
     unitLabel:        "Unit",
     costUnitLabel:    "Cost / unit",
+    cogsCategory:     "COGS Category",
     currentStockLabel: "Current stock",
     minimumStockLabel: "Minimum stock",
     // Validation
@@ -984,6 +985,7 @@ const es: typeof en = {
     categoryPlaceholder: "— Seleccionar —",
     unitLabel:           "Unidad",
     costUnitLabel:       "Costo / unidad",
+    cogsCategory:        "Categoría COGS",
     currentStockLabel:   "Stock actual",
     minimumStockLabel:   "Stock mínimo",
     nameRequired:        "El nombre es requerido",
