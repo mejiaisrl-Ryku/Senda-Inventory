@@ -232,17 +232,13 @@ export function ProductForm({ initial, onSaved, onCancel }: ProductFormProps) {
           </select>
         </div>
 
-        {/* COGS Category */}
-        <div>
-          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-            {t.productForm.cogsCategory}
-          </label>
-          <CogsCategorySelect
-            value={cogsCategoryId}
-            onChange={id => setCogsCategoryId(id ?? "")}
-            className={fieldClass()}
-          />
-        </div>
+        {/* COGS Category — label is rendered inside CogsCategorySelect */}
+        <CogsCategorySelect
+          value={cogsCategoryId}
+          onChange={id => setCogsCategoryId(id ?? "")}
+          label={t.productForm.cogsCategory}
+          className={fieldClass()}
+        />
 
         {/* Unit */}
         <div>

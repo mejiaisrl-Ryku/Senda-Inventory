@@ -754,21 +754,17 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
                   </div>
                 </div>
 
-                {/* COGS Category */}
-                <div className="col-span-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-[11px] font-medium text-[#666]">
-                      COGS Category
-                    </label>
-                    {suggestedCogsCategoryName && (
-                      <span className="text-[10px] text-[#3dbf8a] font-medium">
-                        Suggested: {suggestedCogsCategoryName}
-                      </span>
-                    )}
-                  </div>
+                {/* COGS Category — suggestion badge sits beside the label rendered by CogsCategorySelect */}
+                <div className="col-span-2 relative">
+                  {suggestedCogsCategoryName && (
+                    <span className="absolute right-0 top-0 text-[10px] text-[#3dbf8a] font-medium">
+                      Suggested: {suggestedCogsCategoryName}
+                    </span>
+                  )}
                   <CogsCategorySelect
                     value={cogsCategoryId}
                     onChange={id => setCogsCategoryId(id ?? "")}
+                    label="COGS Category"
                     className="w-full px-3 py-2 rounded-lg border border-[#2a2a2a] bg-[#111] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#3dbf8a] focus:border-[#3dbf8a] transition-colors"
                   />
                 </div>

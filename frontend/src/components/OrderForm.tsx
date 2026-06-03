@@ -420,15 +420,13 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
                     </div>
                   </div>
 
-                  {/* COGS Category */}
-                  <div>
-                    <label className={labelCls}>{f.cogsCategory}</label>
-                    <CogsCategorySelect
-                      value={line.cogsCategoryId}
-                      onChange={id => updateLine(i, "cogsCategoryId", id ?? "")}
-                      className={inputCls}
-                    />
-                  </div>
+                  {/* COGS Category — label rendered inside CogsCategorySelect */}
+                  <CogsCategorySelect
+                    value={line.cogsCategoryId}
+                    onChange={id => updateLine(i, "cogsCategoryId", id ?? "")}
+                    label={f.cogsCategory}
+                    className={inputCls}
+                  />
                 </div>
               )}
             </div>
