@@ -8,13 +8,14 @@ import { AuthRequest } from "../types";
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
 const invoiceItemSchema = z.object({
-  productName: z.string().min(1, "Product name is required"),
-  sku:         z.string().optional(),
-  category:    z.string().optional(),
-  unit:        z.string().optional(),
-  quantity:    z.number().positive(),
-  unitCost:    z.number().positive("Unit cost must be greater than $0.00"),
-  productId:   z.string().cuid().optional(), // optional link to product catalogue
+  productName:    z.string().min(1, "Product name is required"),
+  sku:            z.string().optional(),
+  category:       z.string().optional(),
+  unit:           z.string().optional(),
+  quantity:       z.number().positive(),
+  unitCost:       z.number().nonnegative("Unit cost cannot be negative"),
+  productId:      z.string().cuid().optional(),        // optional link to product catalogue
+  cogsCategoryId: z.string().cuid().optional().nullable(), // optional COGS bucket
 });
 
 export const createOrderSchema = z.object({
@@ -37,15 +38,40 @@ export async function createOrder(req: AuthRequest, res: Response, next: NextFun
       req.body as z.infer<typeof createOrderSchema>;
     const restaurantId = req.user.restaurantId ?? "";
 
-    // If any items reference a productId, verify they belong to this restaurant.
+    // Verify referenced products belong to this restaurant.
     const referencedProductIds = items.flatMap((i) => (i.productId ? [i.productId] : []));
     if (referencedProductIds.length > 0) {
-      const products = await prisma.product.findMany({
+      const found = await prisma.product.findMany({
         where: { id: { in: referencedProductIds }, restaurantId },
         select: { id: true },
       });
-      if (products.length !== referencedProductIds.length) {
+      if (found.length !== referencedProductIds.length) {
         return res.status(400).json({ error: "One or more products not found in this restaurant" });
+      }
+    }
+
+    // Validate each unique cogsCategoryId: must exist and belong to the owner of this restaurant.
+    const uniqueCogsCategoryIds = [
+      ...new Set(items.flatMap((i) => (i.cogsCategoryId ? [i.cogsCategoryId] : []))),
+    ];
+    if (uniqueCogsCategoryIds.length > 0) {
+      // One query fetches all valid IDs: category exists AND its ownerAccount has this restaurant.
+      const validCategories = await prisma.cogsCategory.findMany({
+        where: {
+          id:           { in: uniqueCogsCategoryIds },
+          ownerAccount: { restaurants: { some: { id: restaurantId } } },
+        },
+        select: { id: true },
+      });
+      const validIdSet = new Set(validCategories.map((c) => c.id));
+
+      for (const categoryId of uniqueCogsCategoryIds) {
+        if (!validIdSet.has(categoryId)) {
+          // The ID was not found at all, or it belongs to a different owner.
+          return res.status(400).json({
+            error: "COGS category not found or not owned by your account",
+          });
+        }
       }
     }
 
@@ -61,17 +87,18 @@ export async function createOrder(req: AuthRequest, res: Response, next: NextFun
         department:    department   ?? null,
         orderItems: {
           create: items.map((i) => ({
-            productId:   i.productId   ?? null,
-            productName: i.productName,
-            sku:         i.sku         ?? null,
-            category:    i.category    ?? null,
-            unit:        i.unit        ?? null,
-            quantity:    i.quantity,
-            unitCost:    i.unitCost,
+            productId:      i.productId      ?? null,
+            productName:    i.productName,
+            sku:            i.sku            ?? null,
+            category:       i.category       ?? null,
+            unit:           i.unit           ?? null,
+            quantity:       i.quantity,
+            unitCost:       i.unitCost,
+            cogsCategoryId: i.cogsCategoryId ?? null,
           })),
         },
       },
-      include: { orderItems: { include: { product: true } } },
+      include: { orderItems: { include: { product: true, cogsCategory: true } } },
     });
 
     res.status(201).json(order);
@@ -88,7 +115,7 @@ export async function listOrders(req: AuthRequest, res: Response, next: NextFunc
         restaurantId: req.user.restaurantId,
         ...(status ? { status: status as OrderStatus } : {}),
       },
-      include: { orderItems: { include: { product: true } } },
+      include: { orderItems: { include: { product: true, cogsCategory: true } } },
       orderBy: { createdAt: "desc" },
     });
     res.json(orders);
@@ -105,7 +132,7 @@ export async function updateOrder(req: AuthRequest, res: Response, next: NextFun
     const order = await prisma.order.update({
       where: { id: req.params.id },
       data: req.body,
-      include: { orderItems: { include: { product: true } } },
+      include: { orderItems: { include: { product: true, cogsCategory: true } } },
     });
     res.json(order);
   } catch (err) {
@@ -117,7 +144,7 @@ export async function receiveOrder(req: AuthRequest, res: Response, next: NextFu
   try {
     const order = await prisma.order.findFirstOrThrow({
       where: { id: req.params.id, restaurantId: req.user.restaurantId },
-      include: { orderItems: { include: { product: true } } },
+      include: { orderItems: { include: { product: true, cogsCategory: true } } },
     });
 
     if (order.status !== "PENDING") {
@@ -162,7 +189,7 @@ export async function receiveOrder(req: AuthRequest, res: Response, next: NextFu
       return tx.order.update({
         where:   { id: order.id },
         data:    { status: OrderStatus.RECEIVED, deliveredAt: new Date() },
-        include: { orderItems: { include: { product: true } } },
+        include: { orderItems: { include: { product: true, cogsCategory: true } } },
       });
     });
 

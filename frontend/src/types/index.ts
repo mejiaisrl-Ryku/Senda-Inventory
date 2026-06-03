@@ -43,7 +43,16 @@ export interface LaborEntry {
   createdAt: string;
 }
 
+/** @deprecated — old enum; use CogsCategory object from the API instead */
 export type COGSCategory = "BEER" | "LIQUOR" | "WINE" | "FOOD" | "NON_ALCOHOLIC";
+
+export interface CogsCategory {
+  id: string;
+  name: string;
+  ownerAccountId: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Product {
   id: string;
@@ -57,7 +66,8 @@ export interface Product {
   costPerUnit: number;
   currentStock: number;
   minimumStock: number;
-  cogsCategory?: COGSCategory | null;
+  cogsCategoryId?: string | null;
+  cogsCategory?: CogsCategory | null;
   restaurantId: string;
   createdAt: string;
   updatedAt: string;

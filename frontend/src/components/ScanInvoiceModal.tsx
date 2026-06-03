@@ -10,6 +10,7 @@ import { api, productsApi } from "../api";
 import { Spinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
 import { getApiError, getFieldErrors } from "../utils/errorUtils";
+import { CogsCategorySelect } from "./CogsCategorySelect";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,8 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
   const [sku, setSku] = useState("");
   const [category, setCategory] = useState("");
   const [department, setDepartment] = useState<Department>("BOH");
+  const [cogsCategoryId, setCogsCategoryId] = useState("");
+  const [suggestedCogsCategoryName, setSuggestedCogsCategoryName] = useState<string | null>(null);
   const [unit, setUnit] = useState<Unit>("PIECES");
   const [costPerUnit, setCostPerUnit] = useState("");
   const [currentStock, setCurrentStock] = useState("0");
@@ -176,6 +179,8 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
     setSku("");
     setCategory("");
     setDepartment("BOH");
+    setCogsCategoryId("");
+    setSuggestedCogsCategoryName(null);
     setUnit("PIECES");
     setCostPerUnit("");
     setCurrentStock("0");
@@ -228,6 +233,7 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
         costPerUnit: number | null;
         category: string | null;
         department: "BAR" | "BOH" | "FOH" | null;
+        cogsCategory: { id: string; name: string } | null;
       }>("/ai/extract-invoice", { imageBase64: base64, mimeType: "image/jpeg" });
 
       if (data.name) setName(data.name);
@@ -240,6 +246,10 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
       if (data.category && CATEGORIES.includes(data.category as never))
         setCategory(data.category);
       if (data.department) setDepartment(data.department);
+      if (data.cogsCategory?.id) {
+        setCogsCategoryId(data.cogsCategory.id);
+        setSuggestedCogsCategoryName(data.cogsCategory.name);
+      }
     } catch (err) {
       setExtractError(
         "Could not extract data from the image. Please fill in the fields manually."
@@ -289,6 +299,7 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
         costPerUnit: parseFloat(costPerUnit),
         currentStock: parseFloat(currentStock),
         minimumStock: parseFloat(minimumStock),
+        cogsCategoryId: cogsCategoryId || undefined,
       });
       toast.success("Invoice added successfully");
       onSaved(saved);
@@ -741,6 +752,25 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* COGS Category */}
+                <div className="col-span-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-medium text-[#666]">
+                      COGS Category
+                    </label>
+                    {suggestedCogsCategoryName && (
+                      <span className="text-[10px] text-[#3dbf8a] font-medium">
+                        Suggested: {suggestedCogsCategoryName}
+                      </span>
+                    )}
+                  </div>
+                  <CogsCategorySelect
+                    value={cogsCategoryId}
+                    onChange={id => setCogsCategoryId(id ?? "")}
+                    className="w-full px-3 py-2 rounded-lg border border-[#2a2a2a] bg-[#111] text-white text-sm focus:outline-none focus:ring-1 focus:ring-[#3dbf8a] focus:border-[#3dbf8a] transition-colors"
+                  />
                 </div>
 
                 {/* Cost / unit */}

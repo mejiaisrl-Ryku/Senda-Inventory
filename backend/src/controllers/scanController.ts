@@ -11,24 +11,26 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
 const SYSTEM_PROMPT = `You are an inventory count extraction assistant for a restaurant management system.
 The user will provide a photo of a handwritten or printed inventory count sheet.
 Extract all product names and their counted quantities from the image.
-You will also receive a list of existing products in the system.
+You will also receive a list of existing products in the system (each with id, name, unit, and cogsCategory).
 For each item you find in the image, try to match it to the closest product in the provided list.
 Return ONLY a JSON array with no markdown, no explanation, just the raw JSON.
-Format: [{ "extractedName": string, "matchedProductId": string | null, "matchedProductName": string | null, "quantity": number, "unit": string | null, "confidence": "high" | "medium" | "low" }]
+Format: [{ "extractedName": string, "matchedProductId": string | null, "matchedProductName": string | null, "quantity": number, "unit": string | null, "confidence": "high" | "medium" | "low", "suggestedCogsCategory": string | null }]
 - extractedName: exactly what you read from the image
 - matchedProductId: the id of the best matching product from the list, or null if no match
 - matchedProductName: the name of the matched product, or null
 - quantity: the number counted (use 0 if unclear)
 - unit: the unit written on the sheet if visible, or null
-- confidence: high if exact/near-exact match, medium if likely match, low if unsure`;
+- confidence: high if exact/near-exact match, medium if likely match, low if unsure
+- suggestedCogsCategory: if the item matched a product, copy that product's cogsCategory.name; if unmatched, suggest one of BEER, LIQUOR, WINE, FOOD, NON_ALCOHOLIC based on the item name, or null if not a food/beverage`;
 
 interface ScanItem {
-  extractedName:     string;
-  matchedProductId:  string | null;
-  matchedProductName: string | null;
-  quantity:          number;
-  unit:              string | null;
-  confidence:        "high" | "medium" | "low";
+  extractedName:        string;
+  matchedProductId:     string | null;
+  matchedProductName:   string | null;
+  quantity:             number;
+  unit:                 string | null;
+  confidence:           "high" | "medium" | "low";
+  suggestedCogsCategory: string | null;
 }
 
 /**
@@ -67,7 +69,7 @@ export async function scanInventory(req: AuthRequest, res: Response, next: NextF
     // ── 1. Fetch restaurant products ──────────────────────────────────────────
     const products = await prisma.product.findMany({
       where:  { restaurantId },
-      select: { id: true, name: true, unit: true, cogsCategory: true },
+      select: { id: true, name: true, unit: true, cogsCategory: { select: { name: true } } },
       orderBy: { name: "asc" },
     });
 
@@ -81,7 +83,7 @@ ${JSON.stringify(products, null, 2)}
 Please extract all inventory counts from this image.`;
 
     const claudeResponse = await client.messages.create({
-      model:      "claude-sonnet-4-20250514",
+      model:      "claude-sonnet-4-5",
       max_tokens: 4096,
       system:     SYSTEM_PROMPT,
       messages: [
@@ -111,14 +113,17 @@ Please extract all inventory counts from this image.`;
       const parsed = JSON.parse(clean);
       if (Array.isArray(parsed)) {
         items = parsed.map((item: any) => ({
-          extractedName:      String(item.extractedName ?? ""),
-          matchedProductId:   item.matchedProductId   ?? null,
-          matchedProductName: item.matchedProductName ?? null,
-          quantity:           Number(item.quantity)   ?? 0,
-          unit:               item.unit               ?? null,
-          confidence:         (["high", "medium", "low"].includes(item.confidence)
-                                ? item.confidence
-                                : "low") as "high" | "medium" | "low",
+          extractedName:         String(item.extractedName ?? ""),
+          matchedProductId:      item.matchedProductId      ?? null,
+          matchedProductName:    item.matchedProductName    ?? null,
+          quantity:              Number(item.quantity)      || 0,
+          unit:                  item.unit                  ?? null,
+          confidence:            (["high", "medium", "low"].includes(item.confidence)
+                                   ? item.confidence
+                                   : "low") as "high" | "medium" | "low",
+          suggestedCogsCategory: typeof item.suggestedCogsCategory === "string"
+                                   ? item.suggestedCogsCategory
+                                   : null,
         }));
       }
     } catch {

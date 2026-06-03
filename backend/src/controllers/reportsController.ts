@@ -292,7 +292,7 @@ export async function getCogsToSales(req: AuthRequest, res: Response, next: Next
           product: { restaurantId },
         },
         include: {
-          product: { select: { cogsCategory: true, costPerUnit: true } },
+          product: { select: { cogsCategory: { select: { id: true, name: true } }, costPerUnit: true } },
         },
       }),
     ]);
@@ -332,13 +332,14 @@ export async function getCogsToSales(req: AuthRequest, res: Response, next: Next
 
     // Accumulate COGS from stock usage — bucket by day and week
     for (const log of stockLogs) {
-      if (!log.product?.cogsCategory) continue; // uncategorized — skip
+      if (!log.product?.cogsCategory?.id) continue; // uncategorized — skip
+      const categoryName = log.product.cogsCategory.name;
       const dk = log.timestamp.toISOString().slice(0, 10);
       const wk = weekStart(log.timestamp);
-      const cogs = Math.abs(log.change) * (log.unitCost ?? log.product.costPerUnit);
-      getDayBucket(dk)[log.product.cogsCategory].cogs += cogs;
-      getWeekBucket(wk)[log.product.cogsCategory].cogs += cogs;
-      categoryTotals[log.product.cogsCategory].cogs += cogs;
+      const cogs = Math.abs(log.change) * (log.unitCost ?? log.product!.costPerUnit);
+      getDayBucket(dk)[categoryName].cogs += cogs;
+      getWeekBucket(wk)[categoryName].cogs += cogs;
+      if (categoryTotals[categoryName]) categoryTotals[categoryName].cogs += cogs;
     }
 
     // ── Build response ────────────────────────────────────────────────────────

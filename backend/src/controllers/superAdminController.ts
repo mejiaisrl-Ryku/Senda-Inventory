@@ -525,7 +525,7 @@ export async function getRestaurantDetail(req: AuthRequest, res: Response, next:
           orderBy: [{ role: "asc" }, { email: "asc" }],
         },
         products: {
-          select: { id: true, department: true, category: true, cogsCategory: true },
+          select: { id: true, department: true, category: true, cogsCategory: { select: { name: true } } },
         },
         _count: { select: { products: true, users: true } },
       },

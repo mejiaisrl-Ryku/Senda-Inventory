@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig } from "axios";
-import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember, CountSession, CountEntry, CountDepartment, CountReport, Recipe, RecipeDepartment } from "../types";
+import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember, CountSession, CountEntry, CountDepartment, CountReport, Recipe, RecipeDepartment, CogsCategory } from "../types";
 import { cacheGet, cacheSet, cachePurge } from "../utils/offlineCache";
 
 // Use the env var when set (Vercel / local .env.production); fall back to the
@@ -197,13 +197,14 @@ export const ordersApi = {
     invoiceNumber?: string;
     department?:    string;
     items: {
-      productName: string;
-      sku?:        string;
-      category?:   string;
-      unit?:       string;
-      quantity:    number;
-      unitCost:    number;
-      productId?:  string;
+      productName:    string;
+      sku?:           string;
+      category?:      string;
+      unit?:          string;
+      quantity:       number;
+      unitCost:       number;
+      productId?:     string;
+      cogsCategoryId?: string;
     }[];
   }) =>
     api.post<Order>("/orders", payload).then((r) => r.data),
@@ -760,6 +761,21 @@ export const partnerSetupApi = {
         data
       )
       .then((r) => r.data),
+};
+
+// ── COGS Categories ───────────────────────────────────────────────────────────
+export const cogsCategoriesApi = {
+  list: () =>
+    api.get<CogsCategory[]>("/cogs-categories").then((r) => r.data),
+
+  create: (name: string) =>
+    api.post<CogsCategory>("/cogs-categories", { name }).then((r) => r.data),
+
+  update: (id: string, name: string) =>
+    api.put<CogsCategory>(`/cogs-categories/${id}`, { name }).then((r) => r.data),
+
+  delete: (id: string) =>
+    api.delete(`/cogs-categories/${id}`),
 };
 
 // ── Feedback / suggestions ────────────────────────────────────────────────────

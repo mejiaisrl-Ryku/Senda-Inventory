@@ -57,15 +57,6 @@ enum SalesCategory {
   BUYOUTS
 }
 
-// Maps a product's COGS to one of the sales categories for cost-vs-revenue reporting.
-enum COGSCategory {
-  BEER
-  LIQUOR
-  WINE
-  FOOD
-  NON_ALCOHOLIC
-}
-
 // Which house a product belongs to for inventory views.
 enum Department {
   BOH
@@ -109,7 +100,8 @@ model OwnerAccount {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurants Restaurant[]
+  restaurants    Restaurant[]
+  cogsCategories CogsCategory[]
 
   @@index([email])
   @@map("owner_accounts")
@@ -172,22 +164,23 @@ model User {
 }
 
 model Product {
-  id           String        @id @default(cuid())
-  name         String
-  sku          String?       @unique
-  category     String?
-  purveyor     String?
-  invoiceDate  DateTime?     @db.Date
-  department   Department    @default(BOH)
-  cogsCategory COGSCategory?
-  unit         Unit          @default(PIECES)
-  costPerUnit  Float         @default(0)
-  currentStock Float         @default(0)
-  minimumStock Float         @default(0)
-  restaurantId String
-  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  name           String
+  sku            String?       @unique
+  category       String?
+  purveyor       String?
+  invoiceDate    DateTime?     @db.Date
+  department     Department    @default(BOH)
+  cogsCategoryId String?
+  cogsCategory   CogsCategory? @relation(fields: [cogsCategoryId], references: [id], onDelete: SetNull)
+  unit           Unit          @default(PIECES)
+  costPerUnit    Float         @default(0)
+  currentStock   Float         @default(0)
+  minimumStock   Float         @default(0)
+  restaurantId   String
+  restaurant     Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   stockLogs         StockLog[]
   orderItems        OrderItem[]
@@ -195,6 +188,7 @@ model Product {
   recipeIngredients RecipeIngredient[]
 
   @@index([restaurantId])
+  @@index([cogsCategoryId])
   @@map("products")
 }
 
@@ -258,20 +252,23 @@ model SalesEntry {
 // the product catalogue.  When productId is set, receiving the order will
 // update that product's stock automatically.
 model OrderItem {
-  id          String   @id @default(cuid())
-  orderId     String
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId   String?
-  product     Product? @relation(fields: [productId], references: [id])
-  productName String?
-  sku         String?
-  category    String?
-  unit        String?
-  quantity    Float
-  unitCost    Float
+  id             String        @id @default(cuid())
+  orderId        String
+  order          Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product?      @relation(fields: [productId], references: [id])
+  productName    String?
+  sku            String?
+  category       String?
+  unit           String?
+  quantity       Float
+  unitCost       Float
+  cogsCategoryId String?
+  cogsCategory   CogsCategory? @relation(fields: [cogsCategoryId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([productId])
+  @@index([cogsCategoryId])
   @@index([orderId, productName])      // product-name grouping in getLocationsPricing
   @@map("order_items")
 }
@@ -385,6 +382,26 @@ model RecipeIngredient {
   @@index([recipeId])
   @@index([productId])
   @@map("recipe_ingredients")
+}
+
+// ── COGS Categories ───────────────────────────────────────────────────────────
+
+// Owner-defined COGS buckets (e.g. Beer, Liquor, Food).
+// Replaces the old COGSCategory enum so each owner group can define its own list.
+model CogsCategory {
+  id             String       @id @default(cuid())
+  name           String
+  ownerAccountId String
+  ownerAccount   OwnerAccount @relation(fields: [ownerAccountId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  products   Product[]
+  orderItems OrderItem[]
+
+  @@unique([ownerAccountId, name])
+  @@index([ownerAccountId])
+  @@map("cogs_categories")
 }
 
 // ── Budgeting ─────────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { Spinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
 import { useLanguage } from "../context/LanguageContext";
+import { CogsCategorySelect } from "./CogsCategorySelect";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -22,14 +23,15 @@ const UNIT_VALUES = ["KG", "LB", "OZ", "G", "LITERS", "PIECES", "EA", "DOZ", "CS
 
 interface LineItem {
   /** Stable React key — not sent to server */
-  _key: string;
-  productName: string;
-  sku:         string;
-  category:    string;
-  unit:        string;
-  quantity:    string;
-  unitPrice:   string;
-  expanded:    boolean;
+  _key:           string;
+  productName:    string;
+  sku:            string;
+  category:       string;
+  unit:           string;
+  quantity:       string;
+  unitPrice:      string;
+  cogsCategoryId: string;
+  expanded:       boolean;
 }
 
 interface LineErrors {
@@ -50,13 +52,14 @@ function newKey() { return `line-${++_seq}`; }
 
 function newLine(expanded = true): LineItem {
   return {
-    _key: newKey(),
-    productName: "",
-    sku:         "",
-    category:    "",
-    unit:        "",
-    quantity:    "",
-    unitPrice:   "",
+    _key:           newKey(),
+    productName:    "",
+    sku:            "",
+    category:       "",
+    unit:           "",
+    quantity:       "",
+    unitPrice:      "",
+    cogsCategoryId: "",
     expanded,
   };
 }
@@ -164,12 +167,13 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
         invoiceNumber: invoiceNumber.trim() || undefined,
         department:    department    || undefined,
         items: lines.map(l => ({
-          productName: l.productName.trim(),
-          sku:         l.sku.trim()      || undefined,
-          category:    l.category        || undefined,
-          unit:        l.unit            || undefined,
-          quantity:    parseFloat(l.quantity),
-          unitCost:    parseFloat(l.unitPrice) || 0,
+          productName:     l.productName.trim(),
+          sku:             l.sku.trim()      || undefined,
+          category:        l.category        || undefined,
+          unit:            l.unit            || undefined,
+          quantity:        parseFloat(l.quantity),
+          unitCost:        parseFloat(l.unitPrice) || 0,
+          cogsCategoryId:  l.cogsCategoryId  || undefined,
         })),
       });
       onCreated();
@@ -414,6 +418,16 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
                         <p className="mt-0.5 text-xs text-red-500">{errs.unitPrice}</p>
                       )}
                     </div>
+                  </div>
+
+                  {/* COGS Category */}
+                  <div>
+                    <label className={labelCls}>{f.cogsCategory}</label>
+                    <CogsCategorySelect
+                      value={line.cogsCategoryId}
+                      onChange={id => updateLine(i, "cogsCategoryId", id ?? "")}
+                      className={inputCls}
+                    />
                   </div>
                 </div>
               )}

@@ -512,6 +512,7 @@ const en = {
     productRequired:  "Product name is required",
     qtyInvalid:       "Enter a valid quantity",
     priceInvalid:     "Enter a valid price",
+    cogsCategory:     "COGS Category",
   },
 
   // ── Unit labels (for form dropdowns) ─────────────────────────────────────────
@@ -1277,6 +1278,7 @@ const es: typeof en = {
     productRequired:  "El nombre del producto es requerido",
     qtyInvalid:       "Ingresa una cantidad válida",
     priceInvalid:     "Ingresa un precio válido",
+    cogsCategory:     "Categoría COGS",
   },
 
   units: {

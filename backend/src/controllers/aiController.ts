@@ -1,6 +1,7 @@
 import { Response, NextFunction } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -9,6 +10,10 @@ export const extractInvoiceSchema = z.object({
   imageBase64: z.string().min(1, "Image data is required"),
   mimeType: z.enum(["image/jpeg", "image/png", "image/webp", "image/gif"]).default("image/jpeg"),
 });
+
+// Valid suggestion tokens the AI may return — match the seeded CogsCategory names.
+const VALID_COGS_SUGGESTIONS = ["BEER", "LIQUOR", "WINE", "FOOD", "NON_ALCOHOLIC"] as const;
+type CogsSuggestion = typeof VALID_COGS_SUGGESTIONS[number];
 
 const EXTRACTION_PROMPT = `You are an invoice data extraction assistant. Analyze this invoice image and extract the following fields as a JSON object. Return ONLY valid JSON with no markdown, no code fences, no explanation.
 
@@ -24,6 +29,14 @@ Extract these fields:
   - "BOH" — proteins, meat, seafood, produce, dairy, eggs, dry goods, grains, spices, kitchen equipment, food prep items, cooking supplies
   - "FOH" — office supplies, cleaning supplies, paper goods, napkins, to-go containers, uniforms, front-of-house décor, guest-facing items
   If the item clearly fits one category, return that value. If genuinely ambiguous, return null.
+- "suggestedCogsCategory": based on the product name and category, suggest which COGS bucket this item belongs to.
+  You MUST return exactly one of these values, or null if you truly cannot determine:
+  - "BEER" — beer, ale, lager, cider, draft beer, canned/bottled beer
+  - "LIQUOR" — spirits, vodka, rum, tequila, gin, whiskey, bourbon, brandy, mezcal
+  - "WINE" — wine (red, white, rosé, sparkling), champagne, prosecco, cava
+  - "FOOD" — any food item: produce, meat, seafood, dairy, dry goods, spices, oils, condiments, bread, eggs
+  - "NON_ALCOHOLIC" — non-alcoholic beverages: soda, juice, water, coffee, tea, syrups, mixers with no alcohol
+  Use null only if the item is not a food or beverage (e.g. cleaning supplies, paper goods, uniforms).
 
 If you cannot confidently extract any other field, set it to null. If there are multiple line items, extract the most prominent or first item.
 
@@ -68,7 +81,6 @@ export async function extractInvoice(
 
     let extracted: Record<string, unknown>;
     try {
-      // Strip any accidental markdown fences just in case
       const raw = textBlock.text.trim().replace(/^```[a-z]*\n?/, "").replace(/\n?```$/, "");
       extracted = JSON.parse(raw);
     } catch {
@@ -78,21 +90,52 @@ export async function extractInvoice(
       });
     }
 
-    // Validate department — only accept the three known enum values
+    // Validate department
     const rawDept = extracted.department;
     const department =
-      rawDept === "BAR" || rawDept === "BOH" || rawDept === "FOH"
-        ? rawDept
+      rawDept === "BAR" || rawDept === "BOH" || rawDept === "FOH" ? rawDept : null;
+
+    // ── Resolve suggestedCogsCategory → CogsCategory record ──────────────────
+    const rawSuggestion = extracted.suggestedCogsCategory;
+    const suggestion: CogsSuggestion | null =
+      typeof rawSuggestion === "string" &&
+      (VALID_COGS_SUGGESTIONS as readonly string[]).includes(rawSuggestion)
+        ? (rawSuggestion as CogsSuggestion)
         : null;
 
+    let cogsCategory: { id: string; name: string } | null = null;
+
+    if (suggestion) {
+      // Resolve ownerAccountId: prefer JWT claim, fall back to restaurant lookup.
+      const ownerAccountId =
+        req.user.ownerAccountId ??
+        (req.user.restaurantId
+          ? (
+              await prisma.restaurant.findUnique({
+                where: { id: req.user.restaurantId },
+                select: { ownerAccountId: true },
+              })
+            )?.ownerAccountId ?? null
+          : null);
+
+      if (ownerAccountId) {
+        const match = await prisma.cogsCategory.findUnique({
+          where: { ownerAccountId_name: { ownerAccountId, name: suggestion } },
+          select: { id: true, name: true },
+        });
+        cogsCategory = match ?? null;
+      }
+    }
+
     res.json({
-      name: extracted.name ?? null,
-      purveyor: extracted.purveyor ?? null,
-      invoiceDate: extracted.invoiceDate ?? null,
-      unit: extracted.unit ?? null,
-      costPerUnit: extracted.costPerUnit ?? null,
-      category: extracted.category ?? null,
+      name:           extracted.name         ?? null,
+      purveyor:       extracted.purveyor      ?? null,
+      invoiceDate:    extracted.invoiceDate   ?? null,
+      unit:           extracted.unit          ?? null,
+      costPerUnit:    extracted.costPerUnit   ?? null,
+      category:       extracted.category      ?? null,
       department,
+      cogsCategory,   // { id, name } or null
     });
   } catch (err) {
     next(err);

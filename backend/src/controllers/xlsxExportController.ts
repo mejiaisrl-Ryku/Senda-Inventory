@@ -544,7 +544,7 @@ export async function exportXlsx(req: AuthRequest, res: Response, next: NextFunc
           reason: { in: [StockReason.USED, StockReason.WASTE] },
         },
         include: {
-          product: { select: { cogsCategory: true, costPerUnit: true } },
+          product: { select: { cogsCategory: { select: { name: true } }, costPerUnit: true } },
         },
       }),
       prisma.product.findMany({
@@ -562,7 +562,7 @@ export async function exportXlsx(req: AuthRequest, res: Response, next: NextFunc
     // Aggregate COGS by cogsCategory
     const cogsByCat: Record<string, number> = {};
     for (const log of stockLogs) {
-      const cat = log.product?.cogsCategory;
+      const cat = log.product?.cogsCategory?.name;
       if (!cat) continue;
       cogsByCat[cat] = (cogsByCat[cat] ?? 0) + Math.abs(log.change) * (log.unitCost ?? log.product?.costPerUnit ?? 0);
     }
