@@ -1,5 +1,6 @@
 import React, { useState, FormEvent } from "react";
-import { ordersApi } from "../api";
+import { ordersApi, productsApi } from "../api";
+import { Product } from "../types";
 import { formatCurrency } from "../utils/stock";
 import { Spinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
@@ -94,6 +95,23 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
   const [formError,  setFormError]  = useState("");
   const [saving,     setSaving]     = useState(false);
 
+  // ── Product resolution phase ────────────────────────────────────────────────
+  // When one or more lines match multiple products, we pause and let the chef
+  // pick which existing product they mean (or add as new).
+  interface PendingResolution {
+    lineIndex:   number;
+    productName: string;
+    matches:     Product[];
+    chosenId:    string | null; // null = "create new product"
+  }
+  type Phase = "form" | "resolving" | "saving";
+
+  const [phase,     setPhase]     = useState<Phase>("form");
+  const [pending,   setPending]   = useState<PendingResolution[]>([]);
+  // Per-line resolved productId (null = create new); mirrors lines[] indices
+  const [resolved,  setResolved]  = useState<(string | null | undefined)[]>([]);
+  const [statusMsg, setStatusMsg] = useState("");
+
   // ── Total ──────────────────────────────────────────────────────────────────
   const total = lines.reduce((sum, l) => sum + lineTotal(l), 0);
 
@@ -151,7 +169,7 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
     return errs.every(e => Object.keys(e).length === 0);
   }
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
+  // ── Submit — Phase 1: validate + search ──────────────────────────────────
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -160,27 +178,123 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
     if (!validate()) return;
 
     setSaving(true);
+    setStatusMsg("Looking up products…");
+
     try {
-      await ordersApi.create({
+      // Search each line in parallel
+      const searches = await Promise.all(
+        lines.map(l => productsApi.search(l.productName.trim()))
+      );
+
+      // Build per-line resolutions
+      const autoResolved: (string | null)[] = [];
+      const needsPicker:  PendingResolution[] = [];
+
+      searches.forEach((result, i) => {
+        if (result.hasMultipleMatches) {
+          // Ambiguous — chef must pick; default to first match for now
+          autoResolved.push(undefined as never); // placeholder
+          needsPicker.push({
+            lineIndex:   i,
+            productName: lines[i].productName.trim(),
+            matches:     result.matches,
+            chosenId:    result.matches[0]?.id ?? null,
+          });
+        } else if (result.exactMatch) {
+          autoResolved.push(result.exactMatch.id);   // exact match → use it
+        } else {
+          autoResolved.push(null);                    // no match → create new
+        }
+      });
+
+      setResolved(autoResolved);
+      setSaving(false);
+      setStatusMsg("");
+
+      if (needsPicker.length > 0) {
+        // Pause for chef to resolve ambiguous lines
+        setPending(needsPicker);
+        setPhase("resolving");
+      } else {
+        // All auto-resolved → create + receive immediately
+        await createAndReceive(autoResolved);
+      }
+    } catch (err) {
+      toast.error(getApiError(err));
+      setSaving(false);
+      setStatusMsg("");
+    }
+  }
+
+  // ── Submit — Phase 2: after picker confirmation ────────────────────────────
+
+  async function handleConfirmResolutions() {
+    // Merge picker choices back into resolved array
+    const finalResolved = [...resolved];
+    for (const p of pending) {
+      finalResolved[p.lineIndex] = p.chosenId; // null = create new
+    }
+    setPending([]);
+    setPhase("saving");
+    await createAndReceive(finalResolved);
+  }
+
+  // ── Core create + receive ──────────────────────────────────────────────────
+
+  async function createAndReceive(perLine: (string | null | undefined)[]) {
+    setSaving(true);
+    setStatusMsg("Creating invoice…");
+    try {
+      // For each "create new" line, create the product first
+      const withIds = await Promise.all(
+        lines.map(async (l, i) => {
+          let productId: string | undefined = perLine[i] ?? undefined;
+          if (productId === null || productId === undefined) {
+            setStatusMsg(`Creating "${l.productName.trim()}"…`);
+            const newProd = await productsApi.create({
+              name:          l.productName.trim(),
+              sku:           l.sku.trim() || undefined,
+              unit:          (l.unit || undefined) as never,
+              costPerUnit:   Math.max(parseFloat(l.unitPrice) || 0.01, 0.01),
+              currentStock:  0,        // receiveOrder will set stock via StockLog
+              minimumStock:  0,
+              cogsCategoryId: l.cogsCategoryId || undefined,
+            });
+            productId = newProd.id;
+          }
+          return { l, productId };
+        })
+      );
+
+      setStatusMsg("Creating order…");
+      const order = await ordersApi.create({
         purveyor:      purveyor.trim(),
-        invoiceDate:   invoiceDate   || undefined,
+        invoiceDate:   invoiceDate    || undefined,
         invoiceNumber: invoiceNumber.trim() || undefined,
-        department:    department    || undefined,
-        items: lines.map(l => ({
+        department:    department     || undefined,
+        items: withIds.map(({ l, productId }) => ({
+          productId,
           productName:     l.productName.trim(),
-          sku:             l.sku.trim()      || undefined,
-          category:        l.category        || undefined,
-          unit:            l.unit            || undefined,
+          sku:             l.sku.trim()     || undefined,
+          category:        l.category       || undefined,
+          unit:            l.unit           || undefined,
           quantity:        parseFloat(l.quantity),
           unitCost:        parseFloat(l.unitPrice) || 0,
-          cogsCategoryId:  l.cogsCategoryId  || undefined,
+          cogsCategoryId:  l.cogsCategoryId || undefined,
         })),
       });
+
+      setStatusMsg("Receiving order…");
+      await ordersApi.receive(order.id);
+
+      toast.success("Invoice created and received. Stock updated.");
       onCreated();
     } catch (err) {
       toast.error(getApiError(err));
+      setPhase("form");
     } finally {
       setSaving(false);
+      setStatusMsg("");
     }
   }
 
@@ -194,6 +308,84 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
   const errBorder = "border-red-400 dark:border-red-600";
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  // ── Resolution step (multi-match picker) ────────────────────────────────────
+  if (phase === "resolving" && pending.length > 0) {
+    const allPicked = pending.every(p => p.chosenId !== undefined);
+    return (
+      <div className="space-y-5">
+        <div>
+          <h3 className="text-[14px] font-semibold text-white mb-0.5">Match Products</h3>
+          <p className="text-[11px] text-[#555]">
+            Multiple products matched some names. Select which one you ordered, or add as new.
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          {pending.map((p, pi) => (
+            <div key={p.lineIndex} className="space-y-1.5">
+              <p className="text-[11px] font-semibold text-[#888] uppercase tracking-wide">
+                "{p.productName}"
+              </p>
+              <div className="space-y-1">
+                {p.matches.map(prod => (
+                  <button
+                    key={prod.id}
+                    type="button"
+                    onClick={() => setPending(prev =>
+                      prev.map((x, xi) => xi === pi ? { ...x, chosenId: prod.id } : x)
+                    )}
+                    className={`w-full text-left px-3 py-2.5 rounded-lg text-[13px] border transition-colors ${
+                      p.chosenId === prod.id
+                        ? "bg-[#3dbf8a]/10 border-[#3dbf8a] text-white"
+                        : "bg-[#111] border-[#1a1a1a] text-[#888] hover:text-white hover:border-[#2a2a2a]"
+                    }`}
+                  >
+                    {prod.name}
+                    {prod.sku && (
+                      <span className="ml-2 text-[10px] text-[#444]">SKU: {prod.sku}</span>
+                    )}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setPending(prev =>
+                    prev.map((x, xi) => xi === pi ? { ...x, chosenId: null } : x)
+                  )}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-[12px] border border-dashed transition-colors ${
+                    p.chosenId === null
+                      ? "border-[#3dbf8a] text-[#3dbf8a]"
+                      : "border-[#2a2a2a] text-[#555] hover:text-[#3dbf8a] hover:border-[#3dbf8a]"
+                  }`}
+                >
+                  + Add "{p.productName}" as new product
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => { setPending([]); setPhase("form"); }}
+            className="flex-1 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            {t.common.cancel}
+          </button>
+          <button
+            type="button"
+            disabled={!allPicked || saving}
+            onClick={handleConfirmResolutions}
+            className="flex-1 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+          >
+            {saving && <Spinner size="sm" />}
+            Confirm &amp; Save
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
@@ -473,7 +665,7 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
           className="flex-1 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-60 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2"
         >
           {saving && <Spinner size="sm" />}
-          {f.saveInvoice}
+          {saving && statusMsg ? statusMsg : f.saveInvoice}
         </button>
       </div>
     </form>
