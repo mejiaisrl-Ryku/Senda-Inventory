@@ -43,6 +43,19 @@ const DEPARTMENTS: { value: Department; label: string }[] = [
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+interface AIExtractResponse {
+  name:         string | null;
+  purveyor:     string | null;
+  invoiceDate:  string | null;
+  unit:         string | null;
+  quantity:     number | null;
+  costPerUnit:  number | null;
+  sku:          string | null;
+  category:     string | null;
+  department:   "BAR" | "BOH" | "FOH" | null;
+  cogsCategory: { id: string; name: string } | null;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -95,7 +108,7 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
 
-  // Post-save order prompt state
+  // Post-save order prompt state (manual form path — kept for "Edit manually" fallback)
   const [showOrderPrompt, setShowOrderPrompt] = useState(false);
   const [savedProductData, setSavedProductData] = useState<{
     id: string;
@@ -109,6 +122,28 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
     cogsCategoryId: string;
   } | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
+
+  // ── Smart confirmation state (scan path) ────────────────────────────────────
+  type MatchType = "exact" | "multiple" | "none";
+
+  interface SmartConfirmState {
+    matchType:       MatchType;
+    matches:         Product[];
+    selectedProduct: Product | null;
+    // Snapshot of extracted values — editable in the confirmation screen
+    extractedName:          string;
+    extractedPurveyor:      string;
+    extractedInvoiceDate:   string;
+    extractedSku:           string;
+    extractedUnit:          Unit;
+    extractedQty:           string;  // kept as string for input binding
+    extractedCostPerUnit:   string;  // kept as string for input binding
+    extractedDepartment:    Department;
+    extractedCogsCategoryId: string;
+  }
+
+  const [searching,   setSearching]   = useState(false);
+  const [smartConfirm, setSmartConfirm] = useState<SmartConfirmState | null>(null);
 
   // ── Camera lifecycle ────────────────────────────────────────────────────────
 
@@ -205,6 +240,8 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
     setShowOrderPrompt(false);
     setSavedProductData(null);
     setCreatingOrder(false);
+    setSearching(false);
+    setSmartConfirm(null);
   }
 
   // ── Capture ─────────────────────────────────────────────────────────────────
@@ -235,32 +272,32 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
     startCamera();
   }
 
-  // ── AI extraction ────────────────────────────────────────────────────────────
+  // ── AI extraction + smart product match ────────────────────────────────────
 
   async function extractFromImage(dataUrl: string) {
     setExtracting(true);
     setExtractError(null);
+    setSmartConfirm(null);
+
+    let aiData: AIExtractResponse | null = null;
 
     try {
       const base64 = dataUrl.split(",")[1];
-      const { data } = await api.post<{
-        name: string | null;
-        purveyor: string | null;
-        invoiceDate: string | null;
-        unit: string | null;
-        costPerUnit: number | null;
-        category: string | null;
-        department: "BAR" | "BOH" | "FOH" | null;
-        cogsCategory: { id: string; name: string } | null;
-      }>("/ai/extract-invoice", { imageBase64: base64, mimeType: "image/jpeg" });
+      const { data } = await api.post<AIExtractResponse>("/ai/extract-invoice", {
+        imageBase64: base64,
+        mimeType: "image/jpeg",
+      });
+      aiData = data;
 
-      if (data.name) setName(data.name);
-      if (data.purveyor) setPurveyor(data.purveyor);
+      // Populate manual-form fallback fields
+      if (data.name)        setName(data.name);
+      if (data.purveyor)    setPurveyor(data.purveyor);
       if (data.invoiceDate) setInvoiceDate(data.invoiceDate);
+      if (data.sku)         setSku(data.sku);
       if (data.unit && UNITS.some((u) => u.value === data.unit))
         setUnit(data.unit as Unit);
-      if (data.costPerUnit !== null && data.costPerUnit !== undefined)
-        setCostPerUnit(String(data.costPerUnit));
+      if (data.costPerUnit != null) setCostPerUnit(String(data.costPerUnit));
+      if (data.quantity     != null) setCurrentStock(String(data.quantity));
       if (data.category && CATEGORIES.includes(data.category as never))
         setCategory(data.category);
       if (data.department) setDepartment(data.department);
@@ -269,11 +306,48 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
         setSuggestedCogsCategoryName(data.cogsCategory.name);
       }
     } catch (err) {
-      setExtractError(
-        "Could not extract data from the image. Please fill in the fields manually."
-      );
-    } finally {
+      setExtractError("Could not extract data. Please fill in the fields manually.");
       setExtracting(false);
+      return;
+    }
+
+    setExtracting(false);
+
+    // ── Product match search ─────────────────────────────────────────────────
+    if (!aiData?.name) return; // nothing to search on
+
+    setSearching(true);
+    try {
+      const result = await productsApi.search(aiData.name);
+
+      const matchType: MatchType =
+        result.hasNoMatch         ? "none"     :
+        result.hasMultipleMatches ? "multiple" : "exact";
+
+      const resolvedUnit: Unit =
+        (aiData.unit && UNITS.some((u) => u.value === aiData!.unit))
+          ? (aiData.unit as Unit)
+          : unit; // fall back to current form state
+
+      setSmartConfirm({
+        matchType,
+        matches:         result.matches,
+        selectedProduct: result.exactMatch ?? null,
+        extractedName:          aiData.name          ?? "",
+        extractedPurveyor:      aiData.purveyor       ?? "",
+        extractedInvoiceDate:   aiData.invoiceDate    ?? "",
+        extractedSku:           aiData.sku            ?? "",
+        extractedUnit:          resolvedUnit,
+        extractedQty:           aiData.quantity != null ? String(aiData.quantity) : "1",
+        extractedCostPerUnit:   aiData.costPerUnit != null ? String(aiData.costPerUnit) : "",
+        extractedDepartment:    aiData.department ?? "BOH",
+        extractedCogsCategoryId: aiData.cogsCategory?.id ?? "",
+      });
+    } catch {
+      // Search failure is non-fatal — fall back to manual form
+      setExtractError("Could not check product catalogue. Please review and save manually.");
+    } finally {
+      setSearching(false);
     }
   }
 
@@ -376,6 +450,87 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
 
   function handleSkipOrder() {
     handleClose();
+  }
+
+  // ── Smart confirmation handlers ─────────────────────────────────────────────
+
+  async function handleSmartSave() {
+    if (!smartConfirm) return;
+
+    const {
+      selectedProduct, matchType,
+      extractedName, extractedPurveyor, extractedInvoiceDate, extractedSku,
+      extractedUnit, extractedQty, extractedCostPerUnit,
+      extractedDepartment, extractedCogsCategoryId,
+    } = smartConfirm;
+
+    const qty  = parseFloat(extractedQty)       || 0;
+    const cost = parseFloat(extractedCostPerUnit) || 0;
+
+    if (qty  <= 0) { toast.error("Quantity must be greater than 0");  return; }
+    if (cost <= 0) { toast.error("Cost per unit must be greater than 0"); return; }
+
+    const isNew = matchType === "none" || selectedProduct === null;
+
+    setSaving(true);
+    try {
+      let productId:   string;
+      let productName: string;
+      let productSku:  string | undefined;
+
+      if (isNew) {
+        // Create product with currentStock=0; receiveOrder will set it via StockLog
+        const newProduct = await productsApi.create({
+          name:          extractedName,
+          sku:           extractedSku  || undefined,
+          purveyor:      extractedPurveyor || undefined,
+          invoiceDate:   extractedInvoiceDate || undefined,
+          department:    extractedDepartment,
+          unit:          extractedUnit,
+          costPerUnit:   cost,
+          currentStock:  0,
+          minimumStock:  0,
+          cogsCategoryId: extractedCogsCategoryId || undefined,
+        });
+        productId   = newProduct.id;
+        productName = newProduct.name;
+        productSku  = newProduct.sku ?? undefined;
+        onSaved(newProduct); // refresh ProductList
+      } else {
+        productId   = selectedProduct.id;
+        productName = selectedProduct.name;
+        productSku  = selectedProduct.sku ?? undefined;
+      }
+
+      // Create order (PENDING), then receive → stock update via weighted-avg StockLog
+      const order = await ordersApi.create({
+        purveyor:    extractedPurveyor    || undefined,
+        invoiceDate: extractedInvoiceDate || undefined,
+        department:  extractedDepartment  || undefined,
+        items: [{
+          productId,
+          productName,
+          sku:            productSku,
+          unit:           extractedUnit,
+          quantity:       qty,
+          unitCost:       cost,
+          cogsCategoryId: extractedCogsCategoryId || undefined,
+        }],
+      });
+      await ordersApi.receive(order.id);
+
+      const supplier = extractedPurveyor ? ` (${extractedPurveyor})` : "";
+      toast.success(
+        isNew
+          ? `"${productName}" added + order received${supplier}`
+          : `Order received for "${productName}"${supplier}`
+      );
+      handleClose();
+    } catch (err) {
+      toast.error(getApiError(err));
+    } finally {
+      setSaving(false);
+    }
   }
 
   // ── Styles ──────────────────────────────────────────────────────────────────
@@ -613,10 +768,12 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
               )}
 
               {/* Extracting overlay on captured image */}
-              {capturedImage && extracting && (
+              {capturedImage && (extracting || searching) && (
                 <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
                   <Spinner size="md" />
-                  <p className="text-[12px] text-[#3dbf8a] font-medium">Analysing invoice…</p>
+                  <p className="text-[12px] text-[#3dbf8a] font-medium">
+                    {extracting ? "Analysing invoice…" : "Matching product…"}
+                  </p>
                 </div>
               )}
             </div>
@@ -898,7 +1055,155 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
           </div>
         </div>
 
-        {/* ── Order prompt overlay — shown after product is saved ─────────── */}
+        {/* ── Smart confirmation overlay — shown after AI extraction + search ── */}
+        {smartConfirm && (
+          <div className="absolute inset-0 z-10 bg-[#0a0a0a]/95 backdrop-blur-sm flex items-center justify-center p-4 rounded-2xl overflow-y-auto">
+            <div className="w-full max-w-sm space-y-4 py-2">
+
+              {/* Match status badge */}
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  smartConfirm.matchType === "none" ? "bg-amber-400/10" : "bg-[#3dbf8a]/10"
+                }`}>
+                  {smartConfirm.matchType === "none" ? (
+                    <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M12 4v16m8-8H4" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-[#3dbf8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-semibold text-white">
+                    {smartConfirm.matchType === "exact"    && "Product Found"}
+                    {smartConfirm.matchType === "multiple" && `${smartConfirm.matches.length} Matches — Select One`}
+                    {smartConfirm.matchType === "none"     && "New Product"}
+                  </h3>
+                  <p className="text-[11px] text-[#555]">
+                    {smartConfirm.matchType === "exact"    && `"${smartConfirm.selectedProduct!.name}" — order will update stock`}
+                    {smartConfirm.matchType === "multiple" && "Multiple products match the scanned name"}
+                    {smartConfirm.matchType === "none"     && "Will be added to your catalogue"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Multiple-match picker */}
+              {smartConfirm.matchType === "multiple" && (
+                <div className="space-y-1">
+                  {smartConfirm.matches.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setSmartConfirm((s) => s && ({ ...s, selectedProduct: p }))}
+                      className={`w-full text-left px-3 py-2.5 rounded-lg text-[13px] border transition-colors ${
+                        smartConfirm.selectedProduct?.id === p.id
+                          ? "bg-[#3dbf8a]/10 border-[#3dbf8a] text-white"
+                          : "bg-[#111] border-[#1a1a1a] text-[#888] hover:text-white hover:border-[#2a2a2a]"
+                      }`}
+                    >
+                      {p.name}
+                      {p.sku && <span className="ml-2 text-[10px] text-[#444]">SKU: {p.sku}</span>}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setSmartConfirm((s) => s && ({ ...s, matchType: "none", selectedProduct: null }))}
+                    className="w-full text-left px-3 py-2 rounded-lg text-[12px] border border-dashed border-[#2a2a2a] text-[#555] hover:text-[#3dbf8a] hover:border-[#3dbf8a] transition-colors"
+                  >
+                    + Add as new product instead
+                  </button>
+                </div>
+              )}
+
+              {/* Extracted data — editable qty + cost */}
+              <div className="rounded-xl border border-[#1a1a1a] bg-[#111] divide-y divide-[#1a1a1a] text-[12px]">
+                <div className="flex justify-between items-center px-4 py-2.5">
+                  <span className="text-[#555]">Product</span>
+                  <span className="text-white font-medium truncate max-w-[60%] text-right">
+                    {smartConfirm.matchType !== "none" && smartConfirm.selectedProduct
+                      ? smartConfirm.selectedProduct.name
+                      : smartConfirm.extractedName || <span className="italic text-[#444]">unknown</span>}
+                  </span>
+                </div>
+                {smartConfirm.extractedPurveyor && (
+                  <div className="flex justify-between items-center px-4 py-2.5">
+                    <span className="text-[#555]">Supplier</span>
+                    <span className="text-white">{smartConfirm.extractedPurveyor}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center px-4 py-2">
+                  <span className="text-[#555] flex-shrink-0 mr-3">Qty</span>
+                  <input
+                    type="text" inputMode="decimal"
+                    value={smartConfirm.extractedQty}
+                    onChange={(e) => setSmartConfirm((s) => s && ({ ...s, extractedQty: e.target.value }))}
+                    className="w-24 text-right px-2 py-1 rounded-md border border-[#2a2a2a] bg-[#0a0a0a] text-white text-[12px] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                  />
+                </div>
+                <div className="flex justify-between items-center px-4 py-2">
+                  <span className="text-[#555] flex-shrink-0 mr-3">Cost / unit</span>
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[#555] text-[12px]">$</span>
+                    <input
+                      type="text" inputMode="decimal"
+                      value={smartConfirm.extractedCostPerUnit}
+                      onChange={(e) => setSmartConfirm((s) => s && ({ ...s, extractedCostPerUnit: e.target.value }))}
+                      className="w-24 text-right pl-5 pr-2 py-1 rounded-md border border-[#2a2a2a] bg-[#0a0a0a] text-white text-[12px] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                {(() => {
+                  const qty  = parseFloat(smartConfirm.extractedQty)       || 0;
+                  const cost = parseFloat(smartConfirm.extractedCostPerUnit) || 0;
+                  if (qty > 0 && cost > 0) return (
+                    <div className="flex justify-between items-center px-4 py-2.5">
+                      <span className="text-[#555]">Total</span>
+                      <span className="text-[#3dbf8a] font-semibold">${(qty * cost).toFixed(2)}</span>
+                    </div>
+                  );
+                  return null;
+                })()}
+              </div>
+
+              {/* New-product note */}
+              {smartConfirm.matchType === "none" && (
+                <p className="text-[11px] text-amber-400/80 bg-amber-400/5 border border-amber-400/15 rounded-lg px-3 py-2 leading-relaxed">
+                  New product will be created and order received immediately. Stock will be set to the quantity above.
+                </p>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSmartConfirm(null)}
+                  disabled={saving}
+                  className="flex-1 py-2.5 rounded-xl border border-[#2a2a2a] text-[13px] text-[#666] hover:text-white hover:border-[#3a3a3a] disabled:opacity-50 transition-colors"
+                >
+                  Edit manually
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSmartSave}
+                  disabled={
+                    saving ||
+                    (smartConfirm.matchType === "multiple" && !smartConfirm.selectedProduct)
+                  }
+                  className="flex-1 py-2.5 rounded-xl bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-50 text-white text-[13px] font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                  {saving && <Spinner size="sm" />}
+                  Confirm & Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Order prompt overlay — shown after product is saved (manual path) ── */}
         {showOrderPrompt && savedProductData && (
           <div className="absolute inset-0 z-10 bg-[#0a0a0a]/95 backdrop-blur-sm flex items-center justify-center p-6 rounded-2xl">
             <div className="w-full max-w-sm space-y-5">

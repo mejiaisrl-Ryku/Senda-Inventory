@@ -3,6 +3,7 @@ import { authenticate, requireAdmin } from "../middleware/auth";
 import { validate } from "../middleware/validate";
 import {
   listProducts,
+  searchProducts,
   getProduct,
   createProduct,
   updateProduct,
@@ -16,6 +17,7 @@ const router = Router();
 router.use(authenticate as never);
 
 router.get("/", listProducts as never);
+router.get("/search", searchProducts as never); // must be before /:id
 router.get("/:id", getProduct as never);
 router.post("/", requireAdmin as never, validate(createProductSchema), createProduct as never);
 router.put("/:id", requireAdmin as never, validate(updateProductSchema), updateProduct as never);

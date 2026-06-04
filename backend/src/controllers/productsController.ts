@@ -83,6 +83,37 @@ async function validateCogsCategoryOwnership(
 
 // ── Controllers ───────────────────────────────────────────────────────────────
 
+/**
+ * GET /products/search?name=<term>
+ * Case-insensitive substring match, scoped to the caller's restaurant.
+ * Returns { matches[], exactMatch, hasMultipleMatches, hasNoMatch }
+ */
+export async function searchProducts(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const raw = req.query.name;
+    if (!raw || typeof raw !== "string" || !raw.trim()) {
+      return res.status(400).json({ error: "Query param 'name' is required" });
+    }
+    const products = await prisma.product.findMany({
+      where: {
+        restaurantId: req.user.restaurantId,
+        name: { contains: raw.trim(), mode: "insensitive" },
+      },
+      include: { cogsCategory: { select: { id: true, name: true } } },
+      orderBy: { name: "asc" },
+      take: 10,
+    });
+    res.json({
+      matches:            products,
+      exactMatch:         products.length === 1 ? products[0] : null,
+      hasMultipleMatches: products.length > 1,
+      hasNoMatch:         products.length === 0,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listProducts(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const { category } = req.query;

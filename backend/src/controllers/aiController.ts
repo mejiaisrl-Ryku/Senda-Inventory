@@ -22,7 +22,9 @@ Extract these fields:
 - "purveyor": the supplier or vendor company name (string or null)
 - "invoiceDate": the invoice date in YYYY-MM-DD format (string or null)
 - "unit": the unit of measurement — must be one of: KG, LITERS, PIECES, LB, OZ, G, EA, DOZ (string or null)
-- "costPerUnit": the unit cost as a number (number or null)
+- "quantity": the quantity ordered or delivered as a number (number or null). Look for values like "20 lbs", "5 cases", "12 bottles" — extract just the numeric part.
+- "costPerUnit": the unit cost as a number (number or null). This is the price per single unit, not the line total.
+- "sku": the supplier's product code, item number, or SKU if clearly printed on the invoice (string or null). Look for codes like "SYSCO-45821", "PLU 1234", "Item #: 9876".
 - "category": one of: "Perishable Food", "Dry Food", "Beverages", "Paper Goods", "Chemicals", "Office Supplies", "Miscellaneous" (string or null)
 - "department": classify the item into exactly one of these three values based on what the item is:
   - "BAR" — liquor, wine, beer, spirits, cocktail ingredients, mixers, bar supplies, glassware for bar
@@ -132,7 +134,9 @@ export async function extractInvoice(
       purveyor:       extracted.purveyor      ?? null,
       invoiceDate:    extracted.invoiceDate   ?? null,
       unit:           extracted.unit          ?? null,
+      quantity:       typeof extracted.quantity === "number" ? extracted.quantity : null,
       costPerUnit:    extracted.costPerUnit   ?? null,
+      sku:            typeof extracted.sku === "string" && extracted.sku.trim() ? extracted.sku.trim() : null,
       category:       extracted.category      ?? null,
       department,
       cogsCategory,   // { id, name } or null

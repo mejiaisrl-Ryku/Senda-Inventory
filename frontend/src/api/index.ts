@@ -168,6 +168,14 @@ export const productsApi = {
 
   get: (id: string) => api.get<Product>(`/products/${id}`).then((r) => r.data),
 
+  search: (name: string) =>
+    api.get<{
+      matches:            Product[];
+      exactMatch:         Product | null;
+      hasMultipleMatches: boolean;
+      hasNoMatch:         boolean;
+    }>("/products/search", { params: { name } }).then((r) => r.data),
+
   create: (data: Partial<Product>) => api.post<Product>("/products", data).then((r) => r.data),
 
   update: (id: string, data: Partial<Product>) =>
