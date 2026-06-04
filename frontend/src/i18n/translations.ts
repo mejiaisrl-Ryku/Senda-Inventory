@@ -5,6 +5,7 @@ const en = {
   nav: {
     dashboard:      "Dashboard",
     multiLocation:  "Multi-Location",
+    products:       "Products",
     invoices:       "Invoices",
     stock:          "Stock",
     orders:         "Orders",
@@ -793,6 +794,7 @@ const es: typeof en = {
   nav: {
     dashboard:      "Inicio",
     multiLocation:  "Multi-Ubicación",
+    products:       "Productos",
     invoices:       "Facturas",
     stock:          "Producto en Existencia",
     orders:         "Pedidos",

@@ -6,7 +6,7 @@ import React, {
   FormEvent,
 } from "react";
 import { Product, Unit, Department } from "../types";
-import { api, productsApi } from "../api";
+import { api, productsApi, ordersApi } from "../api";
 import { Spinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
 import { getApiError, getFieldErrors } from "../utils/errorUtils";
@@ -94,6 +94,21 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
   const [minimumStock, setMinimumStock] = useState("0");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
+
+  // Post-save order prompt state
+  const [showOrderPrompt, setShowOrderPrompt] = useState(false);
+  const [savedProductData, setSavedProductData] = useState<{
+    id: string;
+    name: string;
+    sku?: string;
+    unit: string;
+    costPerUnit: number;
+    purveyor: string;
+    invoiceDate: string;
+    department: Department;
+    cogsCategoryId: string;
+  } | null>(null);
+  const [creatingOrder, setCreatingOrder] = useState(false);
 
   // ── Camera lifecycle ────────────────────────────────────────────────────────
 
@@ -187,6 +202,9 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
     setMinimumStock("0");
     setFieldErrors({});
     setSaving(false);
+    setShowOrderPrompt(false);
+    setSavedProductData(null);
+    setCreatingOrder(false);
   }
 
   // ── Capture ─────────────────────────────────────────────────────────────────
@@ -301,9 +319,20 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
         minimumStock: parseFloat(minimumStock),
         cogsCategoryId: cogsCategoryId || undefined,
       });
-      toast.success("Invoice added successfully");
+      toast.success("Product added to catalogue");
       onSaved(saved);
-      handleClose();
+      setSavedProductData({
+        id: saved.id,
+        name: saved.name,
+        sku: saved.sku ?? undefined,
+        unit,
+        costPerUnit: parseFloat(costPerUnit),
+        purveyor: purveyor.trim(),
+        invoiceDate,
+        department,
+        cogsCategoryId,
+      });
+      setShowOrderPrompt(true);
     } catch (err) {
       const serverFields = getFieldErrors(err);
       if (Object.keys(serverFields).length > 0) {
@@ -314,6 +343,39 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
     } finally {
       setSaving(false);
     }
+  }
+
+  // ── Order prompt handlers ───────────────────────────────────────────────────
+
+  async function handleCreateOrder() {
+    if (!savedProductData) return;
+    setCreatingOrder(true);
+    try {
+      await ordersApi.create({
+        purveyor:    savedProductData.purveyor    || undefined,
+        invoiceDate: savedProductData.invoiceDate || undefined,
+        department:  savedProductData.department  || undefined,
+        items: [{
+          productId:      savedProductData.id,
+          productName:    savedProductData.name,
+          sku:            savedProductData.sku,
+          unit:           savedProductData.unit,
+          quantity:       1,
+          unitCost:       savedProductData.costPerUnit,
+          cogsCategoryId: savedProductData.cogsCategoryId || undefined,
+        }],
+      });
+      toast.success("Purchase order created");
+      handleClose();
+    } catch (err) {
+      toast.error(getApiError(err));
+    } finally {
+      setCreatingOrder(false);
+    }
+  }
+
+  function handleSkipOrder() {
+    handleClose();
   }
 
   // ── Styles ──────────────────────────────────────────────────────────────────
@@ -835,6 +897,72 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
             </div>
           </div>
         </div>
+
+        {/* ── Order prompt overlay — shown after product is saved ─────────── */}
+        {showOrderPrompt && savedProductData && (
+          <div className="absolute inset-0 z-10 bg-[#0a0a0a]/95 backdrop-blur-sm flex items-center justify-center p-6 rounded-2xl">
+            <div className="w-full max-w-sm space-y-5">
+              {/* Icon + title */}
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#3dbf8a]/10 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-[#3dbf8a]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-semibold text-white">Create Purchase Order?</h3>
+                  <p className="text-[11px] text-[#555]">Record this as a financial transaction</p>
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="rounded-xl border border-[#1a1a1a] bg-[#111] divide-y divide-[#1a1a1a] text-[12px]">
+                <div className="flex justify-between px-4 py-2.5">
+                  <span className="text-[#555]">Product</span>
+                  <span className="text-white font-medium truncate max-w-[55%] text-right">{savedProductData.name}</span>
+                </div>
+                <div className="flex justify-between px-4 py-2.5">
+                  <span className="text-[#555]">Supplier</span>
+                  <span className="text-white">{savedProductData.purveyor || <span className="text-[#444] italic">not set</span>}</span>
+                </div>
+                <div className="flex justify-between px-4 py-2.5">
+                  <span className="text-[#555]">Unit cost</span>
+                  <span className="text-white">${savedProductData.costPerUnit.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between px-4 py-2.5">
+                  <span className="text-[#555]">Date</span>
+                  <span className="text-white">{savedProductData.invoiceDate || <span className="text-[#444] italic">not set</span>}</span>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-[#444] leading-relaxed">
+                The order will be saved as <span className="text-[#888]">Pending</span>. Go to Invoices to mark it received once delivered.
+              </p>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSkipOrder}
+                  disabled={creatingOrder}
+                  className="flex-1 py-2.5 rounded-xl border border-[#2a2a2a] text-[13px] text-[#666] hover:text-white hover:border-[#3a3a3a] disabled:opacity-50 transition-colors"
+                >
+                  Skip
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateOrder}
+                  disabled={creatingOrder}
+                  className="flex-1 py-2.5 rounded-xl bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-50 text-white text-[13px] font-semibold transition-colors flex items-center justify-center gap-2"
+                >
+                  {creatingOrder && <Spinner size="sm" />}
+                  Create Order
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   </>
