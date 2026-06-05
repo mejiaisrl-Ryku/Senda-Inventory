@@ -145,6 +145,41 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
   const [searching,   setSearching]   = useState(false);
   const [smartConfirm, setSmartConfirm] = useState<SmartConfirmState | null>(null);
 
+  // ── Batch state ─────────────────────────────────────────────────────────────
+  interface BatchItem {
+    _batchId:    string;
+    productName: string;
+    purveyor:    string;
+    invoiceDate: string;
+    qty:         number;
+    unitCost:    number;
+    unit:        Unit;
+    department:  Department;
+    cogsCategoryId: string;
+    // Resolved product — null means "create new on submit"
+    productId:   string | null;
+    // Only set when productId is null
+    newProductData?: {
+      name:          string;
+      sku?:          string;
+      purveyor?:     string;
+      invoiceDate?:  string;
+      department:    Department;
+      unit:          Unit;
+      costPerUnit:   number;
+      currentStock:  number;
+      minimumStock:  number;
+      cogsCategoryId?: string;
+    };
+  }
+
+  const [batch,          setBatch]          = useState<BatchItem[]>([]);
+  const [showBatch,      setShowBatch]      = useState(false);
+  const [submittingBatch, setSubmittingBatch] = useState(false);
+  const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
+  const [editQty,        setEditQty]        = useState("");
+  const [editCost,       setEditCost]       = useState("");
+
   // ── Camera lifecycle ────────────────────────────────────────────────────────
 
   const stopCamera = useCallback(() => {
@@ -213,11 +248,43 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleClose() {
+    if (batch.length > 0) {
+      if (!window.confirm(`You have ${batch.length} item${batch.length !== 1 ? "s" : ""} in your batch. Discard them?`)) return;
+    }
     stopCamera();
     resetAll();
     onClose();
   }
 
+  /** Reset only the per-scan fields — keeps batch intact and restarts camera. */
+  function resetScanState() {
+    setCapturedImage(null);
+    setExtractError(null);
+    setExtracting(false);
+    setCameraError(null);
+    setName("");
+    setPurveyor("");
+    setInvoiceDate("");
+    setSku("");
+    setCategory("");
+    setDepartment("BOH");
+    setCogsCategoryId("");
+    setSuggestedCogsCategoryName(null);
+    setUnit("PIECES");
+    setCostPerUnit("");
+    setCurrentStock("0");
+    setMinimumStock("0");
+    setFieldErrors({});
+    setSaving(false);
+    setShowOrderPrompt(false);
+    setSavedProductData(null);
+    setCreatingOrder(false);
+    setSearching(false);
+    setSmartConfirm(null);
+    startCamera(); // ready for next scan
+  }
+
+  /** Full reset including batch — called when modal closes. */
   function resetAll() {
     setCapturedImage(null);
     setExtractError(null);
@@ -242,6 +309,10 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
     setCreatingOrder(false);
     setSearching(false);
     setSmartConfirm(null);
+    setBatch([]);
+    setShowBatch(false);
+    setSubmittingBatch(false);
+    setEditingBatchId(null);
   }
 
   // ── Capture ─────────────────────────────────────────────────────────────────
@@ -533,6 +604,105 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
     }
   }
 
+  // ── Batch handlers ─────────────────────────────────────────────────────────
+
+  function addToBatch() {
+    if (!smartConfirm) return;
+
+    const {
+      selectedProduct, matchType,
+      extractedName, extractedPurveyor, extractedInvoiceDate, extractedSku,
+      extractedUnit, extractedQty, extractedCostPerUnit,
+      extractedDepartment, extractedCogsCategoryId,
+    } = smartConfirm;
+
+    const qty  = parseFloat(extractedQty)        || 0;
+    const cost = parseFloat(extractedCostPerUnit) || 0;
+    if (qty  <= 0) { toast.error("Quantity must be greater than 0");  return; }
+    if (cost <= 0) { toast.error("Cost per unit must be greater than 0"); return; }
+
+    const isNew = matchType === "none" || selectedProduct === null;
+    const item: BatchItem = {
+      _batchId:    `b-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      productName: isNew ? extractedName : selectedProduct!.name,
+      purveyor:    extractedPurveyor,
+      invoiceDate: extractedInvoiceDate,
+      qty,
+      unitCost:    cost,
+      unit:        extractedUnit,
+      department:  extractedDepartment,
+      cogsCategoryId: extractedCogsCategoryId,
+      productId:   isNew ? null : selectedProduct!.id,
+      ...(isNew ? {
+        newProductData: {
+          name:          extractedName,
+          sku:           extractedSku  || undefined,
+          purveyor:      extractedPurveyor  || undefined,
+          invoiceDate:   extractedInvoiceDate || undefined,
+          department:    extractedDepartment,
+          unit:          extractedUnit,
+          costPerUnit:   cost,
+          currentStock:  0,
+          minimumStock:  0,
+          cogsCategoryId: extractedCogsCategoryId || undefined,
+        },
+      } : {}),
+    };
+
+    setBatch(prev => {
+      const next = [...prev, item];
+      toast.success(`Added to batch (${next.length} total)`);
+      return next;
+    });
+    resetScanState(); // keep modal open, restart camera
+  }
+
+  async function submitBatch() {
+    if (batch.length === 0) return;
+    setSubmittingBatch(true);
+    try {
+      for (const item of batch) {
+        let productId = item.productId;
+
+        // Create new product if needed
+        if (productId === null && item.newProductData) {
+          const newProd = await productsApi.create(item.newProductData);
+          productId = newProd.id;
+          onSaved(newProd);
+        }
+
+        await ordersApi.create({
+          purveyor:    item.purveyor    || undefined,
+          invoiceDate: item.invoiceDate || undefined,
+          department:  item.department  || undefined,
+          items: [{
+            productId:      productId!,
+            productName:    item.productName,
+            unit:           item.unit,
+            quantity:       item.qty,
+            unitCost:       item.unitCost,
+            cogsCategoryId: item.cogsCategoryId || undefined,
+          }],
+        });
+        // No ordersApi.receive() — stays PENDING for manual review in Invoices
+      }
+
+      const totalQty  = batch.reduce((s, i) => s + i.qty, 0);
+      const totalCost = batch.reduce((s, i) => s + i.qty * i.unitCost, 0);
+      toast.success(
+        `Batch submitted: ${batch.length} order${batch.length !== 1 ? "s" : ""}, ` +
+        `${totalQty} items, $${totalCost.toFixed(2)} total. Review in Invoices.`
+      );
+      stopCamera();
+      resetAll();
+      onClose();
+    } catch (err) {
+      toast.error(getApiError(err));
+    } finally {
+      setSubmittingBatch(false);
+    }
+  }
+
   // ── Styles ──────────────────────────────────────────────────────────────────
 
   const inputBase =
@@ -689,14 +859,30 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
               <p className="text-[11px] text-[#555]">Capture an invoice to auto-populate fields</p>
             </div>
           </div>
-          <button
-            onClick={handleClose}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Batch chip — visible when items are queued */}
+            {batch.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowBatch(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#3dbf8a]/10 border border-[#3dbf8a]/30 text-[#3dbf8a] text-[12px] font-medium hover:bg-[#3dbf8a]/20 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                {batch.length} pending
+              </button>
+            )}
+            <button
+              onClick={handleClose}
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Body — stacked on mobile, two columns on md+ */}
@@ -1188,7 +1374,7 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
                 </button>
                 <button
                   type="button"
-                  onClick={handleSmartSave}
+                  onClick={addToBatch}
                   disabled={
                     saving ||
                     (smartConfirm.matchType === "multiple" && !smartConfirm.selectedProduct)
@@ -1196,9 +1382,173 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
                   className="flex-1 py-2.5 rounded-xl bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-50 text-white text-[13px] font-semibold transition-colors flex items-center justify-center gap-2"
                 >
                   {saving && <Spinner size="sm" />}
-                  Confirm & Save
+                  Add to Batch{batch.length > 0 ? ` (${batch.length + 1})` : ""}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Batch review overlay ─────────────────────────────────────────────── */}
+        {showBatch && (
+          <div className="absolute inset-0 z-20 bg-[#0a0a0a] flex flex-col rounded-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a1a] flex-shrink-0">
+              <div>
+                <h3 className="text-[15px] font-semibold text-white">Pending Batch</h3>
+                <p className="text-[11px] text-[#555]">
+                  {batch.length} item{batch.length !== 1 ? "s" : ""} ·{" "}
+                  ${batch.reduce((s, i) => s + i.qty * i.unitCost, 0).toFixed(2)} total
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setShowBatch(false); setEditingBatchId(null); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2a2a2a] text-[12px] text-[#666] hover:text-white hover:border-[#3a3a3a] transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Scan More
+              </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {batch.length === 0 ? (
+                <p className="text-[13px] text-[#444] text-center py-8">No items yet. Go back and scan an invoice.</p>
+              ) : batch.map((item) => (
+                <div
+                  key={item._batchId}
+                  className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] overflow-hidden"
+                >
+                  {editingBatchId === item._batchId ? (
+                    /* ── Inline edit mode ── */
+                    <div className="px-4 py-3 space-y-3">
+                      <p className="text-[13px] font-medium text-white">{item.productName}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] text-[#555] mb-1">Qty</label>
+                          <input
+                            type="text" inputMode="decimal"
+                            value={editQty}
+                            onChange={(e) => setEditQty(e.target.value)}
+                            className="w-full px-2 py-1.5 rounded-lg border border-[#2a2a2a] bg-[#111] text-white text-[13px] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-[#555] mb-1">Cost / unit</label>
+                          <input
+                            type="text" inputMode="decimal"
+                            value={editCost}
+                            onChange={(e) => setEditCost(e.target.value)}
+                            className="w-full px-2 py-1.5 rounded-lg border border-[#2a2a2a] bg-[#111] text-white text-[13px] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                          />
+                        </div>
+                      </div>
+                      {(() => {
+                        const q = parseFloat(editQty) || 0;
+                        const c = parseFloat(editCost) || 0;
+                        return q > 0 && c > 0
+                          ? <p className="text-[11px] text-[#3dbf8a]">Subtotal: ${(q * c).toFixed(2)}</p>
+                          : null;
+                      })()}
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingBatchId(null)}
+                          className="flex-1 py-1.5 rounded-lg border border-[#2a2a2a] text-[12px] text-[#666] hover:text-white transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const q = parseFloat(editQty) || 0;
+                            const c = parseFloat(editCost) || 0;
+                            if (q <= 0 || c <= 0) { toast.error("Qty and cost must be > 0"); return; }
+                            setBatch(prev => prev.map(x =>
+                              x._batchId === item._batchId ? { ...x, qty: q, unitCost: c } : x
+                            ));
+                            setEditingBatchId(null);
+                          }}
+                          className="flex-1 py-1.5 rounded-lg bg-[#3dbf8a] text-white text-[12px] font-semibold transition-colors"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── Display mode ── */
+                    <div className="flex items-center gap-3 px-4 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-medium text-white truncate">{item.productName}</p>
+                        <p className="text-[11px] text-[#555]">
+                          {item.purveyor || "—"} · {item.qty} × ${item.unitCost.toFixed(2)}
+                        </p>
+                      </div>
+                      <span className="text-[13px] font-semibold text-[#3dbf8a] flex-shrink-0">
+                        ${(item.qty * item.unitCost).toFixed(2)}
+                      </span>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingBatchId(item._batchId);
+                            setEditQty(String(item.qty));
+                            setEditCost(String(item.unitCost));
+                          }}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors"
+                          aria-label="Edit"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBatch(prev => prev.filter(x => x._batchId !== item._batchId));
+                            toast.success("Removed from batch");
+                          }}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-[#555] hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                          aria-label="Remove"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-[#1a1a1a] px-5 py-4 space-y-3 flex-shrink-0">
+              <div className="flex items-center justify-between text-[12px]">
+                <span className="text-[#555]">
+                  {batch.length} order{batch.length !== 1 ? "s" : ""} ·{" "}
+                  {batch.reduce((s, i) => s + i.qty, 0)} items
+                </span>
+                <span className="text-white font-semibold">
+                  ${batch.reduce((s, i) => s + i.qty * i.unitCost, 0).toFixed(2)}
+                </span>
+              </div>
+              <p className="text-[10px] text-[#444] leading-relaxed">
+                Orders will be created as <span className="text-[#666]">Pending</span>. Go to Invoices to mark each received and update stock.
+              </p>
+              <button
+                type="button"
+                onClick={submitBatch}
+                disabled={submittingBatch || batch.length === 0}
+                className="w-full py-2.5 rounded-xl bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-50 text-white text-[13px] font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                {submittingBatch && <Spinner size="sm" />}
+                {submittingBatch ? "Submitting…" : `Submit Batch (${batch.length})`}
+              </button>
             </div>
           </div>
         )}
