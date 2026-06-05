@@ -254,6 +254,8 @@ export function OrderForm({ onCreated, onCancel }: OrderFormProps) {
             const newProd = await productsApi.create({
               name:          l.productName.trim(),
               sku:           l.sku.trim() || undefined,
+              purveyor:      purveyor.trim() || undefined,
+              department:    (department || undefined) as never,
               unit:          (l.unit || undefined) as never,
               costPerUnit:   Math.max(parseFloat(l.unitPrice) || 0.01, 0.01),
               currentStock:  0,        // receiveOrder will set stock via StockLog
