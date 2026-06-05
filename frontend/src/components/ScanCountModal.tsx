@@ -34,6 +34,17 @@ interface ReviewItem extends ScanItem {
   skipped:   boolean;
 }
 
+// ── Batch entry (stored locally until submit) ─────────────────────────────────
+
+interface BatchEntry {
+  date:        string;
+  department:  CountDepartment;
+  items:       { productId: string; actualQuantity: number }[];
+  itemCount:   number;
+  /** First few matched names — shown in the review list */
+  previewNames: string[];
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps) {
@@ -48,6 +59,11 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
   const [items,      setItems]      = useState<ReviewItem[]>([]);
   const [date,       setDate]       = useState(todayLocal());
   const [department, setDepartment] = useState<CountDepartment>("ALL");
+
+  // ── Batch state ─────────────────────────────────────────────────────────────
+  const [pendingBatch,   setPendingBatch]   = useState<BatchEntry[]>([]);
+  const [showBatch,      setShowBatch]      = useState(false);
+  const [batchSubmitting, setBatchSubmitting] = useState(false);
 
   const videoRef  = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -154,6 +170,72 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
     }
   }
 
+  // ── Shared close — warns if batch has pending items ───────────────────────
+  function handleClose() {
+    if (pendingBatch.length > 0) {
+      if (!window.confirm(
+        `You have ${pendingBatch.length} count${pendingBatch.length !== 1 ? "s" : ""} in your batch. Discard them?`
+      )) return;
+    }
+    stopCamera();
+    setPendingBatch([]);
+    setShowBatch(false);
+    setScreen("camera");
+    setItems([]);
+    onClose();
+  }
+
+  // ── Add current review to batch, reset for next scan ──────────────────────
+  function addToBatch() {
+    const toCreate = items.filter((i) => !i.skipped && i.matchedProductId != null);
+    if (toCreate.length === 0) { toast.error("No matched items to add."); return; }
+
+    const entry: BatchEntry = {
+      date,
+      department,
+      items:        toCreate.map((i) => ({ productId: i.matchedProductId!, actualQuantity: i.reviewQty })),
+      itemCount:    toCreate.length,
+      previewNames: toCreate.slice(0, 3).map((i) => i.matchedProductName ?? i.extractedName),
+    };
+
+    setPendingBatch((prev) => {
+      const next = [...prev, entry];
+      toast.success(`Added to batch (${next.length} total)`);
+      return next;
+    });
+
+    // Reset to camera for next scan
+    setItems([]);
+    setDate(todayLocal());
+    setDepartment("ALL");
+    setScreen("camera"); // useEffect restarts camera when screen → "camera"
+  }
+
+  // ── Submit all batched counts at once ─────────────────────────────────────
+  async function submitBatch() {
+    if (pendingBatch.length === 0) return;
+    setBatchSubmitting(true);
+    try {
+      let created = 0;
+      for (const entry of pendingBatch) {
+        const session = await countsApi.create({ date: entry.date, department: entry.department });
+        await countsApi.updateEntries(session.id, entry.items);
+        onCreated(session);
+        created++;
+      }
+      const totalItems = pendingBatch.reduce((s, e) => s + e.itemCount, 0);
+      toast.success(`Batch submitted: ${created} count${created !== 1 ? "s" : ""}, ${totalItems} items total`);
+      setPendingBatch([]);
+      setShowBatch(false);
+      stopCamera();
+      onClose();
+    } catch (err) {
+      toast.error(getApiError(err));
+    } finally {
+      setBatchSubmitting(false);
+    }
+  }
+
   if (!open) return null;
 
   const DEPARTMENTS: { value: CountDepartment; label: string }[] = [
@@ -173,7 +255,7 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
       <div className="fixed inset-0 z-50 bg-black flex flex-col">
         {/* Close button */}
         <button
-          onClick={() => { stopCamera(); onClose(); }}
+          onClick={handleClose}
           className="absolute top-4 right-4 z-10 w-10 h-10 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -181,10 +263,25 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
           </svg>
         </button>
 
-        {/* Title */}
-        <div className="absolute top-4 left-4 z-10">
-          <p className="text-white font-semibold text-[15px]">{s.title}</p>
-          <p className="text-[#aaa] text-[12px] mt-0.5">{s.subtitle}</p>
+        {/* Title + batch chip */}
+        <div className="absolute top-4 left-4 z-10 flex items-start gap-3">
+          <div>
+            <p className="text-white font-semibold text-[15px]">{s.title}</p>
+            <p className="text-[#aaa] text-[12px] mt-0.5">{s.subtitle}</p>
+          </div>
+          {pendingBatch.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowBatch(true)}
+              className="flex items-center gap-1 mt-0.5 px-2.5 py-1 rounded-lg bg-[#3dbf8a]/20 border border-[#3dbf8a]/40 text-[#3dbf8a] text-[11px] font-medium"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              {pendingBatch.length} pending
+            </button>
+          )}
         </div>
 
         {/* Video or error */}
@@ -246,15 +343,111 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
 
   return (
     <div className="fixed inset-0 z-50 bg-[#060606] flex flex-col overflow-hidden">
+      {/* Batch review overlay */}
+      {showBatch && (
+        <div className="absolute inset-0 z-10 bg-[#060606] flex flex-col overflow-hidden">
+          {/* Batch header */}
+          <div className="flex-shrink-0 px-5 pt-5 pb-3 border-b border-[#1a1a1a]">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-[18px] font-semibold text-white">Pending Batch</h2>
+                <p className="text-[12px] text-[#555] mt-0.5">
+                  {pendingBatch.length} count{pendingBatch.length !== 1 ? "s" : ""} ·{" "}
+                  {pendingBatch.reduce((s, e) => s + e.itemCount, 0)} items total
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBatch(false)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#2a2a2a] text-[12px] text-[#666] hover:text-white transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Continue Scanning
+              </button>
+            </div>
+          </div>
+
+          {/* Batch list */}
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+            {pendingBatch.map((entry, idx) => (
+              <div key={idx} className="rounded-[10px] border border-[#1a1a1a] bg-[#0a0a0a] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-white">
+                      Sheet {idx + 1} — {entry.department === "ALL" ? "All Depts" : entry.department}
+                    </p>
+                    <p className="text-[11px] text-[#555] mt-0.5">
+                      {entry.itemCount} item{entry.itemCount !== 1 ? "s" : ""} · {entry.date}
+                    </p>
+                    {entry.previewNames.length > 0 && (
+                      <p className="text-[10px] text-[#444] mt-1 truncate">
+                        {entry.previewNames.join(", ")}{entry.itemCount > 3 ? ` +${entry.itemCount - 3} more` : ""}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingBatch((prev) => prev.filter((_, i) => i !== idx));
+                      toast.success("Removed from batch");
+                    }}
+                    className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-[#555] hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                    aria-label="Remove"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Batch footer */}
+          <div className="flex-shrink-0 border-t border-[#1a1a1a] px-4 py-4 space-y-3 bg-[#060606]">
+            <p className="text-[10px] text-[#444] leading-relaxed">
+              Each sheet becomes a separate count session. Stock history will update for all matched products.
+            </p>
+            <button
+              type="button"
+              onClick={submitBatch}
+              disabled={batchSubmitting || pendingBatch.length === 0}
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-[13px] font-semibold rounded-xl transition-colors"
+            >
+              {batchSubmitting && <Spinner size="sm" />}
+              {batchSubmitting ? "Submitting…" : `Submit All ${pendingBatch.length} Count${pendingBatch.length !== 1 ? "s" : ""}`}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex-shrink-0 px-5 pt-5 pb-3 border-b border-[#1a1a1a]">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="text-[18px] font-semibold text-white">{s.reviewTitle}</h2>
-            <p className="text-[12px] text-[#555] mt-0.5">{s.reviewSubtitle}</p>
+          <div className="flex items-start gap-3 min-w-0">
+            <div>
+              <h2 className="text-[18px] font-semibold text-white">{s.reviewTitle}</h2>
+              <p className="text-[12px] text-[#555] mt-0.5">{s.reviewSubtitle}</p>
+            </div>
+            {/* Batch chip */}
+            {pendingBatch.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowBatch(true)}
+                className="shrink-0 flex items-center gap-1 mt-1 px-2.5 py-1 rounded-lg bg-[#3dbf8a]/10 border border-[#3dbf8a]/30 text-[#3dbf8a] text-[11px] font-medium"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                {pendingBatch.length} pending
+              </button>
+            )}
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-[#1a1a1a] text-[#555] hover:text-white transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -367,14 +560,14 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
             {s.retake}
           </button>
 
-          {/* Create count */}
+          {/* Add to batch */}
           <button
-            onClick={handleCreate}
+            onClick={addToBatch}
             disabled={creating || matchedCount === 0}
             className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-[13px] font-semibold rounded-xl transition-colors"
           >
             {creating && <Spinner size="sm" />}
-            {creating ? s.creating : s.createCount}
+            Add to Batch{pendingBatch.length > 0 ? ` (${pendingBatch.length + 1})` : ""}
           </button>
         </div>
       </div>
