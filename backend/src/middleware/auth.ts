@@ -1,6 +1,7 @@
 import { Response, NextFunction } from "express";
 import { AuthRequest } from "../types";
 import { verifyToken } from "../lib/jwt";
+import { tenantStore, TenantContext } from "../lib/tenantContext";
 
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
@@ -9,7 +10,22 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   }
   try {
     req.user = verifyToken(header.slice(7));
-    next();
+
+    // Populate AsyncLocalStorage so the Prisma tenant extension can read the
+    // current identity without being passed req.user explicitly.
+    // Context is derived ONLY from the verified JWT — never from request body
+    // or headers supplied by the client.
+    const ctx: TenantContext = {
+      userId:              req.user.userId,
+      role:                req.user.role,
+      restaurantId:        req.user.restaurantId,
+      ownerAccountId:      req.user.ownerAccountId,
+      ownedRestaurantIds:  req.user.ownedRestaurantIds,
+    };
+
+    // Run next() inside the ALS context so every async step downstream
+    // (controller → prismaT queries) inherits the same store.
+    tenantStore.run(ctx, () => next());
   } catch {
     res.status(401).json({ error: "Invalid or expired token" });
   }
