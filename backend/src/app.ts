@@ -30,7 +30,10 @@ import cogsRouter from "./routes/cogs";
 
 const isProd = process.env.NODE_ENV === "production";
 
-const DEFAULT_ORIGINS = "http://localhost:3000,https://aapp-final-1.vercel.app,https://aapp-final-1-git-main-mejiaisrl-kyru-s-projects.vercel.app,https://www.kyruadvisory.com,https://kyruadvisory.com";
+// Production origins only.  Stale preview URLs (aapp-final-1.vercel.app) have
+// been removed.  For staging / Vercel deployments override via ALLOWED_ORIGINS
+// env var in Railway — e.g. "https://senda.vercel.app,https://kyruadvisory.com".
+const DEFAULT_ORIGINS = "http://localhost:3000,https://www.kyruadvisory.com,https://kyruadvisory.com";
 export const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? DEFAULT_ORIGINS).split(",");
 
 const app = express();
@@ -53,7 +56,11 @@ if (isProd) {
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 // "combined" includes :response-time ms — used by Railway's log-based alerting.
 app.use(morgan(isProd ? "combined" : "dev"));
-app.use(express.json({ limit: "12mb" }));
+// 100 KB is sufficient for all JSON API payloads.
+// Image uploads use multer (separate 10 MB limit) and never hit this middleware.
+// The previous 12 MB limit was a DoS vector — a malicious client could buffer
+// 12 MB of JSON and exhaust server memory.
+app.use(express.json({ limit: "100kb" }));
 
 // Health check — registered before the rate limiter so Railway uptime pings are never blocked.
 app.get("/health", async (_req, res) => {

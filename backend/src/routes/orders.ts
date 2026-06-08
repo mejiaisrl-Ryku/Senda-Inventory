@@ -18,6 +18,8 @@ router.post("/", validate(createOrderSchema), createOrder as never);
 router.get("/", listOrders as never);
 // Cancelling/updating order status is an admin action
 router.put("/:id", requireAdmin as never, validate(updateOrderSchema), updateOrder as never);
-router.post("/:id/receive", receiveOrder as never);
+// Receiving an order triggers stock-level updates — admin-only to prevent
+// accidental or malicious inventory manipulation by STAFF.
+router.post("/:id/receive", requireAdmin as never, receiveOrder as never);
 
 export default router;
