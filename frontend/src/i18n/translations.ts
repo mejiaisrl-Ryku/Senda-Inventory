@@ -788,6 +788,14 @@ const en = {
     adminRole:     "Admin",
     userRole:      "User",
   },
+
+  // ── API errors ────────────────────────────────────────────────────────────────
+  errors: {
+    rateLimited:        "Too many attempts, please try again in a moment.",
+    rateLimitedWithTime: "Too many attempts. Try again in {seconds} seconds.",
+    networkError:       "Network error. Please check your connection.",
+    serverError:        "Something went wrong. Please try again.",
+  },
 };
 
 const es: typeof en = {
@@ -1540,6 +1548,14 @@ const es: typeof en = {
     step2Label:    "Agrega tu primera factura",
     step3Label:    "Crea tu primera receta",
     step4Label:    "Agrega a un miembro del equipo",
+  },
+
+  // ── API errors ────────────────────────────────────────────────────────────────
+  errors: {
+    rateLimited:         "Demasiados intentos, intenta de nuevo en un momento.",
+    rateLimitedWithTime: "Demasiados intentos. Intenta de nuevo en {seconds} segundos.",
+    networkError:        "Error de red. Verifica tu conexión.",
+    serverError:         "Algo salió mal. Por favor intenta de nuevo.",
   },
 };
 

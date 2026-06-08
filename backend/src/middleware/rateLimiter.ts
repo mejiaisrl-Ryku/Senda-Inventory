@@ -1,21 +1,168 @@
-import rateLimit from "express-rate-limit";
+/**
+ * Rate-limiter middleware — tiered, Redis-backed, Railway-aware.
+ *
+ * Architecture
+ * ─────────────
+ * • When REDIS_URL is set (production / staging) all counters are stored in
+ *   Redis so limits are shared across every Railway instance.
+ * • When REDIS_URL is absent (local dev, unit tests) the default in-memory
+ *   store is used automatically — no Redis dependency at dev time.
+ *
+ * Tiers
+ * ─────────────
+ * apiLimiter         — generous default applied to every /api/* route.
+ * authLimiter        — strict, applied only to login / register / refresh.
+ * forgotPwLimiter    — very strict, applied to /auth/forgot-password to prevent
+ *                      email-flood and account-enumeration amplification attacks.
+ * aiLimiter          — cost-control limit on the paid AI invoice-extraction
+ *                      endpoint; separate hourly window because AI calls are
+ *                      expensive, not just abusive.
+ *
+ * All limits are configurable via environment variables so they can be tuned
+ * in Railway without a code deploy.
+ *
+ * 429 responses
+ * ─────────────
+ * Every limiter sets `standardHeaders: true` (RateLimit-* draft-7 headers) which
+ * includes a `Retry-After` header automatically.  Legacy X-RateLimit-* headers
+ * are suppressed.
+ */
 
-// General API limiter — applied to all /api/* routes.
-// 300 requests per 15 minutes is generous enough for normal SPA usage
-// (page loads fire ~5–10 requests each) while still blocking abuse.
+import rateLimit, { Options as RateLimitOptions } from "express-rate-limit";
+import { RedisStore }                              from "rate-limit-redis";
+import Redis                                       from "ioredis";
+
+// ── Redis client (lazy singleton) ─────────────────────────────────────────────
+// Only instantiated when REDIS_URL is present so local dev / unit tests never
+// need a Redis connection.
+
+let _redis: Redis | null = null;
+
+function getRedis(): Redis | null {
+  if (!process.env.REDIS_URL) return null;
+  if (!_redis) {
+    _redis = new Redis(process.env.REDIS_URL, {
+      // Never block the Node.js event loop if Redis is temporarily unreachable.
+      // Commands will reject immediately rather than queuing indefinitely.
+      enableOfflineQueue:   false,
+      maxRetriesPerRequest: 1,
+      connectTimeout:       3_000,
+      lazyConnect:          false,
+    });
+
+    _redis.on("error", (err) => {
+      // Log but don't crash — express-rate-limit gracefully falls back to a
+      // 200 pass-through when the store throws, which is safer than letting
+      // Redis downtime knock out the API entirely.
+      console.error("[rate-limit-redis] connection error:", err.message);
+    });
+  }
+  return _redis;
+}
+
+// ── Store factory ─────────────────────────────────────────────────────────────
+// Returns a `{ store }` object to spread into rateLimit() options.
+// When REDIS_URL is absent the key is omitted entirely so express-rate-limit
+// falls back to its built-in MemoryStore (TypeScript-clean, no `undefined`).
+
+function makeStoreOpts(prefix: string): Pick<RateLimitOptions, "store"> | Record<string, never> {
+  const client = getRedis();
+  if (!client) return {}; // no store key → MemoryStore
+
+  return {
+    store: new RedisStore({
+      // sendCommand is the only interface rate-limit-redis@5 needs from the client.
+      // ioredis exposes it as client.call — we wrap it so the types align.
+      sendCommand: (...args: string[]) => (client as any).call(...args),
+      prefix: `rl:${prefix}:`,
+    }),
+  };
+}
+
+// ── Env-configurable limits ───────────────────────────────────────────────────
+
+function int(envKey: string, fallback: number): number {
+  const v = parseInt(process.env[envKey] ?? "", 10);
+  return Number.isFinite(v) ? v : fallback;
+}
+
+// ── Limiters ──────────────────────────────────────────────────────────────────
+
+/**
+ * Default limit for all /api/* routes.
+ * 300 requests per 15 minutes — generous enough that a GM opening every
+ * dashboard panel in quick succession (~10 parallel requests per page load)
+ * is nowhere near the ceiling.
+ *
+ * Env overrides: API_RATE_LIMIT_MAX, API_RATE_LIMIT_WINDOW_MS
+ */
 export const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests, please try again later." },
+  windowMs: int("API_RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000),
+  max:      int("API_RATE_LIMIT_MAX", 300),
+  standardHeaders: "draft-7", // Sends RateLimit-* + Retry-After
+  legacyHeaders:   false,
+  ...makeStoreOpts("api"),
+  message:         {
+    error: "Too many requests, please try again later.",
+    errorEs: "Demasiadas solicitudes, intenta de nuevo más tarde.",
+  },
+  skipFailedRequests: false,
 });
 
-// Stricter limiter for auth endpoints to slow brute-force attempts.
+/**
+ * Strict auth limiter — login, register, refresh.
+ * 10 attempts per 15 minutes per IP is very generous for legitimate users
+ * (how often do you log in 10 times in 15 minutes?) but stops credential-
+ * stuffing and password-spray attacks cold.
+ *
+ * Env overrides: AUTH_RATE_LIMIT_MAX, AUTH_RATE_LIMIT_WINDOW_MS
+ */
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 50,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many auth attempts, please try again later." },
+  windowMs: int("AUTH_RATE_LIMIT_WINDOW_MS", 15 * 60 * 1000),
+  max:      int("AUTH_RATE_LIMIT_MAX", 10),
+  standardHeaders: "draft-7",
+  legacyHeaders:   false,
+  ...makeStoreOpts("auth"),
+  message:         {
+    error: "Too many attempts, please try again later.",
+    errorEs: "Demasiados intentos, intenta de nuevo en un momento.",
+  },
+  skipSuccessfulRequests: true, // Only count failed attempts toward the limit.
+});
+
+/**
+ * Forgot-password limiter — very strict to prevent email-flood attacks.
+ * 5 requests per hour per IP.
+ *
+ * Env overrides: FORGOT_PW_RATE_LIMIT_MAX, FORGOT_PW_RATE_LIMIT_WINDOW_MS
+ */
+export const forgotPwLimiter = rateLimit({
+  windowMs: int("FORGOT_PW_RATE_LIMIT_WINDOW_MS", 60 * 60 * 1000), // 1 hour
+  max:      int("FORGOT_PW_RATE_LIMIT_MAX", 5),
+  standardHeaders: "draft-7",
+  legacyHeaders:   false,
+  ...makeStoreOpts("forgotpw"),
+  message:         {
+    error: "Too many password reset requests, please try again later.",
+    errorEs: "Demasiadas solicitudes de recuperación, intenta de nuevo más tarde.",
+  },
+});
+
+/**
+ * AI invoice-extraction limiter — cost-control.
+ * Each call hits OpenAI Vision and costs money.  20 calls per hour per IP is
+ * plenty for a GM scanning invoices throughout a shift.
+ *
+ * Env overrides: AI_RATE_LIMIT_MAX, AI_RATE_LIMIT_WINDOW_MS
+ */
+export const aiLimiter = rateLimit({
+  windowMs: int("AI_RATE_LIMIT_WINDOW_MS", 60 * 60 * 1000), // 1 hour
+  max:      int("AI_RATE_LIMIT_MAX", 20),
+  standardHeaders: "draft-7",
+  legacyHeaders:   false,
+  ...makeStoreOpts("ai"),
+  message:         {
+    error: "AI scan limit reached.  Please try again in an hour.",
+    errorEs: "Límite de escaneo IA alcanzado.  Intenta de nuevo en una hora.",
+  },
 });
