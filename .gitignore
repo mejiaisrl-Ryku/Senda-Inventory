@@ -6,9 +6,13 @@ dist/
 build/
 
 # Environment files — never commit real secrets
+# .env.production is tracked intentionally (public vars only — no secrets)
+# .env.*.local files are personal overrides — never commit them
 .env
 .env.local
 .env.*.local
+backend/.env
+backend/.env.*
 
 # Prisma generated client
 backend/node_modules/.prisma/
