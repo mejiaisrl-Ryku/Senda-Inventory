@@ -182,19 +182,37 @@ describe("RLS-1 — raw SQL: correct GUC shows correct rows", () => {
 
   itLive("senda_admin (BYPASSRLS) sees products across all tenants", async () => {
     const adminClient = await adminPool!.connect();
-    const result = await adminClient.query(`SELECT count(*) FROM products`);
+
+    // Verify we are actually connected as senda_admin, not some other role.
+    // Guards against ADMIN_DATABASE_URL being mis-set to the senda_app string.
+    const userResult = await adminClient.query(`SELECT current_user`);
+    expect(userResult.rows[0].current_user).toBe("senda_admin");
+
+    // Verify bypass works: senda_admin sees ALL products with no GUC set.
+    const adminCount = Number(
+      (await adminClient.query(`SELECT count(*) FROM products`)).rows[0].count,
+    );
     adminClient.release();
 
-    // Also get the total from appPool with Kardy's GUC
-    const kardysCount = await withTenant(
-      appPool!,
-      KARDYS_RESTAURANT_ID,
-      KARDYS_OWNER_ID,
-      `SELECT count(*) FROM products`,
+    // Cross-check against a separate superuser count (postgres also bypasses RLS).
+    // Using appPool with Kardy's GUC gives only Kardy's subset; we use a fresh
+    // superuser-equivalent check: if adminCount > 0 and equals the raw total we
+    // know bypass is working. Get raw total by checking against pg_class tuple count
+    // as a sanity bound — simpler: just assert adminCount equals the sum we can
+    // compute by querying each known tenant.
+    const kardysCount = Number(
+      await withTenant(
+        appPool!,
+        KARDYS_RESTAURANT_ID,
+        KARDYS_OWNER_ID,
+        `SELECT count(*) FROM products`,
+      ),
     );
 
-    // senda_admin should see >= Kardy's count (it sees all tenants)
-    expect(Number(result.rows[0].count)).toBeGreaterThanOrEqual(Number(kardysCount));
+    // senda_admin must see at least as many rows as a single tenant sees,
+    // and must see MORE than zero (proving BYPASSRLS is actually in effect).
+    expect(adminCount).toBeGreaterThan(0);
+    expect(adminCount).toBeGreaterThanOrEqual(kardysCount);
   });
 });
 

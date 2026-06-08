@@ -1,3 +1,16 @@
+/**
+ * TENANT ISOLATION NOTE — this controller uses `prisma` (raw postgres-superuser
+ * connection), NOT `prismaT` (the tenant-scoped Prisma extension).
+ *
+ * Why: the postgres superuser bypasses Row-Level Security unconditionally,
+ * which is intentional here — super-admin endpoints need unrestricted
+ * cross-tenant access to restaurants, users, partner invites, and owner accounts.
+ *
+ * DO NOT migrate this file to `prismaT` without also routing through
+ * `prismaAdmin` (the dedicated BYPASSRLS client in lib/prisma.ts).
+ * Using `prismaT` here would cause every query on an RLS-protected table to
+ * silently return zero rows, because no GUC is set for a super-admin session.
+ */
 import { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
