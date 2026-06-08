@@ -25,6 +25,40 @@ import { PrismaClient, Prisma } from "@prisma/client";
 import { AsyncLocalStorage } from "async_hooks";
 import { tenantStore, isBypassRole } from "./tenantContext";
 
+// ── Connection-pool helpers ───────────────────────────────────────────────────
+//
+// Each Railway replica creates one PrismaClient per role (prisma, prismaApp,
+// prismaAdmin).  The pool size controls how many idle Postgres connections that
+// replica holds.  Formula for a safe default:
+//
+//   floor(max_connections / (3 roles × expected_replicas)) − 2  (safety margin)
+//
+// With Railway Postgres default max_connections=100, 2 replicas, 3 roles:
+//   floor(100 / (3 × 2)) − 2 = 14
+//
+// Override with DATABASE_POOL_SIZE env var in Railway to tune without a deploy.
+//
+// PgBouncer (transaction mode) must be in the DATABASE_URL for multi-replica
+// deployments.  See .env.example for the correct URL format.
+
+function poolSize(): number {
+  const v = parseInt(process.env.DATABASE_POOL_SIZE ?? "", 10);
+  return Number.isFinite(v) && v > 0 ? v : 5; // conservative default per role
+}
+
+/**
+ * Shared Prisma constructor options.
+ * Timeout: 10 s query + 15 s transaction — prevents runaway queries from tying
+ * up pool slots indefinitely.
+ */
+function prismaOptions(extra: ConstructorParameters<typeof PrismaClient>[0] = {}): ConstructorParameters<typeof PrismaClient>[0] {
+  return {
+    log: ["warn", "error"],
+    transactionOptions: { timeout: parseInt(process.env.DB_TRANSACTION_TIMEOUT_MS ?? "15000", 10) },
+    ...extra,
+  };
+}
+
 // ── Raw superuser client (hot-reload safe) ────────────────────────────────────
 
 declare global {
@@ -33,7 +67,7 @@ declare global {
 }
 
 export const prisma =
-  global.__prisma ?? new PrismaClient({ log: ["warn", "error"] });
+  global.__prisma ?? new PrismaClient(prismaOptions());
 
 if (process.env.NODE_ENV !== "production") {
   global.__prisma = prisma;
@@ -320,7 +354,7 @@ declare global {
  * DATABASE_URL must be the senda_app connection string in production.
  */
 const prismaApp: PrismaClient =
-  global.__prismaApp ?? new PrismaClient({ log: ["warn", "error"] });
+  global.__prismaApp ?? new PrismaClient(prismaOptions());
 
 if (process.env.NODE_ENV !== "production") {
   global.__prismaApp = prismaApp;
@@ -360,10 +394,7 @@ declare global {
 export const prismaAdmin: PrismaClient =
   global.__prismaAdmin ??
   (process.env.ADMIN_DATABASE_URL
-    ? new PrismaClient({
-        datasources: { db: { url: process.env.ADMIN_DATABASE_URL } },
-        log: ["warn", "error"],
-      })
+    ? new PrismaClient(prismaOptions({ datasources: { db: { url: process.env.ADMIN_DATABASE_URL } } }))
     : prisma);  // fallback: postgres superuser (also BYPASSRLS)
 
 if (process.env.NODE_ENV !== "production") {

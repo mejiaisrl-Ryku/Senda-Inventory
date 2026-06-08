@@ -110,6 +110,11 @@ export async function listSessions(
   try {
     const { status, department } = req.query;
 
+    const rawTake = parseInt(String(req.query.take ?? "200"), 10);
+    const take    = Math.min(Number.isFinite(rawTake) && rawTake > 0 ? rawTake : 200, 500);
+    const rawSkip = parseInt(String(req.query.skip ?? "0"), 10);
+    const skip    = Number.isFinite(rawSkip) && rawSkip >= 0 ? rawSkip : 0;
+
     const sessions = await sessionModel.findMany({
       where: {
         restaurantId: req.user.restaurantId,
@@ -121,6 +126,8 @@ export async function listSessions(
         _count:   { select: { entries: true } },
         entries:  { select: { varianceValue: true } },
       },
+      take,
+      skip,
     });
 
     // Flatten: pull entriesCount + totalVarianceValue up, drop raw arrays

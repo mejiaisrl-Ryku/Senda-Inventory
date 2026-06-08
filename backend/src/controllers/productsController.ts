@@ -117,6 +117,13 @@ export async function searchProducts(req: AuthRequest, res: Response, next: Next
 export async function listProducts(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const { category } = req.query;
+    // Safety cap: typical restaurant has <500 products. Cap at 2000 to allow
+    // full catalogue loads while blocking pathological queries.
+    const rawTake = parseInt(String(req.query.take ?? "2000"), 10);
+    const take    = Math.min(Number.isFinite(rawTake) && rawTake > 0 ? rawTake : 2000, 2000);
+    const rawSkip = parseInt(String(req.query.skip ?? "0"), 10);
+    const skip    = Number.isFinite(rawSkip) && rawSkip >= 0 ? rawSkip : 0;
+
     const products = await prisma.product.findMany({
       where: {
         restaurantId: req.user.restaurantId,
@@ -124,6 +131,8 @@ export async function listProducts(req: AuthRequest, res: Response, next: NextFu
       },
       include: { cogsCategory: { select: { id: true, name: true } } },
       orderBy: { name: "asc" },
+      take,
+      skip,
     });
     res.json(products);
   } catch (err) {

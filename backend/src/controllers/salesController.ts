@@ -96,6 +96,13 @@ export async function listSales(req: AuthRequest, res: Response, next: NextFunct
       });
     }
 
+    // Safety cap: default 500, max 1000. Date-range filters keep this bounded
+    // in normal use; the limit protects against accidentally wide queries.
+    const rawTake = parseInt(String(req.query.take ?? "500"), 10);
+    const take    = Math.min(Number.isFinite(rawTake) && rawTake > 0 ? rawTake : 500, 1000);
+    const rawSkip = parseInt(String(req.query.skip ?? "0"),  10);
+    const skip    = Number.isFinite(rawSkip) && rawSkip >= 0 ? rawSkip : 0;
+
     const entries = await prisma.salesEntry.findMany({
       where: {
         restaurantId: req.user.restaurantId ?? "",
@@ -110,6 +117,8 @@ export async function listSales(req: AuthRequest, res: Response, next: NextFunct
         ...(categoryStr ? { category: categoryStr as never } : {}),
       },
       orderBy: { date: "desc" },
+      take,
+      skip,
     });
 
     // Serialize Decimal fields
