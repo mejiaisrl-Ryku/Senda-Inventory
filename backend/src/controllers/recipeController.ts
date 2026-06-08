@@ -151,6 +151,11 @@ function serialize(r: any) {
 export async function listRecipes(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const { department } = req.query;
+    const rawTake = parseInt(String(req.query.take ?? "500"), 10);
+    const take    = Math.min(Number.isFinite(rawTake) && rawTake > 0 ? rawTake : 500, 1000);
+    const rawSkip = parseInt(String(req.query.skip ?? "0"), 10);
+    const skip    = Number.isFinite(rawSkip) && rawSkip >= 0 ? rawSkip : 0;
+
     const recipes = await recipeModel.findMany({
       where: {
         restaurantId: req.user.restaurantId,
@@ -158,6 +163,8 @@ export async function listRecipes(req: AuthRequest, res: Response, next: NextFun
       },
       orderBy: [{ department: "asc" }, { name: "asc" }],
       include: recipeInclude,
+      take,
+      skip,
     });
     res.json(recipes.map(serialize));
   } catch (err) { next(err); }

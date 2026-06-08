@@ -108,9 +108,22 @@ export async function createOrder(req: AuthRequest, res: Response, next: NextFun
   }
 }
 
+/**
+ * GET /api/orders[?status=&cursor=<id>&limit=<n>]
+ *
+ * Cursor-based pagination — ordered createdAt DESC.
+ *
+ * Without pagination params → Order[]  (backward-compatible array)
+ * With cursor or limit      → { data: Order[], nextCursor: string|null, hasMore: boolean }
+ *
+ * Default page size: 50, max: 100.
+ */
 export async function listOrders(req: AuthRequest, res: Response, next: NextFunction) {
   try {
-    const { status } = req.query;
+    const { status, cursor, limit: limitRaw } = req.query;
+    const isPaginated = cursor !== undefined || limitRaw !== undefined;
+    const limit       = Math.min(Math.max(parseInt(String(limitRaw ?? "50"), 10) || 50, 1), 100);
+
     const orders = await prisma.order.findMany({
       where: {
         restaurantId: req.user.restaurantId,
@@ -118,8 +131,20 @@ export async function listOrders(req: AuthRequest, res: Response, next: NextFunc
       },
       include: { orderItems: { include: { product: true, cogsCategory: true } } },
       orderBy: { createdAt: "desc" },
+      take:    limit + 1,
+      ...(cursor ? { cursor: { id: String(cursor) }, skip: 1 } : {}),
     });
-    res.json(orders);
+
+    if (!isPaginated) {
+      res.json(orders.slice(0, limit));
+      return;
+    }
+
+    const hasMore    = orders.length > limit;
+    const data       = hasMore ? orders.slice(0, limit) : orders;
+    const nextCursor = hasMore ? data[data.length - 1].id : null;
+
+    res.json({ data, nextCursor, hasMore });
   } catch (err) {
     next(err);
   }
