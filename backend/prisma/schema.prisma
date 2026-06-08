@@ -5,8 +5,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // DIRECT_URL bypasses PgBouncer for migrations and introspection.
+  // Set to the postgres superuser connection (postgres.railway.internal)
+  // in production.  Never used by the application at runtime.
+  directUrl = env("DIRECT_URL")
 }
 
 // ─────────────────────────────────────────────
