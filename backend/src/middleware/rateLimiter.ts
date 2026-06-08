@@ -30,35 +30,7 @@
 
 import rateLimit, { Options as RateLimitOptions } from "express-rate-limit";
 import { RedisStore }                              from "rate-limit-redis";
-import Redis                                       from "ioredis";
-
-// ── Redis client (lazy singleton) ─────────────────────────────────────────────
-// Only instantiated when REDIS_URL is present so local dev / unit tests never
-// need a Redis connection.
-
-let _redis: Redis | null = null;
-
-function getRedis(): Redis | null {
-  if (!process.env.REDIS_URL) return null;
-  if (!_redis) {
-    _redis = new Redis(process.env.REDIS_URL, {
-      // Never block the Node.js event loop if Redis is temporarily unreachable.
-      // Commands will reject immediately rather than queuing indefinitely.
-      enableOfflineQueue:   false,
-      maxRetriesPerRequest: 1,
-      connectTimeout:       3_000,
-      lazyConnect:          false,
-    });
-
-    _redis.on("error", (err) => {
-      // Log but don't crash — express-rate-limit gracefully falls back to a
-      // 200 pass-through when the store throws, which is safer than letting
-      // Redis downtime knock out the API entirely.
-      console.error("[rate-limit-redis] connection error:", err.message);
-    });
-  }
-  return _redis;
-}
+import { getRedis }                               from "../lib/redis";
 
 // ── Store factory ─────────────────────────────────────────────────────────────
 // Returns a `{ store }` object to spread into rateLimit() options.

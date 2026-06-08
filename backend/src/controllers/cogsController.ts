@@ -4,6 +4,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 import logger from "../utils/logger";
+import { withCache, TTL_STATIC } from "../lib/cache";
+import { keyCogsCategories } from "../lib/cacheKeys";
+import { invalidateCogsCategoryCache } from "../lib/cacheInvalidation";
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -50,11 +53,15 @@ export async function listCogsCategories(
     const ownerAccountId = requireOwner(req, res);
     if (!ownerAccountId) return;
 
-    const categories = await prisma.cogsCategory.findMany({
-      where:   { ownerAccountId },
-      select:  { id: true, name: true, ownerAccountId: true, createdAt: true, updatedAt: true },
-      orderBy: { name: "asc" },
-    });
+    const categories = await withCache(
+      keyCogsCategories(ownerAccountId),
+      TTL_STATIC,
+      () => prisma.cogsCategory.findMany({
+        where:   { ownerAccountId },
+        select:  { id: true, name: true, ownerAccountId: true, createdAt: true, updatedAt: true },
+        orderBy: { name: "asc" },
+      }),
+    );
 
     res.json(categories); // 200 with empty array if none exist
   } catch (e) {
@@ -96,6 +103,8 @@ export async function createCogsCategory(
       data:   { name, ownerAccountId },
       select: { id: true, name: true, ownerAccountId: true, createdAt: true, updatedAt: true },
     });
+
+    void invalidateCogsCategoryCache(ownerAccountId);
 
     res.status(201).json(category);
   } catch (e) {
@@ -162,6 +171,8 @@ export async function updateCogsCategory(
       select: { id: true, name: true, ownerAccountId: true, updatedAt: true },
     });
 
+    void invalidateCogsCategoryCache(ownerAccountId);
+
     res.json(updated);
   } catch (e) {
     if (
@@ -224,6 +235,8 @@ export async function deleteCogsCategory(
     }
 
     await prisma.cogsCategory.delete({ where: { id } });
+
+    void invalidateCogsCategoryCache(ownerAccountId);
 
     res.status(204).send();
   } catch (e) {

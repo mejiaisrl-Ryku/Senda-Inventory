@@ -2,6 +2,11 @@ import { Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 import logger from "../utils/logger";
+import { withCache, TTL_FINANCIAL } from "../lib/cache";
+import {
+  keyGmDashboard,
+  keyOwnerDashboard,
+} from "../lib/cacheKeys";
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -279,24 +284,27 @@ export async function getGmDashboard(req: AuthRequest, res: Response, next: Next
     });
     if (!restaurant) return res.status(404).json({ error: "Restaurant not found" });
 
-    const metrics = await computeLocationMetrics(restaurantId, restaurant.name, customRange);
+    const cacheKey = keyGmDashboard(restaurantId, qStart, qEnd);
+    const payload  = await withCache(cacheKey, TTL_FINANCIAL, async () => {
+      const metrics = await computeLocationMetrics(restaurantId, restaurant.name, customRange);
+      return {
+        restaurant: { id: restaurant.id, name: restaurant.name, address: restaurant.address },
+        period:     "last_30_days",
+        sales:      metrics.sales,
+        labor:      metrics.labor,
+        primeCost:  metrics.primeCost,
+        alerts:     metrics.alerts,
+      };
+    });
 
     logger.debug("getGmDashboard: success", {
       userId:       req.user.userId,
       restaurantId,
-      salesTotal:   metrics.sales.total,
-      alertCount:   metrics.alerts.length,
+      salesTotal:   (payload as { sales: { total: number } }).sales.total,
       durationMs:   Date.now() - start,
     });
 
-    res.json({
-      restaurant: { id: restaurant.id, name: restaurant.name, address: restaurant.address },
-      period:     "last_30_days",
-      sales:      metrics.sales,
-      labor:      metrics.labor,
-      primeCost:  metrics.primeCost,
-      alerts:     metrics.alerts,
-    });
+    res.json(payload);
   } catch (err) {
     logger.error("getGmDashboard: error", { userId: req.user.userId, message: (err as Error).message });
     next(err);
@@ -365,60 +373,62 @@ export async function getOwnerDashboard(req: AuthRequest, res: Response, next: N
       orderBy: { name: "asc" },
     });
 
-    // Compute metrics for every location in parallel
-    const locationMetrics = await Promise.all(
-      restaurants.map(async (r) => {
-        const m = await computeLocationMetrics(r.id, r.name, customRange);
-        return { restaurant: { id: r.id, name: r.name, address: r.address }, ...m };
-      })
-    );
+    const cacheKey = keyOwnerDashboard(ownerAccountId, qStart, qEnd);
+    const payload  = await withCache(cacheKey, TTL_FINANCIAL, async () => {
+      // Compute metrics for every location in parallel
+      const locationMetrics = await Promise.all(
+        restaurants.map(async (r) => {
+          const m = await computeLocationMetrics(r.id, r.name, customRange);
+          return { restaurant: { id: r.id, name: r.name, address: r.address }, ...m };
+        })
+      );
 
-    // ── Summary ──────────────────────────────────────────────────────────────
-    const totalRevenue = locationMetrics.reduce((s, l) => s + l.sales.total, 0);
+      const totalRevenue = locationMetrics.reduce((s, l) => s + l.sales.total, 0);
 
-    const withData = locationMetrics.filter((l) => l.sales.total > 0);
-    const avgLaborPct      = withData.length > 0
-      ? withData.reduce((s, l) => s + l.labor.laborPct, 0)    / withData.length : 0;
-    const avgPrimeCostPct  = withData.length > 0
-      ? withData.reduce((s, l) => s + l.primeCost.pct, 0)     / withData.length : 0;
+      const dataLocations   = locationMetrics.filter((l) => l.sales.total > 0);
+      const avgLaborPct     = dataLocations.length > 0
+        ? dataLocations.reduce((s, l) => s + l.labor.laborPct, 0) / dataLocations.length : 0;
+      const avgPrimeCostPct = dataLocations.length > 0
+        ? dataLocations.reduce((s, l) => s + l.primeCost.pct, 0)  / dataLocations.length : 0;
 
-    const bestPerformer = withData.length > 0
-      ? withData.reduce((best, l) => l.primeCost.pct < best.primeCost.pct ? l : best).restaurant.name
-      : "";
+      const bestPerformer = dataLocations.length > 0
+        ? dataLocations.reduce((best, l) => l.primeCost.pct < best.primeCost.pct ? l : best).restaurant.name
+        : "";
 
-    const needsAttention = locationMetrics
-      .filter((l) => l.alerts.some((a) => a.severity === "critical"))
-      .map((l) => l.restaurant.name);
+      const needsAttention = locationMetrics
+        .filter((l) => l.alerts.some((a) => a.severity === "critical"))
+        .map((l) => l.restaurant.name);
 
-    const r2 = (v: number) => Math.round(v * 100) / 100;
+      const r2 = (v: number) => Math.round(v * 100) / 100;
+
+      return {
+        ownerAccount: { id: ownerAccount.id, name: ownerAccount.name },
+        period:       "last_30_days",
+        locations:    locationMetrics.map(({ restaurant, sales, labor, primeCost, alerts }) => ({
+          restaurant,
+          sales:     { total: sales.total, byCategory: sales.byCategory, trend: sales.trend },
+          labor:     { total: labor.total, laborPct: labor.laborPct, breakdown: labor.breakdown },
+          primeCost,
+          alerts,
+        })),
+        summary: {
+          totalRevenue:    r2(totalRevenue),
+          avgLaborPct:     r2(avgLaborPct),
+          avgPrimeCostPct: r2(avgPrimeCostPct),
+          bestPerformer,
+          needsAttention,
+        },
+      };
+    });
 
     logger.debug("getOwnerDashboard: success", {
       userId:        req.user.userId,
       ownerAccountId,
       locationCount: restaurants.length,
-      totalRevenue:  r2(totalRevenue),
-      alertCount:    locationMetrics.flatMap((l) => l.alerts).length,
       durationMs:    Date.now() - start,
     });
 
-    res.json({
-      ownerAccount: { id: ownerAccount.id, name: ownerAccount.name },
-      period:       "last_30_days",
-      locations:    locationMetrics.map(({ restaurant, sales, labor, primeCost, alerts }) => ({
-        restaurant,
-        sales:     { total: sales.total, byCategory: sales.byCategory, trend: sales.trend },
-        labor:     { total: labor.total, laborPct: labor.laborPct, breakdown: labor.breakdown },
-        primeCost,
-        alerts,
-      })),
-      summary: {
-        totalRevenue:     r2(totalRevenue),
-        avgLaborPct:      r2(avgLaborPct),
-        avgPrimeCostPct:  r2(avgPrimeCostPct),
-        bestPerformer,
-        needsAttention,
-      },
-    });
+    res.json(payload);
   } catch (err) {
     logger.error("getOwnerDashboard: error", { userId: req.user.userId, message: (err as Error).message });
     next(err);

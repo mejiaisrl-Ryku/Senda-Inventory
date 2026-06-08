@@ -4,6 +4,7 @@ import { OrderStatus, StockReason } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { weightedAverageCost } from "../lib/costing";
 import { AuthRequest } from "../types";
+import { invalidateFinancialCaches } from "../lib/cacheInvalidation";
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -192,6 +193,10 @@ export async function receiveOrder(req: AuthRequest, res: Response, next: NextFu
         include: { orderItems: { include: { product: true, cogsCategory: true } } },
       });
     });
+
+    // Receiving an order updates stock and COGS — invalidate all financial caches
+    // for this restaurant (fire-and-forget).
+    void invalidateFinancialCaches(req.user.restaurantId ?? "");
 
     res.json({
       ...updated,
