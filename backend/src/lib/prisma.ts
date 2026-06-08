@@ -175,7 +175,19 @@ function buildRLSContext(model: string): {
   // See note in CONTRIBUTING.md.
 
   const { role, restaurantId, ownerAccountId } = ctx;
-  if (role === "OWNER_SUPER_ADMIN") return null; // handled by prismaAdmin (BYPASSRLS)
+
+  if (role === "OWNER_SUPER_ADMIN") {
+    // Owner-scoped tables (cogs_categories): a single ownerAccountId GUC works.
+    if (OWNER_SCOPED.has(modelKey)) {
+      return { restaurantId: "", ownerAccountId: ownerAccountId ?? "" };
+    }
+    // Restaurant-scoped tables: OWNER_SUPER_ADMIN may own multiple restaurants,
+    // so a single restaurantId GUC is insufficient.  Return null → no GUC injection.
+    // The WHERE injection already scopes to ownedRestaurantIds via IN clause.
+    // Controllers using prismaT for OWNER_SUPER_ADMIN restaurant queries MUST
+    // use a BYPASSRLS base client (prismaAdmin) to avoid RLS blocking them.
+    return null;
+  }
 
   return {
     restaurantId:    restaurantId    ?? "",
@@ -196,7 +208,7 @@ function buildRLSContext(model: string): {
  * The WHERE-injection layer still scopes OWNER_SUPER_ADMIN to their own
  * restaurants; BYPASSRLS is granted only at the DB level (not app level).
  */
-function buildTenantedClient(baseClient: PrismaClient) {
+export function buildTenantedClient(baseClient: PrismaClient) {
   return baseClient.$extends({
     query: {
       $allModels: {
@@ -271,7 +283,9 @@ function buildTenantedClient(baseClient: PrismaClient) {
               const modelKey = model.charAt(0).toLowerCase() + model.slice(1);
               const { restaurantId, ownerAccountId } = rlsCtx;
 
-              prisma.$transaction(async (tx) => {
+              // Use baseClient (not module-level prisma) so tests can inject
+              // a client connected to the correct database URL.
+              baseClient.$transaction(async (tx) => {
                 // set_config(name, value, is_local=true) ≡ SET LOCAL
                 // Using the function form because it's available inside
                 // interactive transactions and works with pgBouncer tx mode.

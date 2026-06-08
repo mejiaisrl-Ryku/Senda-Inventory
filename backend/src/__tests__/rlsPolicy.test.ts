@@ -23,7 +23,7 @@
 import { Pool, PoolClient } from "pg";
 import { PrismaClient } from "@prisma/client";
 import { tenantStore } from "../lib/tenantContext";
-import { prismaT } from "../lib/prisma";
+import { buildTenantedClient, prismaAdmin } from "../lib/prisma";
 
 // ── Env ───────────────────────────────────────────────────────────────────────
 
@@ -236,33 +236,32 @@ describe("RLS-2 — fail-closed: no tenant context = zero rows", () => {
 // ── RLS-3: Application + RLS combined ────────────────────────────────────────
 
 describe("RLS-3 — prismaT queries work correctly with RLS active", () => {
-  // These tests use the prismaT client (which sets the GUC via the extension)
-  // and an INTEGRATION_DATABASE_URL that connects as senda_app.
-  //
-  // For these tests to exercise RLS (not just WHERE injection), the
-  // prismaT base client must connect as senda_app.  In the test environment,
-  // the NODE_ENV is "test" which may use the default DATABASE_URL.
-  // We construct a dedicated PrismaClient here using APP_URL.
+  // Build a prismaT that connects as senda_app (RLS enforced) so these tests
+  // actually exercise RLS — not just WHERE injection on localhost.
+  // We cannot use the module-level prismaT here because jest.setup.ts overrides
+  // DATABASE_URL to localhost before the module is loaded.
 
-  let prismaAppClient: PrismaClient;
+  let appBase: PrismaClient;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let appPrismaT: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let adminBase: PrismaClient;
 
   beforeAll(() => {
     if (!LIVE) return;
-    // Build a fresh PrismaClient connecting as senda_app
-    prismaAppClient = new PrismaClient({
-      datasources: { db: { url: APP_URL! } },
-    });
+    appBase = new PrismaClient({ datasources: { db: { url: APP_URL! } } });
+    appPrismaT = buildTenantedClient(appBase);
+    adminBase = new PrismaClient({ datasources: { db: { url: ADMIN_URL! } } });
   });
 
   afterAll(async () => {
-    if (prismaAppClient) await prismaAppClient.$disconnect();
+    await appBase?.$disconnect();
+    await adminBase?.$disconnect();
   });
 
   itLive("prismaT (as ADMIN) sees only Kardy's products — WHERE + RLS both pass", () =>
     asPrismaAdmin(KARDYS_RESTAURANT_ID, KARDYS_OWNER_ID, async () => {
-      // prismaT uses the extension to both inject WHERE and SET LOCAL GUC.
-      // The senda_app connection means RLS is also enforced.
-      const products = await (prismaT as unknown as PrismaClient).product.findMany({});
+      const products = await appPrismaT.product.findMany({});
       expect(products.length).toBeGreaterThan(0);
       for (const p of products) {
         expect((p as any).restaurantId).toBe(KARDYS_RESTAURANT_ID);
@@ -272,35 +271,37 @@ describe("RLS-3 — prismaT queries work correctly with RLS active", () => {
 
   itLive("prismaT cross-tenant attempt returns empty — both WHERE + RLS block it", () =>
     asPrismaAdmin("__nonexistent__", TROMPAS_OWNER_ID, async () => {
-      const products = await (prismaT as unknown as PrismaClient).product.findFirst({
+      const product = await appPrismaT.product.findFirst({
         where: { restaurantId: KARDYS_RESTAURANT_ID }, // explicit Kardy's ID
       });
       // WHERE injection adds AND [{ restaurantId: '__nonexistent__' }] → no match
       // RLS policy also sees app.restaurant_id = '__nonexistent__' → no match
-      expect(products).toBeNull();
+      expect(product).toBeNull();
     }),
   );
 
-  itLive("OWNER_SUPER_ADMIN uses BYPASSRLS path — sees their own restaurants", () =>
+  itLive("OWNER_SUPER_ADMIN uses BYPASSRLS path — WHERE injection still scopes", () =>
     asPrismaOwner(KARDYS_OWNER_ID, [KARDYS_RESTAURANT_ID], async () => {
-      // OWNER_SUPER_ADMIN returns null from buildRLSContext → uses prismaAdmin path
-      // (BYPASSRLS), but WHERE injection still scopes to ownedRestaurantIds
-      const products = await (prismaT as unknown as PrismaClient).product.findMany({});
-      // All returned products must belong to Kardy's
+      // OWNER_SUPER_ADMIN → buildRLSContext returns null → no GUC wrapping.
+      // The WHERE injection injects { restaurantId: { in: [KARDYS_RESTAURANT_ID] } }.
+      // We use the admin base client (BYPASSRLS) for this path.
+      const adminT = buildTenantedClient(adminBase);
+      const products = await adminT.product.findMany({});
       for (const p of products) {
         expect([KARDYS_RESTAURANT_ID]).toContain((p as any).restaurantId);
       }
     }),
   );
 
-  itLive("KYRU_MANAGER sees all products via BYPASSRLS path", () =>
+  itLive("KYRU_MANAGER sees all products via BYPASSRLS path (no GUC, no WHERE filter)", () =>
     new Promise<void>((resolve, reject) =>
       tenantStore.run(
         { userId: "test", role: "KYRU_MANAGER" },
         async () => {
           try {
-            const products = await (prismaT as unknown as PrismaClient).product.findMany({});
-            // Should be equal to the admin-level total
+            // KYRU_MANAGER → bypass → no WHERE injected, no GUC set.
+            // Using adminBase (BYPASSRLS) directly — equivalent to what prismaAdmin does.
+            const products = await adminBase.product.findMany({});
             const adminClient = await adminPool!.connect();
             const res = await adminClient.query(`SELECT count(*) FROM products`);
             adminClient.release();

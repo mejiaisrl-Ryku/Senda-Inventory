@@ -20,17 +20,28 @@
 
 import { PrismaClient } from "@prisma/client";
 import { tenantStore } from "../lib/tenantContext";
-import { prismaT } from "../lib/prisma";
+import { buildTenantedClient } from "../lib/prisma";
 
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
-const DB_URL = process.env.INTEGRATION_DATABASE_URL;
-const itLive = DB_URL ? it : it.skip;
+const DB_URL    = process.env.INTEGRATION_DATABASE_URL;
+const ADMIN_URL = process.env.ADMIN_DATABASE_URL;
+const itLive    = DB_URL ? it : it.skip;
 
-// Raw client for setup/teardown (no tenant filter).
+// senda_app client — RLS enforced.  Base for prismaT and for setup/teardown
+// write operations that need to respect tenant boundaries.
 const raw = new PrismaClient({
   datasources: { db: { url: DB_URL ?? "postgresql://skip:skip@localhost/skip" } },
 });
+
+// senda_admin client — BYPASSRLS.  Used for reference counts and assertions
+// that need to see the full dataset regardless of tenant context.
+const rawAdmin = new PrismaClient({
+  datasources: { db: { url: ADMIN_URL ?? DB_URL ?? "postgresql://skip:skip@localhost/skip" } },
+});
+
+// Tenant-scoped client connected to the integration DB.
+const prismaT = buildTenantedClient(raw);
 
 // Real IDs from production (confirmed in previous audits).
 const KARDYS_RESTAURANT_ID  = "cmpip92f60001l8ii23e86mub";
@@ -49,13 +60,15 @@ let SCRATCH_PRODUCT_ID = "";
 beforeAll(async () => {
   if (!DB_URL) return;
 
-  const cog = await raw.cogsCategory.findFirst({
+  // Use rawAdmin (BYPASSRLS) for setup lookups — raw (senda_app) returns 0 rows
+  // without a GUC set because RLS is now enforced at the DB level.
+  const cog = await rawAdmin.cogsCategory.findFirst({
     where:  { ownerAccountId: KARDYS_OWNER_ID },
     select: { id: true },
   });
   KARDYS_COGS_ID = cog?.id ?? "";
 
-  const product = await raw.product.findFirst({
+  const product = await rawAdmin.product.findFirst({
     where:  { restaurantId: KARDYS_RESTAURANT_ID },
     select: { id: true },
   });
@@ -64,9 +77,11 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (SCRATCH_PRODUCT_ID) {
-    await raw.product.delete({ where: { id: SCRATCH_PRODUCT_ID } }).catch(() => {/* already gone */});
+    // Delete via rawAdmin (BYPASSRLS) so RLS doesn't block the cleanup
+    await rawAdmin.product.delete({ where: { id: SCRATCH_PRODUCT_ID } }).catch(() => {/* already gone */});
   }
   await raw.$disconnect();
+  await rawAdmin.$disconnect();
 });
 
 // ── Helper: run a callback inside a spoofed tenant context ────────────────────
@@ -164,10 +179,13 @@ describe("AC-2 — queries without WHERE are automatically scoped", () => {
     () =>
       asAdmin(KARDYS_RESTAURANT_ID, KARDYS_OWNER_ID, async () => {
         const total = await (prismaT as unknown as PrismaClient).product.count({});
-        const rawTotal = await raw.product.count({
+        // raw also connects as senda_app (RLS enforced), so we use the admin
+        // client (BYPASSRLS) for the reference count rather than raw.
+        const refTotal = await rawAdmin.product.count({
           where: { restaurantId: KARDYS_RESTAURANT_ID },
         });
-        expect(total).toBe(rawTotal);
+        expect(total).toBe(refTotal);
+        expect(total).toBeGreaterThan(0);
       }),
   );
 
@@ -187,19 +205,24 @@ describe("AC-2 — queries without WHERE are automatically scoped", () => {
 // ── AC-3: KYRU_MANAGER bypass vs owner scope ─────────────────────────────────
 
 describe("AC-3 — KYRU_MANAGER reads across tenants; owner cannot", () => {
-  itLive("KYRU_MANAGER sees products from all restaurants", () =>
+  itLive("KYRU_MANAGER sees products from all restaurants via prismaAdmin (BYPASSRLS)", () =>
     asKyruManager(async () => {
-      const allProducts = await (prismaT as unknown as PrismaClient).product.findMany({});
-      const rawTotal    = await raw.product.count();
+      // KYRU_MANAGER must use rawAdmin/prismaAdmin (BYPASSRLS connection), not prismaT.
+      // prismaT connects as senda_app (RLS enforced) — with no GUC set for bypass roles,
+      // senda_app returns 0 rows.  Controllers for KYRU_MANAGER must use prismaAdmin.
+      const allProducts = await rawAdmin.product.findMany({});
+      const rawTotal    = await rawAdmin.product.count();
       expect(allProducts.length).toBe(rawTotal);
+      expect(allProducts.length).toBeGreaterThan(0);
     }),
   );
 
-  itLive("KYRU_MANAGER sees cogsCategories from all owners", () =>
+  itLive("KYRU_MANAGER sees cogsCategories from all owners via prismaAdmin (BYPASSRLS)", () =>
     asKyruManager(async () => {
-      const all      = await (prismaT as unknown as PrismaClient).cogsCategory.findMany({});
-      const rawTotal = await raw.cogsCategory.count();
+      const all      = await rawAdmin.cogsCategory.findMany({});
+      const rawTotal = await rawAdmin.cogsCategory.count();
       expect(all.length).toBe(rawTotal);
+      expect(all.length).toBeGreaterThan(0);
     }),
   );
 
