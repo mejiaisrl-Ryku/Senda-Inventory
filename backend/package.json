@@ -11,6 +11,8 @@
     "migrate": "prisma db push --skip-generate --accept-data-loss",
     "test": "jest",
     "test:ci": "jest --ci --forceExit",
+    "test:unit": "jest --testPathPattern='costing|stock' --ci --forceExit",
+    "test:integration": "jest --testPathPattern='tenantIntegrity' --ci --forceExit",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
