@@ -3,11 +3,7 @@ import { io, Socket } from "socket.io-client";
 import { useAuth } from "./AuthContext";
 
 // Strip the /api suffix to get the base server URL for the WebSocket connection.
-// Fall back to the production Railway URL so the socket works even when the
-// REACT_APP_API_URL env var is absent from the Vercel build environment.
-const SOCKET_URL = (
-  process.env.REACT_APP_API_URL ?? "https://senda-inventory-production.up.railway.app/api"
-).replace(/\/api$/, "");
+const SOCKET_URL = (process.env.REACT_APP_API_URL ?? "").replace(/\/api$/, "");
 
 interface SocketContextValue {
   socket: Socket | null;
