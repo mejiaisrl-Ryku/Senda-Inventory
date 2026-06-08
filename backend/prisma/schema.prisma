@@ -102,6 +102,8 @@ model OwnerAccount {
 
   restaurants    Restaurant[]
   cogsCategories CogsCategory[]
+  users          User[]         @relation("OwnerAccountUsers")
+  budgets        LocationBudget[]
 
   @@index([email])
   @@map("owner_accounts")
@@ -152,6 +154,7 @@ model User {
 
   // OWNER_SUPER_ADMIN — linked to an owner account (cross-location access)
   ownerAccountId String?
+  ownerAccount   OwnerAccount? @relation("OwnerAccountUsers", fields: [ownerAccountId], references: [id], onDelete: SetNull)
 
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @default(now()) @updatedAt
@@ -407,10 +410,11 @@ model CogsCategory {
 // ── Budgeting ─────────────────────────────────────────────────────────────────
 
 model LocationBudget {
-  id              String     @id @default(cuid())
+  id              String       @id @default(cuid())
   restaurantId    String
-  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant      Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   ownerAccountId  String
+  ownerAccount    OwnerAccount @relation(fields: [ownerAccountId], references: [id], onDelete: Cascade)
   year            Int
   month           Int?       // null = annual budget, 1–12 = monthly budget
   revenueTarget   Float
