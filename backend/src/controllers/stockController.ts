@@ -4,6 +4,7 @@ import { StockReason } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { getIO } from "../lib/socket";
 import { AuthRequest } from "../types";
+import { invalidateFinancialCaches } from "../lib/cacheInvalidation";
 
 // ADJUSTED is a correction that requires admin judgement.
 // RECEIVED / USED / WASTE are normal operational reasons available to all roles.
@@ -86,6 +87,10 @@ export async function adjustStock(req: AuthRequest, res: Response, next: NextFun
         reason,
         timestamp,
       });
+
+    // Stock changes affect daily report and COGS-to-sales — invalidate caches
+    // (fire-and-forget).
+    void invalidateFinancialCaches(req.user.restaurantId ?? "");
 
     res.status(201).json(log);
   } catch (err) {

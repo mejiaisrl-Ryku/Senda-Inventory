@@ -3,6 +3,8 @@ import ExcelJS from "exceljs";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 import logger from "../utils/logger";
+import { withCache, TTL_FINANCIAL } from "../lib/cache";
+import { keyOwnerPnl, keyOwnerPnlSummary } from "../lib/cacheKeys";
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -120,59 +122,49 @@ export async function getOwnerPnl(req: AuthRequest, res: Response, next: NextFun
       return res.status(404).json({ error: "No locations found for this owner account" });
     }
 
-    // Compute P&L for every location in parallel
-    const locationPnL = await Promise.all(
-      restaurants.map(async (r) => {
-        const pnl = await computePnL(r.id, from, to);
-        return { restaurant: { id: r.id, name: r.name, address: r.address }, ...pnl };
-      })
-    );
+    const cacheKey = keyOwnerPnl(ownerAccountId, startDate, endDate);
+    const payload  = await withCache(cacheKey, TTL_FINANCIAL, async () => {
+      // Compute P&L for every location in parallel
+      const locationPnL = await Promise.all(
+        restaurants.map(async (r) => {
+          const pnl = await computePnL(r.id, from, to);
+          return { restaurant: { id: r.id, name: r.name, address: r.address }, ...pnl };
+        })
+      );
 
-    // Sort by primeCostPct ascending (best = lowest prime cost = rank 1)
-    const sorted = [...locationPnL].sort((a, b) => a.primeCostPct - b.primeCostPct);
-    const ranked = sorted.map((loc, i) => ({ ...loc, rank: i + 1 }));
+      const sorted = [...locationPnL].sort((a, b) => a.primeCostPct - b.primeCostPct);
+      const ranked = sorted.map((loc, i) => ({ ...loc, rank: i + 1 }));
 
-    // Consolidated totals
-    const revenue   = r2(ranked.reduce((s, l) => s + l.revenue,   0));
-    const foodCost  = r2(ranked.reduce((s, l) => s + l.foodCost,  0));
-    const laborCost = r2(ranked.reduce((s, l) => s + l.laborCost, 0));
-    const primeCost = r2(foodCost + laborCost);
-    const grossProfit = r2(revenue - primeCost);
+      const revenue     = r2(ranked.reduce((s, l) => s + l.revenue,   0));
+      const foodCost    = r2(ranked.reduce((s, l) => s + l.foodCost,  0));
+      const laborCost   = r2(ranked.reduce((s, l) => s + l.laborCost, 0));
+      const primeCost   = r2(foodCost + laborCost);
+      const grossProfit = r2(revenue - primeCost);
 
-    const consolidated = {
-      revenue,
-      foodCost,
-      laborCost,
-      primeCost,
-      grossProfit,
-      foodCostPct:    safePct(foodCost,    revenue),
-      laborCostPct:   safePct(laborCost,   revenue),
-      primeCostPct:   safePct(primeCost,   revenue),
-      grossProfitPct: safePct(grossProfit, revenue),
-    };
+      const consolidated = {
+        revenue, foodCost, laborCost, primeCost, grossProfit,
+        foodCostPct:    safePct(foodCost,    revenue),
+        laborCostPct:   safePct(laborCost,   revenue),
+        primeCostPct:   safePct(primeCost,   revenue),
+        grossProfitPct: safePct(grossProfit, revenue),
+      };
 
-    // Ranking
-    const withData = ranked.filter((l) => l.revenue > 0);
-    const best         = withData.length > 0 ? withData[0].restaurant.name                        : "";
-    const worst        = withData.length > 0 ? withData[withData.length - 1].restaurant.name      : "";
-    const mostRevenue  = withData.length > 0
-      ? withData.reduce((a, b) => b.revenue > a.revenue ? b : a).restaurant.name
-      : "";
+      const withData     = ranked.filter((l) => l.revenue > 0);
+      const best         = withData.length > 0 ? withData[0].restaurant.name                   : "";
+      const worst        = withData.length > 0 ? withData[withData.length - 1].restaurant.name : "";
+      const mostRevenue  = withData.length > 0
+        ? withData.reduce((a, b) => b.revenue > a.revenue ? b : a).restaurant.name : "";
+
+      return { period: { startDate, endDate }, consolidated, locations: ranked, ranking: { best, worst, mostRevenue } };
+    });
 
     logger.debug("getOwnerPnl: success", {
-      userId:        req.user.userId,
-      ownerAccountId,
-      locationCount: ranked.length,
-      revenue,
+      userId: req.user.userId, ownerAccountId,
+      locationCount: restaurants.length,
       durationMs:    Date.now() - start,
     });
 
-    res.json({
-      period:       { startDate, endDate },
-      consolidated,
-      locations:    ranked,
-      ranking:      { best, worst, mostRevenue },
-    });
+    res.json(payload);
   } catch (err) {
     logger.error("getOwnerPnl: error", { userId: req.user.userId, message: (err as Error).message });
     next(err);
@@ -203,40 +195,43 @@ export async function getOwnerPnlSummary(req: AuthRequest, res: Response, next: 
       return res.status(404).json({ error: "No locations found for this owner account" });
     }
 
-    const locationPnL = await Promise.all(
-      restaurants.map(async (r) => {
-        const pnl = await computePnL(r.id, from, to);
-        return { name: r.name, ...pnl };
-      })
-    );
+    const cacheKey = keyOwnerPnlSummary(ownerAccountId, startDate, endDate);
+    const payload  = await withCache(cacheKey, TTL_FINANCIAL, async () => {
+      const locationPnL = await Promise.all(
+        restaurants.map(async (r) => {
+          const pnl = await computePnL(r.id, from, to);
+          return { name: r.name, ...pnl };
+        })
+      );
 
-    const revenue     = r2(locationPnL.reduce((s, l) => s + l.revenue,   0));
-    const primeCost   = r2(locationPnL.reduce((s, l) => s + l.primeCost, 0));
-    const grossProfit = r2(revenue - primeCost);
+      const revenue     = r2(locationPnL.reduce((s, l) => s + l.revenue,   0));
+      const primeCost   = r2(locationPnL.reduce((s, l) => s + l.primeCost, 0));
+      const grossProfit = r2(revenue - primeCost);
 
-    const withData    = locationPnL.filter((l) => l.revenue > 0);
-    const sorted      = [...withData].sort((a, b) => a.primeCostPct - b.primeCostPct);
-    const bestLocation  = sorted.length > 0 ? sorted[0].name                    : "";
-    const worstLocation = sorted.length > 0 ? sorted[sorted.length - 1].name   : "";
+      const withData      = locationPnL.filter((l) => l.revenue > 0);
+      const sorted        = [...withData].sort((a, b) => a.primeCostPct - b.primeCostPct);
+      const bestLocation  = sorted.length > 0 ? sorted[0].name                  : "";
+      const worstLocation = sorted.length > 0 ? sorted[sorted.length - 1].name  : "";
+
+      return {
+        period:         { startDate, endDate },
+        totalRevenue:   revenue,
+        totalPrimeCost: primeCost,
+        primeCostPct:   safePct(primeCost, revenue),
+        grossProfit,
+        grossProfitPct: safePct(grossProfit, revenue),
+        bestLocation,
+        worstLocation,
+        locationCount:  restaurants.length,
+      };
+    });
 
     logger.debug("getOwnerPnlSummary: success", {
-      userId: req.user.userId,
-      ownerAccountId,
-      revenue,
+      userId: req.user.userId, ownerAccountId,
       durationMs: Date.now() - start,
     });
 
-    res.json({
-      period:         { startDate, endDate },
-      totalRevenue:   revenue,
-      totalPrimeCost: primeCost,
-      primeCostPct:   safePct(primeCost, revenue),
-      grossProfit,
-      grossProfitPct: safePct(grossProfit, revenue),
-      bestLocation,
-      worstLocation,
-      locationCount:  restaurants.length,
-    });
+    res.json(payload);
   } catch (err) {
     logger.error("getOwnerPnlSummary: error", { userId: req.user.userId, message: (err as Error).message });
     next(err);

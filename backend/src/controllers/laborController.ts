@@ -12,6 +12,7 @@ const laborModel = (prisma as any).laborEntry as {
   delete: (args: unknown) => Promise<unknown>;
 };
 import { AuthRequest } from "../types";
+import { invalidateLaborCaches } from "../lib/cacheInvalidation";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 
@@ -45,6 +46,9 @@ export async function createLabor(req: AuthRequest, res: Response, next: NextFun
         total,
       },
     });
+
+    // Invalidate dashboard and P&L caches for this restaurant (fire-and-forget).
+    void invalidateLaborCaches(req.user.restaurantId ?? "");
 
     res.status(201).json(entry);
   } catch (err) {
@@ -99,6 +103,10 @@ export async function deleteLabor(req: AuthRequest, res: Response, next: NextFun
     if (!entry) return res.status(404).json({ error: "Labor entry not found" });
 
     await laborModel.delete({ where: { id } });
+
+    // Invalidate dashboard and P&L caches for this restaurant (fire-and-forget).
+    void invalidateLaborCaches(req.user.restaurantId ?? "");
+
     res.status(204).end();
   } catch (err) {
     next(err);

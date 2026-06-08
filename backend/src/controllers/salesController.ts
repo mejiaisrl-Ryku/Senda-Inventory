@@ -2,6 +2,7 @@ import { Response, NextFunction } from "express";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
+import { invalidateFinancialCaches } from "../lib/cacheInvalidation";
 
 // Decoupled from Prisma client so new values work before prisma generate runs.
 const SALES_CATEGORIES = ["BEER", "LIQUOR", "WINE", "FOOD", "NON_ALCOHOLIC", "EVENTS", "DELIVERY", "BUYOUTS"] as const;
@@ -42,6 +43,9 @@ export async function createSale(req: AuthRequest, res: Response, next: NextFunc
       },
     });
 
+    // Invalidate all financial caches for this restaurant (fire-and-forget).
+    void invalidateFinancialCaches(req.user.restaurantId ?? "");
+
     // Serialize Decimal → number for JSON
     res.status(201).json({ ...entry, amount: Number(entry.amount) });
   } catch (err) {
@@ -62,6 +66,10 @@ export async function deleteSale(req: AuthRequest, res: Response, next: NextFunc
     if (!entry) return res.status(404).json({ error: "Sales entry not found" });
 
     await prisma.salesEntry.delete({ where: { id } });
+
+    // Invalidate all financial caches for this restaurant (fire-and-forget).
+    void invalidateFinancialCaches(req.user.restaurantId ?? "");
+
     res.status(204).end();
   } catch (err) {
     next(err);

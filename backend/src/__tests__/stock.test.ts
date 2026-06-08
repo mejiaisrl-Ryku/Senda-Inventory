@@ -14,9 +14,12 @@ jest.mock("../lib/socket", () => ({
   getIO: jest.fn(),
 }));
 
+const passThrough = (_r: unknown, _s: unknown, next: () => void) => next();
 jest.mock("../middleware/rateLimiter", () => ({
-  apiLimiter: (_r: unknown, _s: unknown, next: () => void) => next(),
-  authLimiter: (_r: unknown, _s: unknown, next: () => void) => next(),
+  apiLimiter:      passThrough,
+  authLimiter:     passThrough,
+  forgotPwLimiter: passThrough,
+  aiLimiter:       passThrough,
 }));
 
 import app from "../app";
