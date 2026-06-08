@@ -1,4 +1,5 @@
 import winston from "winston";
+import { getRequestId } from "../middleware/requestId";
 
 // ── Sanitization helpers ──────────────────────────────────────────────────────
 
@@ -22,17 +23,27 @@ export function sanitizeToken(token: string): string {
 
 const { combine, timestamp, json, simple, errors } = winston.format;
 
+/**
+ * Dynamic metadata appended to every log entry.
+ * requestId is read from the AsyncLocalStorage context so it flows through
+ * automatically without being passed explicitly to each logger call.
+ */
+const addRequestId = winston.format((info) => {
+  info["requestId"] = getRequestId();
+  return info;
+});
+
 const logger = winston.createLogger({
-  level:        process.env.LOG_LEVEL ?? "info",
-  defaultMeta:  { service: "kyru-api" },
-  format:       combine(errors({ stack: true }), timestamp(), json()),
+  level:       process.env.LOG_LEVEL ?? "info",
+  defaultMeta: { service: "kyru-api" },
+  format:      combine(errors({ stack: true }), addRequestId(), timestamp(), json()),
   transports: [
     new winston.transports.Console({
-      format: combine(errors({ stack: true }), simple()),
+      format: combine(errors({ stack: true }), addRequestId(), simple()),
     }),
     new winston.transports.File({
       filename: "combined.log",
-      format:   combine(errors({ stack: true }), timestamp(), json()),
+      format:   combine(errors({ stack: true }), addRequestId(), timestamp(), json()),
     }),
   ],
 });

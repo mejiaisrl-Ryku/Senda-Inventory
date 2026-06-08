@@ -411,6 +411,37 @@ model CogsCategory {
   @@map("cogs_categories")
 }
 
+// ── Audit log ─────────────────────────────────────────────────────────────────
+//
+// Append-only record of sensitive / irreversible actions.
+// Written by lib/audit.ts — never deleted, never updated.
+// Retained for compliance and incident investigation.
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  // Who performed the action (nullable for system/background jobs)
+  actorId    String?
+  actorRole  String?
+  // What happened
+  action     String   // e.g. "restaurant.hard_delete", "owner_account.hard_delete"
+  // On which resource
+  targetType String   // e.g. "restaurant", "owner_account", "user"
+  targetId   String   // resource ID
+  // Extra context (JSON blob — must be pre-scrubbed of PII by the caller)
+  metadata   Json?
+  // Request tracing
+  requestId  String?
+  ipAddress  String?
+
+  createdAt  DateTime @default(now())
+
+  @@index([action])
+  @@index([actorId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
 // ── Budgeting ─────────────────────────────────────────────────────────────────
 
 model LocationBudget {
