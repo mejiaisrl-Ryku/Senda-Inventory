@@ -14,9 +14,12 @@ jest.mock("../lib/socket", () => ({
   getIO: jest.fn(),
 }));
 
+const passThrough = (_r: unknown, _s: unknown, next: () => void) => next();
 jest.mock("../middleware/rateLimiter", () => ({
-  apiLimiter: (_r: unknown, _s: unknown, next: () => void) => next(),
-  authLimiter: (_r: unknown, _s: unknown, next: () => void) => next(),
+  apiLimiter:      passThrough,
+  authLimiter:     passThrough,
+  forgotPwLimiter: passThrough,
+  aiLimiter:       passThrough,
 }));
 
 import app from "../app";
@@ -70,16 +73,26 @@ beforeEach(() => {
 // ── Adjust stock ──────────────────────────────────────────────────────────────
 
 describe("POST /api/stock/adjust", () => {
-  it("returns 201 when staff adjusts stock with an allowed reason (USED)", async () => {
+  it("returns 201 when admin adjusts stock with an allowed reason (USED)", async () => {
     db.product.findFirstOrThrow.mockResolvedValue(mockProduct);
 
+    const res = await request(app)
+      .post("/api/stock/adjust")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ productId: PRODUCT_ID, change: -5, reason: "USED" });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ change: -5, reason: "USED" });
+  });
+
+  it("returns 403 when staff attempts to adjust stock (admin-only endpoint)", async () => {
     const res = await request(app)
       .post("/api/stock/adjust")
       .set("Authorization", `Bearer ${staffToken}`)
       .send({ productId: PRODUCT_ID, change: -5, reason: "USED" });
 
-    expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ change: -5, reason: "USED" });
+    expect(res.status).toBe(403);
+    expect(res.body).toHaveProperty("error");
   });
 
   it("returns 403 when staff attempts an ADJUSTED (admin-only) reason", async () => {
@@ -107,9 +120,11 @@ describe("POST /api/stock/adjust", () => {
   it("returns 400 when the adjustment would result in negative stock", async () => {
     db.product.findFirstOrThrow.mockResolvedValue(mockProduct); // currentStock: 10
 
+    // Must use adminToken — STAFF is now blocked by requireAdmin before the
+    // negative-stock guard in the controller can run.
     const res = await request(app)
       .post("/api/stock/adjust")
-      .set("Authorization", `Bearer ${staffToken}`)
+      .set("Authorization", `Bearer ${adminToken}`)
       .send({ productId: PRODUCT_ID, change: -50, reason: "USED" }); // 10 - 50 = -40
 
     expect(res.status).toBe(400);

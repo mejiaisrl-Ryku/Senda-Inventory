@@ -12,6 +12,7 @@ const laborModel = (prisma as any).laborEntry as {
   delete: (args: unknown) => Promise<unknown>;
 };
 import { AuthRequest } from "../types";
+import { invalidateLaborCaches } from "../lib/cacheInvalidation";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 
@@ -46,6 +47,9 @@ export async function createLabor(req: AuthRequest, res: Response, next: NextFun
       },
     });
 
+    // Invalidate dashboard and P&L caches for this restaurant (fire-and-forget).
+    void invalidateLaborCaches(req.user.restaurantId ?? "");
+
     res.status(201).json(entry);
   } catch (err) {
     next(err);
@@ -66,6 +70,11 @@ export async function listLabor(req: AuthRequest, res: Response, next: NextFunct
       return res.status(400).json({ error: "Invalid endDate — use YYYY-MM-DD" });
     }
 
+    const rawTake = parseInt(String(req.query.take ?? "500"), 10);
+    const take    = Math.min(Number.isFinite(rawTake) && rawTake > 0 ? rawTake : 500, 1000);
+    const rawSkip = parseInt(String(req.query.skip ?? "0"),  10);
+    const skip    = Number.isFinite(rawSkip) && rawSkip >= 0 ? rawSkip : 0;
+
     const entries = await laborModel.findMany({
       where: {
         restaurantId: req.user.restaurantId,
@@ -79,6 +88,8 @@ export async function listLabor(req: AuthRequest, res: Response, next: NextFunct
           : {}),
       },
       orderBy: { date: "desc" },
+      take,
+      skip,
     });
 
     res.json(entries);
@@ -99,6 +110,10 @@ export async function deleteLabor(req: AuthRequest, res: Response, next: NextFun
     if (!entry) return res.status(404).json({ error: "Labor entry not found" });
 
     await laborModel.delete({ where: { id } });
+
+    // Invalidate dashboard and P&L caches for this restaurant (fire-and-forget).
+    void invalidateLaborCaches(req.user.restaurantId ?? "");
+
     res.status(204).end();
   } catch (err) {
     next(err);

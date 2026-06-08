@@ -5,8 +5,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // DIRECT_URL bypasses PgBouncer for migrations and introspection.
+  // Set to the postgres superuser connection (postgres.railway.internal)
+  // in production.  Never used by the application at runtime.
+  directUrl = env("DIRECT_URL")
 }
 
 // ─────────────────────────────────────────────
@@ -102,6 +106,8 @@ model OwnerAccount {
 
   restaurants    Restaurant[]
   cogsCategories CogsCategory[]
+  users          User[]         @relation("OwnerAccountUsers")
+  budgets        LocationBudget[]
 
   @@index([email])
   @@map("owner_accounts")
@@ -152,6 +158,7 @@ model User {
 
   // OWNER_SUPER_ADMIN — linked to an owner account (cross-location access)
   ownerAccountId String?
+  ownerAccount   OwnerAccount? @relation("OwnerAccountUsers", fields: [ownerAccountId], references: [id], onDelete: SetNull)
 
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @default(now()) @updatedAt
@@ -404,13 +411,45 @@ model CogsCategory {
   @@map("cogs_categories")
 }
 
+// ── Audit log ─────────────────────────────────────────────────────────────────
+//
+// Append-only record of sensitive / irreversible actions.
+// Written by lib/audit.ts — never deleted, never updated.
+// Retained for compliance and incident investigation.
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  // Who performed the action (nullable for system/background jobs)
+  actorId    String?
+  actorRole  String?
+  // What happened
+  action     String   // e.g. "restaurant.hard_delete", "owner_account.hard_delete"
+  // On which resource
+  targetType String   // e.g. "restaurant", "owner_account", "user"
+  targetId   String   // resource ID
+  // Extra context (JSON blob — must be pre-scrubbed of PII by the caller)
+  metadata   Json?
+  // Request tracing
+  requestId  String?
+  ipAddress  String?
+
+  createdAt  DateTime @default(now())
+
+  @@index([action])
+  @@index([actorId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
 // ── Budgeting ─────────────────────────────────────────────────────────────────
 
 model LocationBudget {
-  id              String     @id @default(cuid())
+  id              String       @id @default(cuid())
   restaurantId    String
-  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant      Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   ownerAccountId  String
+  ownerAccount    OwnerAccount @relation(fields: [ownerAccountId], references: [id], onDelete: Cascade)
   year            Int
   month           Int?       // null = annual budget, 1–12 = monthly budget
   revenueTarget   Float

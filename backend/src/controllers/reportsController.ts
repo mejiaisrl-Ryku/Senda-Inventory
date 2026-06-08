@@ -3,6 +3,8 @@ import { z } from "zod";
 import { SalesCategory } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
+import { withCache, TTL_FINANCIAL } from "../lib/cache";
+import { keyDailyReport, keyCogsToSales } from "../lib/cacheKeys";
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD");
 
@@ -42,38 +44,45 @@ export async function getDailyReport(req: AuthRequest, res: Response, next: Next
     const start = toUTCDay(dateStr);
     const end = addDays(start, 1);
 
-    const [logs, products] = await Promise.all([
-      prisma.stockLog.findMany({
-        where: {
-          timestamp: { gte: start, lt: end },
-          product: { restaurantId: req.user.restaurantId },
-        },
-        include: {
-          product: { select: { id: true, name: true, sku: true, unit: true } },
-          user: { select: { id: true, email: true } },
-        },
-        orderBy: { timestamp: "desc" },
-      }),
-      prisma.product.findMany({ where: { restaurantId: req.user.restaurantId } }),
-    ]);
+    const restaurantId = req.user.restaurantId ?? "";
+    const cacheKey     = keyDailyReport(restaurantId, dateStr);
 
-    const sum = (reason: string) =>
-      logs.filter((l) => l.reason === reason).reduce((s, l) => s + Math.abs(l.change), 0);
+    const payload = await withCache(cacheKey, TTL_FINANCIAL, async () => {
+      const [logs, products] = await Promise.all([
+        prisma.stockLog.findMany({
+          where: {
+            timestamp: { gte: start, lt: end },
+            product: { restaurantId },
+          },
+          include: {
+            product: { select: { id: true, name: true, sku: true, unit: true } },
+            user:    { select: { id: true, email: true } },
+          },
+          orderBy: { timestamp: "desc" },
+        }),
+        prisma.product.findMany({ where: { restaurantId } }),
+      ]);
 
-    const inventoryValue = products.reduce((s, p) => s + p.currentStock * p.costPerUnit, 0);
-    const lowItems = products.filter((p) => p.currentStock < p.minimumStock);
+      const sum = (reason: string) =>
+        logs.filter((l) => l.reason === reason).reduce((s, l) => s + Math.abs(l.change), 0);
 
-    res.json({
-      date: dateStr,
-      received: Math.round(sum("RECEIVED") * 1000) / 1000,
-      used: Math.round(sum("USED") * 1000) / 1000,
-      waste: Math.round(sum("WASTE") * 1000) / 1000,
-      adjusted: Math.round(sum("ADJUSTED") * 1000) / 1000,
-      inventoryValue: Math.round(inventoryValue * 100) / 100,
-      lowItemsCount: lowItems.length,
-      lowItems,
-      logs,
+      const inventoryValue = products.reduce((s, p) => s + p.currentStock * p.costPerUnit, 0);
+      const lowItems       = products.filter((p) => p.currentStock < p.minimumStock);
+
+      return {
+        date: dateStr,
+        received:       Math.round(sum("RECEIVED") * 1000) / 1000,
+        used:           Math.round(sum("USED")     * 1000) / 1000,
+        waste:          Math.round(sum("WASTE")    * 1000) / 1000,
+        adjusted:       Math.round(sum("ADJUSTED") * 1000) / 1000,
+        inventoryValue: Math.round(inventoryValue  * 100)  / 100,
+        lowItemsCount:  lowItems.length,
+        lowItems,
+        logs,
+      };
     });
+
+    res.json(payload);
   } catch (err) {
     next(err);
   }
@@ -275,8 +284,10 @@ export async function getCogsToSales(req: AuthRequest, res: Response, next: Next
     const endInclusive = toUTCDay(endStr);
     const endExclusive = addDays(endInclusive, 1); // for timestamp-based queries
 
-    const restaurantId = req.user.restaurantId;
+    const restaurantId = req.user.restaurantId ?? "";
+    const cacheKey     = keyCogsToSales(restaurantId, startStr, endStr);
 
+    const result = await withCache(cacheKey, TTL_FINANCIAL, async () => {
     // Fetch sales entries and stock usage logs in parallel
     const [salesEntries, stockLogs] = await Promise.all([
       prisma.salesEntry.findMany({
@@ -403,20 +414,23 @@ export async function getCogsToSales(req: AuthRequest, res: Response, next: Next
     );
 
     const periodSales = ALL_CATEGORIES.reduce((s, c) => s + categoryTotals[c].sales, 0);
-    const periodCogs = ALL_CATEGORIES.reduce((s, c) => s + categoryTotals[c].cogs, 0);
+    const periodCogs  = ALL_CATEGORIES.reduce((s, c) => s + categoryTotals[c].cogs,  0);
 
-    res.json({
+    return {
       startDate: startStr,
-      endDate: endStr,
+      endDate:   endStr,
       days,
       weeks,
       byCategory,
       period: {
         totalSales: round2(periodSales),
-        totalCOGS: round2(periodCogs),
-        cogsRatio: safeRatio(periodCogs, periodSales),
+        totalCOGS:  round2(periodCogs),
+        cogsRatio:  safeRatio(periodCogs, periodSales),
       },
-    });
+    };
+    }); // end withCache
+
+    res.json(result);
   } catch (err) {
     next(err);
   }

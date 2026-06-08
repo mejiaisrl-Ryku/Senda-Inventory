@@ -12,7 +12,18 @@ const REFRESH_SECRET = requireEnv("JWT_REFRESH_SECRET");
 
 // Cast to SignOptions["expiresIn"] (number | StringValue) — the ms library uses a branded
 // string type so plain `string` isn't assignable without the assertion.
-const EXPIRES_IN = (process.env.JWT_EXPIRES_IN ?? "7d") as SignOptions["expiresIn"];
+// Default access token TTL is 15 minutes.
+// Override via JWT_EXPIRES_IN env var (e.g. "1h" for convenience in development).
+// Do NOT set this to longer than 1h in production — access tokens are irrevocable
+// until expiry; a compromised token stays valid for the full TTL.
+const EXPIRES_IN = (process.env.JWT_EXPIRES_IN ?? "15m") as SignOptions["expiresIn"];
+
+// TODO: Implement refresh-token rotation via DB store.
+// Currently refresh tokens are long-lived (30d) and irrevocable.
+// After logout, a stolen refresh token remains valid until expiry.
+// Ideal fix: on each /refresh call, issue a new refresh token and mark the old one
+// as revoked in DB. This requires adding a refresh_tokens table and checking against
+// it on token validation.
 const REFRESH_EXPIRES_IN = (process.env.JWT_REFRESH_EXPIRES_IN ?? "30d") as SignOptions["expiresIn"];
 
 // role is typed as string — not as the Prisma `Role` enum — so the payload stays

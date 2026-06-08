@@ -1,3 +1,19 @@
+/**
+ * TENANT ISOLATION NOTE — this controller uses `prisma` (raw postgres-superuser
+ * connection), NOT `prismaT` (the tenant-scoped Prisma extension).
+ *
+ * Why: cross-location aggregate endpoints (overview, pricing, labour breakdown,
+ * variance analysis, etc.) are called by OWNER_SUPER_ADMIN and KYRU_MANAGER,
+ * both of whom need to query across multiple restaurants in a single response.
+ * The postgres superuser bypasses Row-Level Security unconditionally, which is
+ * intentional — tenant scoping is enforced at the application layer via
+ * `groupWhere()` / `ownerRestaurantFilter()` helpers in this file.
+ *
+ * DO NOT migrate this file to `prismaT` without also routing through
+ * `prismaAdmin` (the dedicated BYPASSRLS client in lib/prisma.ts).
+ * Using `prismaT` here would cause RLS to block cross-restaurant queries,
+ * silently returning zero rows with no error for those roles.
+ */
 import { Response, NextFunction } from "express";
 import { prisma } from "../lib/prisma";
 import { signInviteToken } from "../lib/jwt";

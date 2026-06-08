@@ -4,8 +4,10 @@ import helmet from "helmet";
 import morgan from "morgan";
 
 import { prisma } from "./lib/prisma";
+import { getRedis } from "./lib/redis";
 import { apiLimiter } from "./middleware/rateLimiter";
 import { errorHandler } from "./middleware/errorHandler";
+import { requestIdMiddleware } from "./middleware/requestId";
 import authRouter from "./routes/auth";
 import productsRouter from "./routes/products";
 import stockRouter from "./routes/stock";
@@ -30,7 +32,10 @@ import cogsRouter from "./routes/cogs";
 
 const isProd = process.env.NODE_ENV === "production";
 
-const DEFAULT_ORIGINS = "http://localhost:3000,https://aapp-final-1.vercel.app,https://aapp-final-1-git-main-mejiaisrl-kyru-s-projects.vercel.app,https://www.kyruadvisory.com,https://kyruadvisory.com";
+// Production origins only.  Stale preview URLs (aapp-final-1.vercel.app) have
+// been removed.  For staging / Vercel deployments override via ALLOWED_ORIGINS
+// env var in Railway — e.g. "https://senda.vercel.app,https://kyruadvisory.com".
+const DEFAULT_ORIGINS = "http://localhost:3000,https://www.kyruadvisory.com,https://kyruadvisory.com";
 export const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? DEFAULT_ORIGINS).split(",");
 
 const app = express();
@@ -50,23 +55,78 @@ if (isProd) {
   });
 }
 
+// Request ID must be first so every subsequent middleware/log has a trace ID.
+app.use(requestIdMiddleware);
+
 app.use(cors({ origin: allowedOrigins, credentials: true }));
 // "combined" includes :response-time ms — used by Railway's log-based alerting.
-app.use(morgan(isProd ? "combined" : "dev"));
-app.use(express.json({ limit: "12mb" }));
+// :req[x-request-id] propagates the trace ID into every access-log line.
+morgan.token("reqId", (req) => req.headers["x-request-id"] as string ?? "-");
+app.use(morgan(isProd ? ':remote-addr - :remote-user [:date[clf]] ":method :url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent" id=:reqId' : "dev"));
+// 100 KB is sufficient for all JSON API payloads.
+// Image uploads use multer (separate 10 MB limit) and never hit this middleware.
+// The previous 12 MB limit was a DoS vector — a malicious client could buffer
+// 12 MB of JSON and exhaust server memory.
+app.use(express.json({ limit: "100kb" }));
 
-// Health check — registered before the rate limiter so Railway uptime pings are never blocked.
-app.get("/health", async (_req, res) => {
-  const meta = {
-    timestamp: new Date().toISOString(),
-    version: process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
-  };
+// Health / readiness — registered before the rate limiter so Railway uptime
+// probes are never throttled.
+const buildMeta = () => ({
+  timestamp: new Date().toISOString(),
+  version:   process.env.RAILWAY_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
+});
+
+/**
+ * GET /health — liveness probe.
+ * Returns 200 as long as the process is running.  Does NOT check dependencies —
+ * a slow DB should not cause Railway to restart the container.
+ */
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok", ...buildMeta() });
+});
+
+/**
+ * GET /ready — readiness probe.
+ * Returns 200 only when all critical dependencies (DB + optional Redis) are
+ * reachable.  Railway will stop sending traffic to a replica that returns 503.
+ *
+ * Response shape:
+ *   { status: "ok"|"degraded"|"error", db: "ok"|"error",
+ *     redis: "ok"|"degraded"|"error", ... }
+ */
+app.get("/ready", async (_req, res) => {
+  const meta = buildMeta();
+  let dbStatus: "ok" | "error" = "ok";
+  let redisStatus: "ok" | "degraded" = "ok";
+
+  // DB check — required.
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "ok", db: "ok", ...meta });
   } catch {
-    res.status(503).json({ status: "error", db: "error", ...meta });
+    dbStatus = "error";
   }
+
+  // Redis check — optional (app degrades gracefully without it).
+  const redis = getRedis();
+  if (redis) {
+    try {
+      await redis.ping();
+    } catch {
+      redisStatus = "degraded"; // Redis down → in-memory fallback, not fatal
+    }
+  } else {
+    redisStatus = "degraded"; // REDIS_URL not set
+  }
+
+  const httpStatus = dbStatus === "error" ? 503 : 200;
+  const overallStatus = dbStatus === "error" ? "error" : redisStatus === "degraded" ? "degraded" : "ok";
+
+  res.status(httpStatus).json({
+    status: overallStatus,
+    db:     dbStatus,
+    redis:  redisStatus,
+    ...meta,
+  });
 });
 
 // Rate limiter applied only to /api — /health stays exempt.

@@ -1,7 +1,7 @@
 import React, { useState, FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { authApi } from "../api";
+import { authApi, RateLimitError } from "../api";
 import { Spinner } from "./shared/Spinner";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -11,7 +11,7 @@ const inputCls =
 export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -34,8 +34,14 @@ export function Login() {
       const stored = JSON.parse(localStorage.getItem("user") ?? "null") as { role?: string } | null;
       navigate(stored?.role === "OWNER_SUPER_ADMIN" ? "/owner/dashboard" : "/");
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setError(msg ?? "Login failed. Please try again.");
+      // 429 — rate limited
+      if ((err as RateLimitError).isRateLimit) {
+        const rl = err as RateLimitError;
+        setError(lang === "es" ? rl.messageEs : rl.messageEn);
+      } else {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+        setError(msg ?? "Login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -48,8 +54,13 @@ export function Login() {
     try {
       await authApi.forgotPassword(forgotEmail);
       setForgotSent(true);
-    } catch {
-      setForgotError("Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      if ((err as RateLimitError).isRateLimit) {
+        const rl = err as RateLimitError;
+        setForgotError(lang === "es" ? rl.messageEs : rl.messageEn);
+      } else {
+        setForgotError("Something went wrong. Please try again.");
+      }
     } finally {
       setForgotLoading(false);
     }

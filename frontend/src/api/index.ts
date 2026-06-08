@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig } from "axios";
+import axios, { AxiosRequestConfig, AxiosError } from "axios";
 import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember, CountSession, CountEntry, CountDepartment, CountReport, Recipe, RecipeDepartment, CogsCategory } from "../types";
 import { cacheGet, cacheSet, cachePurge } from "../utils/offlineCache";
 
@@ -46,6 +46,45 @@ function redirectToLogin() {
   }
 }
 
+// ── 429 rate-limit helper ─────────────────────────────────────────────────────
+// Returns a structured error that UI components can render bilingually.
+
+export interface RateLimitError extends Error {
+  isRateLimit: true;
+  /** Seconds until the client may retry, parsed from Retry-After header. */
+  retryAfter: number | null;
+  /** Bilingual messages so any component can display without importing i18n. */
+  messageEn: string;
+  messageEs: string;
+}
+
+function buildRateLimitError(err: AxiosError): RateLimitError {
+  const retryHeader =
+    err.response?.headers?.["retry-after"] ??
+    err.response?.headers?.["ratelimit-reset"];
+  const retryAfter = retryHeader ? parseInt(String(retryHeader), 10) || null : null;
+
+  // Server may send bilingual body fields (errorEs) or just a plain error string.
+  const body = err.response?.data as Record<string, string> | undefined;
+  const serverEn = body?.error   ?? "Too many attempts, please try again in a moment.";
+  const serverEs = body?.errorEs ?? "Demasiados intentos, intenta de nuevo en un momento.";
+
+  const messageEn = retryAfter
+    ? `Too many attempts. Try again in ${retryAfter} seconds.`
+    : serverEn;
+  const messageEs = retryAfter
+    ? `Demasiados intentos. Intenta de nuevo en ${retryAfter} segundos.`
+    : serverEs;
+
+  const e = Object.assign(new Error(messageEn), {
+    isRateLimit: true as const,
+    retryAfter,
+    messageEn,
+    messageEs,
+  });
+  return e;
+}
+
 function cacheKey(config: AxiosRequestConfig): string {
   return `${config.url}?${JSON.stringify(config.params ?? {})}`;
 }
@@ -57,9 +96,17 @@ api.interceptors.response.use(
     }
     return r;
   },
-  async (err) => {
+  async (err: AxiosError) => {
     // err.config is undefined for requests that never left the client (e.g. cancelled).
     if (!err.config) return Promise.reject(err);
+
+    // ── 429 Rate-limit handling ───────────────────────────────────────────────
+    // Convert to a structured RateLimitError so components can render a
+    // bilingual "too many attempts" message with the Retry-After seconds.
+    // We reject without retrying — there is nothing to retry automatically.
+    if (err.response?.status === 429) {
+      return Promise.reject(buildRateLimitError(err));
+    }
 
     const original: AxiosRequestConfig & { _retry?: boolean } = err.config;
 

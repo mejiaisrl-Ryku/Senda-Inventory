@@ -36,8 +36,13 @@ router.get( "/waste-analysis",   getWasteAnalysis      as never);
 router.post(  "/branch",             requireAdmin as never, addBranch    as never);
 router.delete("/branch/:locationId", requireAdmin as never, deleteBranch as never);
 
-// ── Dev / QA seed tools (admin only) ─────────────────────────────────────────
-router.post(  "/seed-test", requireAdmin as never, seedTestLocations  as never);
-router.delete("/seed-test", requireAdmin as never, clearTestLocations as never);
+// ── Dev / QA seed tools — NOT registered in production ───────────────────────
+// These routes wipe and recreate test location data. They must never be
+// reachable in production even though they require ADMIN role, because an
+// admin could accidentally trigger them against live client data.
+if (process.env.NODE_ENV !== "production") {
+  router.post(  "/seed-test", requireAdmin as never, seedTestLocations  as never);
+  router.delete("/seed-test", requireAdmin as never, clearTestLocations as never);
+}
 
 export default router;

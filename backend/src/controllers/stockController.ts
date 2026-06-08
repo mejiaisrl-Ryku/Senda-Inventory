@@ -4,6 +4,7 @@ import { StockReason } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { getIO } from "../lib/socket";
 import { AuthRequest } from "../types";
+import { invalidateFinancialCaches } from "../lib/cacheInvalidation";
 
 // ADJUSTED is a correction that requires admin judgement.
 // RECEIVED / USED / WASTE are normal operational reasons available to all roles.
@@ -87,24 +88,59 @@ export async function adjustStock(req: AuthRequest, res: Response, next: NextFun
         timestamp,
       });
 
+    // Stock changes affect daily report and COGS-to-sales — invalidate caches
+    // (fire-and-forget).
+    void invalidateFinancialCaches(req.user.restaurantId ?? "");
+
     res.status(201).json(log);
   } catch (err) {
     next(err);
   }
 }
 
+/**
+ * GET /api/stock/logs/:productId[?cursor=<id>&limit=<n>]
+ *
+ * Cursor-based pagination — always ordered timestamp DESC.
+ *
+ * Without cursor:  returns the first page (most recent logs).
+ * With cursor:     returns the page starting AFTER the log with that id.
+ *
+ * Response shape:
+ *   Without pagination params → StockLog[]  (backward-compatible)
+ *   With cursor or limit      → { data: StockLog[], nextCursor: string|null, hasMore: boolean }
+ *
+ * The default page size is 50; max is 200.
+ */
 export async function getStockLogs(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     await prisma.product.findFirstOrThrow({
       where: { id: req.params.productId, restaurantId: req.user.restaurantId },
     });
 
+    const { cursor, limit: limitRaw } = req.query;
+    const isPaginated = cursor !== undefined || limitRaw !== undefined;
+    const limit       = Math.min(Math.max(parseInt(String(limitRaw ?? "50"), 10) || 50, 1), 200);
+
     const logs = await prisma.stockLog.findMany({
-      where: { productId: req.params.productId },
+      where:   { productId: req.params.productId },
       include: { user: { select: { id: true, email: true, role: true } } },
       orderBy: { timestamp: "desc" },
+      take:    limit + 1, // fetch one extra to determine hasMore
+      ...(cursor ? { cursor: { id: String(cursor) }, skip: 1 } : {}),
     });
-    res.json(logs);
+
+    if (!isPaginated) {
+      // Legacy response — return plain array (no shape change for existing clients).
+      res.json(logs.slice(0, limit));
+      return;
+    }
+
+    const hasMore    = logs.length > limit;
+    const data       = hasMore ? logs.slice(0, limit) : logs;
+    const nextCursor = hasMore ? data[data.length - 1].id : null;
+
+    res.json({ data, nextCursor, hasMore });
   } catch (err) {
     next(err);
   }
