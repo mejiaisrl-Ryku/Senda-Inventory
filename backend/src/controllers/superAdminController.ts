@@ -20,6 +20,7 @@ import { signToken, signRefreshToken, signInviteToken, signResetToken } from "..
 import { sendInviteEmail, sendPasswordResetEmail, sendPartnerInviteEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";
 import logger, { sanitizeEmail } from "../utils/logger";
+import { logAudit } from "../lib/audit";
 
 // ── Validation schemas ────────────────────────────────────────────────────────
 
@@ -202,12 +203,26 @@ export async function superAdminLogin(req: Request, res: Response, next: NextFun
       : await bcrypt.compare(password, "$2b$12$placeholder.hash.that.never.matches");
 
     if (!raw || !passwordMatch) {
+      logger.warn({
+        event:  "auth_failure",
+        reason: raw ? "wrong_password" : "user_not_found",
+        email:  sanitizeEmail(email ?? ""),
+        ip:     req.ip,
+        path:   req.path,
+      });
       return res.status(401).json({ error: "Invalid email or password." });
     }
 
     // Accept both legacy SUPER_ADMIN and new KYRU_MANAGER roles.
     const role = raw.role as string;
     if (role !== "SUPER_ADMIN" && role !== "KYRU_MANAGER") {
+      logger.warn({
+        event:  "auth_failure",
+        reason: "insufficient_role",
+        role:   raw.role,
+        email:  sanitizeEmail(email ?? ""),
+        ip:     req.ip,
+      });
       return res.status(403).json({ error: "Access denied — Kyru Manager account required." });
     }
 
@@ -324,6 +339,17 @@ export async function deleteRestaurant(req: AuthRequest, res: Response, next: Ne
     }
 
     await prisma.restaurant.delete({ where: { id } });
+
+    void logAudit({
+      action:     "restaurant.hard_delete",
+      actorId:    req.user?.userId ?? null,
+      actorRole:  req.user?.role   ?? null,
+      targetType: "restaurant",
+      targetId:   id,
+      metadata:   { name: restaurant.name },
+      req,
+    });
+
     res.status(204).end();
   } catch (err) {
     next(err);
@@ -805,6 +831,17 @@ export async function deletePartnerLocation(req: AuthRequest, res: Response, nex
     }
 
     await prisma.restaurant.delete({ where: { id: locationId } });
+
+    void logAudit({
+      action:     "restaurant.location_delete",
+      actorId:    req.user?.userId ?? null,
+      actorRole:  req.user?.role   ?? null,
+      targetType: "restaurant",
+      targetId:   locationId,
+      metadata:   { partnerId, ownerAccountId: location.ownerAccountId },
+      req,
+    });
+
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -1295,6 +1332,16 @@ export async function hardDeleteOwnerAccount(
     await prisma.ownerAccount.delete({ where: { id: ownerAccountId } });
 
     logger.warn("hardDeleteOwnerAccount: success", { userId: req.user.userId, ownerAccountId, name: existing.name });
+
+    void logAudit({
+      action:     "owner_account.hard_delete",
+      actorId:    req.user?.userId ?? null,
+      actorRole:  req.user?.role   ?? null,
+      targetType: "owner_account",
+      targetId:   ownerAccountId,
+      metadata:   { name: existing.name },
+      req,
+    });
 
     res.json({ deleted: true, id: ownerAccountId });
   } catch (err) {

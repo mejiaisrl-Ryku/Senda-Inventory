@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { signToken, signRefreshToken, verifyRefreshToken, signResetToken, verifyResetToken, JwtPayload } from "../lib/jwt";
 import { sendPasswordResetEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";
+import logger, { sanitizeEmail } from "../utils/logger";
 
 // Self-service registration: any new user creates their own restaurant in one step.
 export const registerSchema = z.object({
@@ -113,6 +114,12 @@ export async function login(req: Request, res: Response, next: NextFunction) {
       ? await bcrypt.compare(password, raw.password)
       : await bcrypt.compare(password, "$2b$12$placeholder.hash.that.never.matches");
     if (!raw || !passwordMatch) {
+      logger.warn({
+        event:  "auth_failure",
+        reason: raw ? "wrong_password" : "user_not_found",
+        email:  sanitizeEmail(email ?? ""),
+        ip:     req.ip,
+      });
       return res.status(401).json({ error: "Invalid email or password" });
     }
     // Re-fetch with the safe select so we get the restaurant join.
@@ -134,6 +141,7 @@ export async function refresh(req: Request, res: Response, next: NextFunction) {
     try {
       payload = verifyRefreshToken(refreshToken);
     } catch {
+      logger.warn({ event: "auth_failure", reason: "invalid_refresh_token", ip: req.ip });
       return res.status(401).json({ error: "Invalid or expired refresh token" });
     }
     // Re-verify the user still exists and hasn't been deleted/suspended.
