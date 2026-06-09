@@ -223,17 +223,24 @@ export function Dashboard() {
   const pageTitle = user?.restaurantName ? `${user.restaurantName} ${t.dashboard.title}` : t.dashboard.title;
   const [report, setReport] = useState<StockReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Primary multi-location owners land on the group overview instead of the single dashboard.
   // Branch members (groupId != null) are NOT redirected — they get their own location's dashboard.
  
   const loadReport = useCallback(() => {
-    stockApi.report().then(setReport).catch(() => {});
+    stockApi.report()
+      .then(setReport)
+      .catch((err) => console.error('[Dashboard] Socket reload failed:', err));
   }, []);
 
   useEffect(() => {
     stockApi.report()
       .then(setReport)
+      .catch((err) => {
+        console.error('[Dashboard] Stock report failed:', err);
+        setError(err?.response?.data?.message || 'Failed to load stock report');
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -270,6 +277,12 @@ export function Dashboard() {
       </div>
 
       <OnboardingChecklist />
+
+      {error && (
+        <div className="px-4 py-3 rounded-[8px] bg-[#1a1a1a] border border-[#ef4444] text-[13px] text-[#ef4444]">
+          <strong>Error:</strong> {error}
+        </div>
+      )}
 
       {report && (
         <>
