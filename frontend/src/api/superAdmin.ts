@@ -7,7 +7,7 @@ import axios from "axios";
 
 // Intentionally mirrors the hardcoded BASE in api/index.ts so both clients
 // always resolve to the same origin — no env-var ambiguity.
-const BASE = "https://senda-inventory-production.up.railway.app/api";
+const BASE = process.env.REACT_APP_API_URL ?? "https://senda-inventory-production.up.railway.app/api";
 
 export const saApi = axios.create({
   baseURL: BASE,

@@ -5,7 +5,12 @@ import "./index.css";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 
-if (process.env.REACT_APP_SENTRY_DSN) {
+// A valid Sentry DSN must match https://<key>@<host>/<project-id>.
+// Reject placeholder strings (e.g. "your-dsn-here") so they don't cause
+// the "Invalid Sentry DSN" console error.
+const _sentryDsn = process.env.REACT_APP_SENTRY_DSN;
+const _validDsn = /^https?:\/\/[^@]+@[^/]+\/\d+$/.test(_sentryDsn ?? "");
+if (_sentryDsn && _validDsn) {
   Sentry.init({
     dsn:         process.env.REACT_APP_SENTRY_DSN,
     environment: process.env.REACT_APP_ENV ?? process.env.NODE_ENV ?? "development",
