@@ -1,5 +1,7 @@
-import { Router } from "express";
+import { Router, Response, NextFunction } from "express";
 import { authenticate, requireSuperAdmin, requireKyruManager } from "../middleware/auth";
+import { logAudit } from "../lib/audit";
+import { AuthRequest } from "../types";
 import { validate } from "../middleware/validate";
 import {
   superAdminLogin,
@@ -49,6 +51,22 @@ router.post("/partner-setup", validate(completePartnerSetupSchema), completePart
 // ── Protected — valid JWT + SUPER_ADMIN role required ────────────────────────
 router.use(authenticate as never);
 router.use(requireSuperAdmin as never);
+
+// ── Audit chokepoint ──────────────────────────────────────────────────────────
+// Every authenticated super-admin request is audit-logged here (who, what
+// endpoint, when). Handlers add richer per-action entries (e.g. hard_delete)
+// on top; this guarantees baseline coverage for ALL prismaAdmin access.
+router.use(((req: AuthRequest, _res: Response, next: NextFunction) => {
+  void logAudit({
+    action:     "kyru_manager.cross_tenant_read",
+    actorId:    req.user?.userId ?? null,
+    actorRole:  req.user?.role   ?? null,
+    targetType: "endpoint",
+    targetId:   `${req.method} ${req.baseUrl}${req.path}`,
+    req,
+  });
+  next();
+}) as never);
 
 // Restaurants
 router.get("/restaurants", listRestaurants as never);

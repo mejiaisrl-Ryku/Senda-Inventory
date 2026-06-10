@@ -6,9 +6,10 @@
  * access).
  *
  * Design decisions:
- * - Uses `prisma` (superuser client) — the AuditLog table has no RLS policy
- *   (it is a platform-level table, not tenant-scoped) so the app-role client
- *   would fail to INSERT.
+ * - Uses `prismaAdmin` (senda_admin role) — the AuditLog table is a
+ *   platform-level table, not tenant-scoped. The senda_app client must not
+ *   write it, and in production the base `prisma` client IS senda_app, so
+ *   using it here would silently drop every audit record.
  * - Caller is responsible for pre-scrubbing `metadata` — never pass raw request
  *   bodies or financial records.
  * - `logAudit` never throws — a failed audit write logs an error but does NOT
@@ -17,7 +18,7 @@
  *   transaction instead of using this helper.
  */
 
-import { prisma } from "./prisma";
+import { prismaAdmin as prisma } from "./prisma";
 import logger from "../utils/logger";
 import { getRequestId } from "../middleware/requestId";
 import { Request } from "express";

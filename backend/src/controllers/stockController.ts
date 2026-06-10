@@ -1,7 +1,7 @@
 import { Response, NextFunction } from "express";
 import { z } from "zod";
 import { StockReason } from "@prisma/client";
-import { prisma } from "../lib/prisma";
+import { prismaT as prisma } from "../lib/prisma";
 import { getIO } from "../lib/socket";
 import { AuthRequest } from "../types";
 import { invalidateFinancialCaches } from "../lib/cacheInvalidation";

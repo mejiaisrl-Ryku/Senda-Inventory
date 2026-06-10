@@ -10,14 +10,15 @@
     "start:prod": "npm run migrate && npm start",
     "migrate": "prisma db push --skip-generate --accept-data-loss",
     "test": "jest",
-    "test:ci": "jest --ci --forceExit",
+    "test:ci": "sh scripts/check-prisma-clients.sh && jest --ci --forceExit",
     "test:unit": "jest --testPathPattern='costing|stock|rateLimiter' --ci --forceExit",
     "test:integration": "jest --testPathPattern='tenantIntegrity|tenantIsolation|rlsPolicy' --ci --forceExit",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "db:seed": "ts-node prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "check:clients": "sh scripts/check-prisma-clients.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.98.0",

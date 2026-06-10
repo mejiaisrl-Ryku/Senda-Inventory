@@ -1,16 +1,17 @@
 import request from "supertest";
 import bcrypt from "bcryptjs";
 
-jest.mock("../lib/prisma", () => ({
-  prisma: {
+jest.mock("../lib/prisma", () => {
+  const prisma = {
     user: {
       create: jest.fn(),
       findUnique: jest.fn(),
       findUniqueOrThrow: jest.fn(),
     },
     $queryRaw: jest.fn(),
-  },
-}));
+  };
+  return { prisma, prismaT: prisma, prismaAdmin: prisma };
+});
 
 jest.mock("../lib/socket", () => ({
   initSocket: jest.fn(),

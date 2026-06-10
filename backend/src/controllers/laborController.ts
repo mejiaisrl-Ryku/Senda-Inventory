@@ -1,6 +1,6 @@
 import { Response, NextFunction } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
+import { prismaT as prisma } from "../lib/prisma";
 
 // LaborEntry is not in the generated Prisma client until prisma generate runs.
 // Use (prisma as any).laborEntry to work around the lag.

@@ -1,7 +1,7 @@
 import { Response, NextFunction } from "express";
 import { z } from "zod";
 import { SalesCategory } from "@prisma/client";
-import { prisma } from "../lib/prisma";
+import { prismaT as prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 import { withCache, TTL_FINANCIAL } from "../lib/cache";
 import { keyDailyReport, keyCogsToSales } from "../lib/cacheKeys";

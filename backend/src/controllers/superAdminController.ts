@@ -1,21 +1,36 @@
 /**
- * TENANT ISOLATION NOTE — this controller uses `prisma` (raw postgres-superuser
- * connection), NOT `prismaT` (the tenant-scoped Prisma extension).
+ * TENANT ISOLATION NOTE — this controller uses `prismaAdmin`, NOT the base
+ * `prisma` client and NOT `prismaT`.
  *
- * Why: the postgres superuser bypasses Row-Level Security unconditionally,
- * which is intentional here — super-admin endpoints need unrestricted
- * cross-tenant access to restaurants, users, partner invites, and owner accounts.
+ * The three clients and why each exists (see lib/prisma.ts):
  *
- * DO NOT migrate this file to `prismaT` without also routing through
- * `prismaAdmin` (the dedicated BYPASSRLS client in lib/prisma.ts).
- * Using `prismaT` here would cause every query on an RLS-protected table to
- * silently return zero rows, because no GUC is set for a super-admin session.
+ *   prisma      — base client on DATABASE_URL. In production DATABASE_URL is
+ *                 the `senda_app` role: NON-superuser, RLS *enforced*, and no
+ *                 tenant GUC is ever set on it. A query on any RLS-protected
+ *                 table (products, orders, sales_entries, …) through this
+ *                 client silently returns ZERO ROWS. Only safe for pre-auth
+ *                 paths touching non-RLS tables (users, restaurants).
+ *
+ *   prismaT     — tenant-scoped client for ADMIN/STAFF request handlers. Its
+ *                 extension injects restaurantId WHERE clauses and wraps each
+ *                 query in a transaction that SET LOCALs the RLS GUCs.
+ *
+ *   prismaAdmin — connects as `senda_admin` (BYPASSRLS, via ADMIN_DATABASE_URL).
+ *                 For KYRU_MANAGER / SUPER_ADMIN / OWNER_SUPER_ADMIN handlers
+ *                 that legitimately need cross-tenant reads. Role access is
+ *                 enforced at the route chokepoint (requireSuperAdmin /
+ *                 requireKyruManager); BYPASSRLS only skips the DB backstop.
+ *
+ * HISTORY: this file originally used `prisma` when DATABASE_URL was the
+ * postgres superuser (which bypasses RLS). The hardening pass switched
+ * DATABASE_URL to `senda_app`, so every RLS-table query here returned zero
+ * rows — "partners disappeared". Do not switch this file off `prismaAdmin`.
  */
 import { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
+import { prismaAdmin as prisma } from "../lib/prisma";
 import { signToken, signRefreshToken, signInviteToken, signResetToken } from "../lib/jwt";
 import { sendInviteEmail, sendPasswordResetEmail, sendPartnerInviteEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";

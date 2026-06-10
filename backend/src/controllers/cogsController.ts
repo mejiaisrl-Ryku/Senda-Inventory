@@ -1,7 +1,7 @@
 import { Response, NextFunction } from "express";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
-import { prisma } from "../lib/prisma";
+import { prismaT as prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 import logger from "../utils/logger";
 import { withCache, TTL_STATIC } from "../lib/cache";
