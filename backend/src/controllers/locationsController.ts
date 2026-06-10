@@ -15,7 +15,7 @@
  * silently returning zero rows with no error for those roles.
  */
 import { Response, NextFunction } from "express";
-import { prisma } from "../lib/prisma";
+import { prismaT as prisma } from "../lib/prisma";
 import { signInviteToken } from "../lib/jwt";
 import { sendInviteEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";

@@ -1,6 +1,6 @@
 import { Response, NextFunction } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
+import { prismaT as prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 
 // ── Proxy models (not in generated Prisma client until db push + generate) ────

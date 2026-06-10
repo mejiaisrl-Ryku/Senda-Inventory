@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
+import { prismaT as prisma } from "../lib/prisma";
 import { signToken, signRefreshToken, signInviteToken, verifyInviteToken, signResetToken } from "../lib/jwt";
 import { sendInviteEmail, sendPasswordResetEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";

@@ -1,7 +1,7 @@
 import { Response, NextFunction } from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
+import { prismaT as prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

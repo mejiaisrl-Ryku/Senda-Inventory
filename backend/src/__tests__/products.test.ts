@@ -1,7 +1,7 @@
 import request from "supertest";
 
-jest.mock("../lib/prisma", () => ({
-  prisma: {
+jest.mock("../lib/prisma", () => {
+  const prisma = {
     product: {
       findMany: jest.fn(),
       findFirstOrThrow: jest.fn(),
@@ -9,8 +9,9 @@ jest.mock("../lib/prisma", () => ({
       delete: jest.fn(),
     },
     $queryRaw: jest.fn(),
-  },
-}));
+  };
+  return { prisma, prismaT: prisma, prismaAdmin: prisma };
+});
 
 jest.mock("../lib/socket", () => ({
   initSocket: jest.fn(),

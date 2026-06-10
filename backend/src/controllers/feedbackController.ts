@@ -1,6 +1,6 @@
 import { Response, NextFunction } from "express";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
+import { prismaT as prisma } from "../lib/prisma";
 import { sendFeedbackEmail } from "../lib/mailer";
 import { AuthRequest } from "../types";
 

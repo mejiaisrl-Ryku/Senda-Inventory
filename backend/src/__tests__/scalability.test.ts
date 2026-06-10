@@ -22,8 +22,8 @@
 
 // ── Mocks (must be before any imports that trigger module evaluation) ─────────
 
-jest.mock("../lib/prisma", () => ({
-  prisma: {
+jest.mock("../lib/prisma", () => {
+  const prisma = {
     product:    {
       findFirstOrThrow: jest.fn(),
       findMany:         jest.fn(),
@@ -32,8 +32,9 @@ jest.mock("../lib/prisma", () => ({
     salesEntry: { findMany: jest.fn() },
     order:      { findMany: jest.fn() },
     $queryRaw:  jest.fn(),
-  },
-}));
+  };
+  return { prisma, prismaT: prisma, prismaAdmin: prisma };
+});
 
 jest.mock("../lib/socket", () => ({
   initSocket: jest.fn(),

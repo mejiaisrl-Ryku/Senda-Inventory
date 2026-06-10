@@ -1,5 +1,5 @@
 import { Response, NextFunction } from "express";
-import { prisma } from "../lib/prisma";
+import { prismaT as prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 import logger from "../utils/logger";
 import { withCache, TTL_FINANCIAL } from "../lib/cache";

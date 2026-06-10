@@ -13,14 +13,15 @@
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
-jest.mock("../lib/prisma", () => ({
-  prisma: {
+jest.mock("../lib/prisma", () => {
+  const prisma = {
     $queryRaw:  jest.fn(),
     auditLog:   { create: jest.fn() },
     user:       { findUnique: jest.fn(), findUniqueOrThrow: jest.fn() },
     $queryRawUnsafe: jest.fn(),
-  },
-}));
+  };
+  return { prisma, prismaT: prisma, prismaAdmin: prisma };
+});
 
 jest.mock("../lib/redis", () => ({
   getRedis: jest.fn(),
