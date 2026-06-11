@@ -1,5 +1,5 @@
 import express, { Request, Response, NextFunction } from "express";
-import cors from "cors";
+import cors, { CorsOptionsDelegate } from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 
@@ -33,11 +33,15 @@ import leadsRouter from "./routes/leads";
 
 const isProd = process.env.NODE_ENV === "production";
 
-// Production origins only.  Stale preview URLs (aapp-final-1.vercel.app) have
-// been removed.  For staging / Vercel deployments override via ALLOWED_ORIGINS
-// env var in Railway — e.g. "https://senda.vercel.app,https://kyruadvisory.com".
-const DEFAULT_ORIGINS = "http://localhost:3000,https://www.kyruadvisory.com,https://kyruadvisory.com";
+// CORS is two-tier:
+//   • App origins — the authenticated SPA at app.kyruadvisory.com. Credentialed
+//     CORS; also used for socket.io (see index.ts). Override via ALLOWED_ORIGINS
+//     env var in Railway (comma-separated) for staging / preview deployments.
+//   • Marketing origins — apex + www may only reach the public lead-capture
+//     endpoint (POST /api/leads); they never get credentialed responses.
+const DEFAULT_ORIGINS = "http://localhost:3000,https://app.kyruadvisory.com";
 export const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? DEFAULT_ORIGINS).split(",");
+const MARKETING_ORIGINS = ["https://kyruadvisory.com", "https://www.kyruadvisory.com"];
 
 const app = express();
 
@@ -59,7 +63,15 @@ if (isProd) {
 // Request ID must be first so every subsequent middleware/log has a trace ID.
 app.use(requestIdMiddleware);
 
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+const corsDelegate: CorsOptionsDelegate<Request> = (req, callback) => {
+  if (req.path.startsWith("/api/leads")) {
+    // Public lead capture — accepts the marketing site, no credentials.
+    callback(null, { origin: [...MARKETING_ORIGINS, ...allowedOrigins] });
+  } else {
+    callback(null, { origin: allowedOrigins, credentials: true });
+  }
+};
+app.use(cors(corsDelegate));
 // "combined" includes :response-time ms — used by Railway's log-based alerting.
 // :req[x-request-id] propagates the trace ID into every access-log line.
 morgan.token("reqId", (req) => req.headers["x-request-id"] as string ?? "-");
