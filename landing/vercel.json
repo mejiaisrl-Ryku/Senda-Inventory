@@ -1,0 +1,30 @@
+{
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "redirects": [
+    { "source": "/inicio", "destination": "/", "permanent": true },
+
+    { "source": "/login", "destination": "https://app.kyruadvisory.com/login", "permanent": true },
+    { "source": "/register", "destination": "https://app.kyruadvisory.com/register", "permanent": true },
+    { "source": "/signup", "destination": "https://app.kyruadvisory.com/register", "permanent": true },
+    { "source": "/reset-password", "destination": "https://app.kyruadvisory.com/reset-password", "permanent": true },
+    { "source": "/partner-setup", "destination": "https://app.kyruadvisory.com/partner-setup", "permanent": true },
+
+    { "source": "/dashboard", "destination": "https://app.kyruadvisory.com/", "permanent": true },
+    { "source": "/multi-location", "destination": "https://app.kyruadvisory.com/multi-location", "permanent": true },
+    { "source": "/profile", "destination": "https://app.kyruadvisory.com/profile", "permanent": true },
+    { "source": "/products", "destination": "https://app.kyruadvisory.com/products", "permanent": true },
+    { "source": "/stock", "destination": "https://app.kyruadvisory.com/stock", "permanent": true },
+    { "source": "/orders", "destination": "https://app.kyruadvisory.com/orders", "permanent": true },
+    { "source": "/reports", "destination": "https://app.kyruadvisory.com/reports", "permanent": true },
+    { "source": "/inventory/:path*", "destination": "https://app.kyruadvisory.com/inventory/:path*", "permanent": true },
+    { "source": "/recipes", "destination": "https://app.kyruadvisory.com/recipes", "permanent": true },
+    { "source": "/sales", "destination": "https://app.kyruadvisory.com/sales", "permanent": true },
+    { "source": "/labor", "destination": "https://app.kyruadvisory.com/labor", "permanent": true },
+    { "source": "/team", "destination": "https://app.kyruadvisory.com/team", "permanent": true },
+
+    { "source": "/owner/:path*", "destination": "https://app.kyruadvisory.com/owner/:path*", "permanent": true },
+    { "source": "/super-admin/:path*", "destination": "https://app.kyruadvisory.com/super-admin/:path*", "permanent": true },
+    { "source": "/manager/:path*", "destination": "https://app.kyruadvisory.com/manager/:path*", "permanent": true }
+  ]
+}
