@@ -8,6 +8,11 @@ import { useLanguage } from "../context/LanguageContext";
 const inputCls =
   "w-full px-3 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#0a0a0a] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors";
 
+// Re-enable after Stripe self-serve onboarding. Hides only the public
+// "Create Account" link below the sign-in form — the /register route itself
+// stays live because invite links (/register?token=...) depend on it.
+const SELF_SERVE_SIGNUP_ENABLED = false;
+
 export function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -220,12 +225,14 @@ export function Login() {
                   {loading ? t.auth.signingIn : t.auth.signIn}
                 </button>
 
-                <p className="text-center text-[13px] text-[#555] pt-1">
-                  {t.auth.noAccount}{" "}
-                  <Link to="/register" className="text-[#3dbf8a] hover:text-[#35a87a] font-medium transition-colors">
-                    {t.auth.createAccount}
-                  </Link>
-                </p>
+                {SELF_SERVE_SIGNUP_ENABLED && (
+                  <p className="text-center text-[13px] text-[#555] pt-1">
+                    {t.auth.noAccount}{" "}
+                    <Link to="/register" className="text-[#3dbf8a] hover:text-[#35a87a] font-medium transition-colors">
+                      {t.auth.createAccount}
+                    </Link>
+                  </p>
+                )}
 
                 <p className="text-center mt-2">
                   <Link to="/manager/login" className="text-[11px] text-[#333] hover:text-[#555] transition-colors">
