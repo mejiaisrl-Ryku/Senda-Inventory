@@ -582,6 +582,7 @@ en:{
  "form.phone":"WhatsApp / phone","form.lang":"Preferred language",
  "form.cta":"Start my trial","form.fine":"No card required · We set you up personally · EN/ES",
  "form.okTitle":"You're on the list, chef.","form.okBody":"We'll reach out on WhatsApp within 24 hours to set up your account.",
+ "form.err":"We couldn't send your request. Message us on <a href='https://wa.me/19296818053' target='_blank' rel='noopener' style='color:var(--green);font-weight:600'>WhatsApp</a> or <a href='mailto:israel@kyruadvisory.com?subject=Kyru%20trial%20request' style='color:var(--green);font-weight:600'>email us</a>.",
  "foot.cred":"<b>Kyru Advisory</b> — built by a restaurant GM with 20 years on the floor, not by a software company guessing what kitchens need."
 },
 es:{
@@ -628,6 +629,7 @@ es:{
  "form.phone":"WhatsApp / teléfono","form.lang":"Idioma preferido",
  "form.cta":"Empezar mi prueba","form.fine":"Sin tarjeta · Te configuramos personalmente · ES/EN",
  "form.okTitle":"Listo, chef. Ya estás en la lista.","form.okBody":"Te contactamos por WhatsApp en menos de 24 horas para dejar tu cuenta lista.",
+ "form.err":"No pudimos enviar tu solicitud. Escríbenos por <a href='https://wa.me/19296818053' target='_blank' rel='noopener' style='color:var(--green);font-weight:600'>WhatsApp</a> o por <a href='mailto:israel@kyruadvisory.com?subject=Solicitud%20de%20prueba%20Kyru' style='color:var(--green);font-weight:600'>correo</a>.",
  "foot.cred":"<b>Kyru Advisory</b> — hecho por un gerente de restaurante con 20 años en el piso, no por una empresa de software adivinando qué necesita una cocina."
 }
 };
@@ -735,10 +737,8 @@ document.getElementById('trial-form').addEventListener('submit',async function(e
     const div=document.createElement('div');
     div.id='form-error';
     div.style.cssText='margin-top:14px;text-align:center;color:var(--red);font-size:14px';
-    div.innerHTML=(lang==='es'
-      ?'No pudimos enviar tu solicitud. Escríbenos directo por '
-      :'We couldn\'t send your request. Message us directly on ')
-      +'<a href="https://wa.me/19296818053" target="_blank" rel="noopener" style="color:var(--green);font-weight:600">WhatsApp</a>.';
+    div.setAttribute('data-i18n','form.err'); // re-translates if the user toggles EN/ES
+    div.innerHTML=I[lang]['form.err'];
     this.appendChild(div);
   }
 });
