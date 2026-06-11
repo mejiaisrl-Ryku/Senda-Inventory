@@ -9,6 +9,7 @@ jest.mock("../lib/prisma", () => {
       findUniqueOrThrow: jest.fn(),
     },
     $queryRaw: jest.fn(),
+    $transaction: jest.fn(),
   };
   return { prisma, prismaT: prisma, prismaAdmin: prisma };
 });
@@ -29,11 +30,12 @@ jest.mock("../middleware/rateLimiter", () => ({
 
 import app from "../app";
 import { prisma } from "../lib/prisma";
-import { signToken, signRefreshToken } from "../lib/jwt";
+import { signToken, signRefreshToken, signInviteToken } from "../lib/jwt";
 
 const db = prisma as unknown as {
   user: { create: jest.Mock; findUnique: jest.Mock; findUniqueOrThrow: jest.Mock };
   $queryRaw: jest.Mock;
+  $transaction: jest.Mock;
 };
 
 const RESTAURANT_ID = "cltest0restaurant0000000001";
@@ -54,24 +56,90 @@ beforeEach(() => {
 // ── Register ──────────────────────────────────────────────────────────────────
 
 describe("POST /api/auth/register", () => {
-  it("returns 201 with user and token pair on valid input", async () => {
+  const VALID = { name: "Chef", email: EMAIL, password: PASSWORD, restaurantName: "Dopamina" };
+
+  it("returns 403 while self-serve signup is disabled (default)", async () => {
+    const res = await request(app).post("/api/auth/register").send(VALID);
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/invitation/i);
+    expect(db.$transaction).not.toHaveBeenCalled();
+    expect(db.user.create).not.toHaveBeenCalled();
+  });
+
+  it("returns 201 with user and token pair when SELF_SERVE_SIGNUP_ENABLED=true", async () => {
+    process.env.SELF_SERVE_SIGNUP_ENABLED = "true";
+    try {
+      db.$transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+        fn({
+          restaurant: { create: jest.fn().mockResolvedValue({ id: RESTAURANT_ID, name: "Dopamina" }) },
+          user: {
+            create: jest.fn().mockResolvedValue({
+              id: USER_ID,
+              name: "Chef",
+              email: EMAIL,
+              role: "ADMIN",
+              restaurantId: RESTAURANT_ID,
+            }),
+          },
+        })
+      );
+
+      const res = await request(app).post("/api/auth/register").send(VALID);
+
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({
+        user: { email: EMAIL, role: "ADMIN" },
+        token: expect.any(String),
+        refreshToken: expect.any(String),
+      });
+    } finally {
+      delete process.env.SELF_SERVE_SIGNUP_ENABLED;
+    }
+  });
+});
+
+// ── Register via invite — must keep working while self-serve is off ───────────
+
+describe("POST /api/team/register-via-invite", () => {
+  const INVITE_EMAIL = "newhire@dopamina.com";
+
+  it("registers via a valid invite token while self-serve is disabled", async () => {
+    const token = signInviteToken({
+      restaurantId:   RESTAURANT_ID,
+      restaurantName: "Dopamina",
+      role:           "STAFF",
+      email:          INVITE_EMAIL,
+    });
+    db.user.findUnique.mockResolvedValue(null); // no duplicate account
     db.user.create.mockResolvedValue({
-      id: USER_ID,
-      email: EMAIL,
+      id: "cltest0user00000000000002",
+      name: "New Hire",
+      email: INVITE_EMAIL,
       role: "STAFF",
       restaurantId: RESTAURANT_ID,
+      restaurant: { name: "Dopamina", ownerAccountId: null },
     });
 
     const res = await request(app)
-      .post("/api/auth/register")
-      .send({ email: EMAIL, password: PASSWORD, restaurantId: RESTAURANT_ID });
+      .post("/api/team/register-via-invite")
+      .send({ token, name: "New Hire", email: INVITE_EMAIL, password: PASSWORD });
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({
-      user: { email: EMAIL, role: "STAFF" },
+      user: { email: INVITE_EMAIL, role: "STAFF", restaurantName: "Dopamina" },
       token: expect.any(String),
       refreshToken: expect.any(String),
     });
+  });
+
+  it("rejects an invalid invite token", async () => {
+    const res = await request(app)
+      .post("/api/team/register-via-invite")
+      .send({ token: "not-a-jwt", name: "X", email: INVITE_EMAIL, password: PASSWORD });
+
+    expect(res.status).toBe(400);
+    expect(db.user.create).not.toHaveBeenCalled();
   });
 });
 

@@ -81,6 +81,18 @@ function makeTokenPair(
 
 export async function register(req: Request, res: Response, next: NextFunction) {
   try {
+    // Self-serve signup is closed until Stripe onboarding ships. Re-enable by
+    // setting SELF_SERVE_SIGNUP_ENABLED=true in Railway (read at call time so
+    // no rebuild is needed). Mirrors the frontend flag in Register.tsx.
+    // Invite-based registration (/api/team/register-via-invite, partner-setup
+    // onboarding) is separate and unaffected.
+    if (process.env.SELF_SERVE_SIGNUP_ENABLED !== "true") {
+      return res.status(403).json({
+        error:
+          "Self-serve registration is disabled. Kyru accounts are created by invitation — contact israel@kyruadvisory.com.",
+      });
+    }
+
     const { name, email, password, restaurantName } = req.body as {
       name: string;
       email: string;
