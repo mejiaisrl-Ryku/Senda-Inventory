@@ -472,6 +472,7 @@ model Lead {
   id         String   @id @default(cuid())
   name       String
   restaurant String
+  email      String?  // required by the API for new leads; null for pre-June-2026 rows
   locations  String   // "1" | "2" | "3" | "4+" — free string from the form
   phone      String
   language   String   // preferred account language: "en" | "es"

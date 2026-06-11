@@ -448,6 +448,7 @@ export async function sendPasswordResetEmail({
 export async function sendLeadNotification(lead: {
   name:       string;
   restaurant: string;
+  email:      string | null; // null only for pre-June-2026 rows
   locations:  string;
   phone:      string;
   language:   string;
@@ -468,6 +469,7 @@ export async function sendLeadNotification(lead: {
   <table style="border-collapse:collapse;font-size:15px">
     ${row("Name",       lead.name)}
     ${row("Restaurant", lead.restaurant)}
+    ${row("Email",      lead.email ?? "—")}
     ${row("Locations",  lead.locations)}
     ${row("WhatsApp",   lead.phone)}
     ${row("Language",   lead.language)}
@@ -480,6 +482,7 @@ export async function sendLeadNotification(lead: {
   return sendMail({
     from:    FROM,
     to:      "israel@kyruadvisory.com",
+    ...(lead.email ? { replyTo: `${lead.name} <${lead.email}>` } : {}),
     subject: `[Kyru Lead] ${lead.restaurant} — ${lead.locations} locations`,
     html,
   });
