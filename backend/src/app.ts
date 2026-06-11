@@ -29,6 +29,7 @@ import { ownerPnlRouter } from "./routes/phase6Routes";
 import { ownerBudgetRouter } from "./routes/budgetRoutes";
 import scanRouter from "./routes/scanRoutes";
 import cogsRouter from "./routes/cogs";
+import leadsRouter from "./routes/leads";
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -154,6 +155,7 @@ app.use("/api/owner",         ownerPnlRouter);
 app.use("/api/owner",         ownerBudgetRouter);
 app.use("/api/inventory",     scanRouter);
 app.use("/api/cogs-categories", cogsRouter);
+app.use("/api/leads",           leadsRouter);
 
 app.use(errorHandler);
 

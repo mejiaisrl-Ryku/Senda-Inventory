@@ -463,3 +463,22 @@ model LocationBudget {
   @@index([ownerAccountId])
   @@map("location_budgets")
 }
+
+// ── Marketing leads (landing page) ───────────────────────────────────────────
+// Pre-auth public capture — NO RLS, same category as users/restaurants.
+// Written via the base `prisma` client (see controllers/leadsController.ts).
+
+model Lead {
+  id         String   @id @default(cuid())
+  name       String
+  restaurant String
+  locations  String   // "1" | "2" | "3" | "4+" — free string from the form
+  phone      String
+  language   String   // preferred account language: "en" | "es"
+  pageLang   String   // landing page language at submit time
+  source     String   @default("landing")
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("leads")
+}

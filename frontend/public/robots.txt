@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /super-admin
+Disallow: /manager
+
+Sitemap: https://kyruadvisory.com/sitemap.xml
