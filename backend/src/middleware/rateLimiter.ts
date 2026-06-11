@@ -138,3 +138,21 @@ export const aiLimiter = rateLimit({
     errorEs: "Límite de escaneo IA alcanzado.  Intenta de nuevo en una hora.",
   },
 });
+
+/**
+ * Marketing-lead limiter — public unauthenticated endpoint, so keep it tight.
+ * 5 submissions per hour per IP (a real prospect submits once).
+ *
+ * Env overrides: LEADS_RATE_LIMIT_MAX, LEADS_RATE_LIMIT_WINDOW_MS
+ */
+export const leadsLimiter = rateLimit({
+  windowMs: int("LEADS_RATE_LIMIT_WINDOW_MS", 60 * 60 * 1000), // 1 hour
+  max:      int("LEADS_RATE_LIMIT_MAX", 5),
+  standardHeaders: "draft-7",
+  legacyHeaders:   false,
+  ...makeStoreOpts("leads"),
+  message:         {
+    error: "Too many requests, please try again later.",
+    errorEs: "Demasiadas solicitudes, intenta de nuevo más tarde.",
+  },
+});

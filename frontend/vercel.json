@@ -1,7 +1,11 @@
 {
   "rewrites": [
     {
-      "source": "/((?!manifest\\.json|favicon\\.ico|icon-192\\.png|icon-512\\.png|service-worker\\.js|robots\\.txt|static/).*)",
+      "source": "/inicio",
+      "destination": "/inicio.html"
+    },
+    {
+      "source": "/((?!inicio|manifest\\.json|favicon\\.ico|icon-192\\.png|icon-512\\.png|service-worker\\.js|robots\\.txt|sitemap\\.xml|static/|assets/).*)",
       "destination": "/index.html"
     }
   ],

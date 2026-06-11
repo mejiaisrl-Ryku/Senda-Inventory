@@ -442,3 +442,45 @@ export async function sendPasswordResetEmail({
     html,
   });
 }
+
+// ── Lead notification (landing page) ─────────────────────────────────────────
+
+export async function sendLeadNotification(lead: {
+  name:       string;
+  restaurant: string;
+  locations:  string;
+  phone:      string;
+  language:   string;
+  pageLang:   string;
+  createdAt:  Date;
+}): Promise<string> {
+  const esc = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const row = (label: string, value: string) =>
+    `<tr><td style="padding:6px 14px 6px 0;color:#666;white-space:nowrap">${label}</td><td style="padding:6px 0;font-weight:600">${esc(value)}</td></tr>`;
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<body style="font-family:-apple-system,Segoe UI,sans-serif;color:#111;max-width:520px">
+  <h2 style="margin:0 0 4px">New trial request</h2>
+  <p style="margin:0 0 18px;color:#666">From the kyruadvisory.com landing page.</p>
+  <table style="border-collapse:collapse;font-size:15px">
+    ${row("Name",       lead.name)}
+    ${row("Restaurant", lead.restaurant)}
+    ${row("Locations",  lead.locations)}
+    ${row("WhatsApp",   lead.phone)}
+    ${row("Language",   lead.language)}
+    ${row("Page lang",  lead.pageLang)}
+    ${row("Received",   lead.createdAt.toISOString())}
+  </table>
+</body>
+</html>`;
+
+  return sendMail({
+    from:    FROM,
+    to:      "israel@kyruadvisory.com",
+    subject: `[Kyru Lead] ${lead.restaurant} — ${lead.locations} locations`,
+    html,
+  });
+}
