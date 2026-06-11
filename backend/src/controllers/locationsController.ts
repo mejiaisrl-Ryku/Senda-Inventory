@@ -18,6 +18,7 @@ import { Response, NextFunction } from "express";
 import { prismaT as prisma } from "../lib/prisma";
 import { signInviteToken } from "../lib/jwt";
 import { sendInviteEmail } from "../lib/mailer";
+import { getFrontendUrl } from "../lib/urls";
 import { AuthRequest } from "../types";
 
 // ══ DATA ISOLATION — SECURITY BOUNDARY ═══════════════════════════════════════
@@ -889,7 +890,7 @@ export async function addBranch(
       email:          trimmedGmEmail,
     });
 
-    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const frontendUrl = getFrontendUrl();
     const inviteUrl   = `${frontendUrl}/register?token=${inviteToken}`;
 
     await sendInviteEmail({

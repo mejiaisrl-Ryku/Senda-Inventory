@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+# These paths 308-redirect to app.kyruadvisory.com — keep them out of the index.
+Disallow: /login
+Disallow: /register
+Disallow: /signup
+Disallow: /reset-password
+Disallow: /partner-setup
+Disallow: /owner
+Disallow: /super-admin
+Disallow: /manager
+
+Sitemap: https://kyruadvisory.com/sitemap.xml

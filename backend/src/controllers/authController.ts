@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { signToken, signRefreshToken, verifyRefreshToken, signResetToken, verifyResetToken, JwtPayload } from "../lib/jwt";
 import { sendPasswordResetEmail } from "../lib/mailer";
+import { getFrontendUrl } from "../lib/urls";
 import { AuthRequest } from "../types";
 import logger, { sanitizeEmail } from "../utils/logger";
 
@@ -197,7 +198,7 @@ export async function forgotPassword(req: Request, res: Response, next: NextFunc
     // Silently succeed when user not found — don't leak account existence.
     if (user) {
       const token = signResetToken({ userId: user.id, email: user.email });
-      const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+      const frontendUrl = getFrontendUrl();
       const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
 
       // Fire-and-forget — don't let email errors block the response.

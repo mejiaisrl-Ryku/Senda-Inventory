@@ -33,6 +33,7 @@ import { z } from "zod";
 import { prismaAdmin as prisma } from "../lib/prisma";
 import { signToken, signRefreshToken, signInviteToken, signResetToken } from "../lib/jwt";
 import { sendInviteEmail, sendPasswordResetEmail, sendPartnerInviteEmail } from "../lib/mailer";
+import { getFrontendUrl } from "../lib/urls";
 import { AuthRequest } from "../types";
 import logger, { sanitizeEmail } from "../utils/logger";
 import { logAudit } from "../lib/audit";
@@ -443,7 +444,7 @@ export async function createPartnerInvite(req: AuthRequest, res: Response, next:
       update: { firstName, lastName, token, status: "pending", expiresAt, locationCount },
     });
 
-    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const frontendUrl = getFrontendUrl();
     const setupUrl = `${frontendUrl}/partner-setup?token=${token}`;
 
     console.log(`[createPartnerInvite] Sending invite email to="${email}" setupUrl="${setupUrl}"`);
@@ -503,7 +504,7 @@ export async function inviteAdmin(req: AuthRequest, res: Response, next: NextFun
       email,
     });
 
-    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const frontendUrl = getFrontendUrl();
     const inviteUrl = `${frontendUrl}/register?token=${token}`;
 
     console.log(`[inviteAdmin] Calling sendInviteEmail to="${email}" restaurant="${restaurant.name}" frontendUrl="${frontendUrl}"`);
@@ -535,7 +536,7 @@ export async function sendUserResetEmail(req: AuthRequest, res: Response, next: 
     console.log(`[sendUserResetEmail] Sending password reset to email="${target.email}" userId="${userId}"`);
 
     const token = signResetToken({ userId: target.id, email: target.email });
-    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const frontendUrl = getFrontendUrl();
     const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
 
     const messageId = await sendPasswordResetEmail({
@@ -1046,7 +1047,7 @@ export async function createOwnerAccount(
     });
 
     // Send invite email (non-fatal — log but don't fail the request)
-    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const frontendUrl = getFrontendUrl();
     const setupUrl    = `${frontendUrl}/partner-setup?token=${encodeURIComponent(token)}&type=owner`;
 
     try {

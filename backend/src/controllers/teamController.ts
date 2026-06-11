@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prismaT as prisma } from "../lib/prisma";
 import { signToken, signRefreshToken, signInviteToken, verifyInviteToken, signResetToken } from "../lib/jwt";
 import { sendInviteEmail, sendPasswordResetEmail } from "../lib/mailer";
+import { getFrontendUrl } from "../lib/urls";
 import { AuthRequest } from "../types";
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -99,7 +100,7 @@ export async function inviteTeamMember(req: AuthRequest, res: Response, next: Ne
       email,
     });
 
-    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const frontendUrl = getFrontendUrl();
     const inviteUrl = `${frontendUrl}/register?token=${token}`;
 
     console.log(`[inviteTeamMember] Calling sendInviteEmail to="${email}" restaurant="${restaurant.name}"`);
@@ -261,7 +262,7 @@ export async function sendTeamMemberResetEmail(req: AuthRequest, res: Response, 
     if (!target) return res.status(404).json({ error: "User not found." });
 
     const token = signResetToken({ userId: target.id, email: target.email });
-    const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:3000";
+    const frontendUrl = getFrontendUrl();
     const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
 
     await sendPasswordResetEmail({
