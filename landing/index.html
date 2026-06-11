@@ -494,6 +494,10 @@ footer{
             <label for="f-rest" data-i18n="form.rest">Restaurant name</label>
             <input id="f-rest" name="restaurant" type="text" required>
           </div>
+          <div class="field full">
+            <label for="f-email" data-i18n="form.email">Email</label>
+            <input id="f-email" name="email" type="email" required autocomplete="email">
+          </div>
           <div class="field">
             <label for="f-loc" data-i18n="form.loc">Locations</label>
             <select id="f-loc" name="locations">
@@ -578,7 +582,7 @@ en:{
  "ent.q":"More than 5?","ent.a":"Contact for enterprise pricing →",
  "form.title":"Start your free trial",
  "form.sub":"Tell us about your restaurant. Your account is set up for you within 24 hours — with your products, your language, your locations.",
- "form.name":"Your name","form.rest":"Restaurant name","form.loc":"Locations","form.loc4":"4 or more",
+ "form.name":"Your name","form.rest":"Restaurant name","form.email":"Email","form.loc":"Locations","form.loc4":"4 or more",
  "form.phone":"WhatsApp / phone","form.lang":"Preferred language",
  "form.cta":"Start my trial","form.fine":"No card required · We set you up personally · EN/ES",
  "form.okTitle":"You're on the list, chef.","form.okBody":"We'll reach out on WhatsApp within 24 hours to set up your account.",
@@ -625,7 +629,7 @@ es:{
  "ent.q":"¿Más de 5?","ent.a":"Contáctanos para precio empresarial →",
  "form.title":"Empieza tu prueba gratis",
  "form.sub":"Cuéntanos de tu restaurante. Tu cuenta queda lista en 24 horas — con tus productos, tu idioma y tus sucursales.",
- "form.name":"Tu nombre","form.rest":"Nombre del restaurante","form.loc":"Sucursales","form.loc4":"4 o más",
+ "form.name":"Tu nombre","form.rest":"Nombre del restaurante","form.email":"Correo electrónico","form.loc":"Sucursales","form.loc4":"4 o más",
  "form.phone":"WhatsApp / teléfono","form.lang":"Idioma preferido",
  "form.cta":"Empezar mi prueba","form.fine":"Sin tarjeta · Te configuramos personalmente · ES/EN",
  "form.okTitle":"Listo, chef. Ya estás en la lista.","form.okBody":"Te contactamos por WhatsApp en menos de 24 horas para dejar tu cuenta lista.",
@@ -704,9 +708,11 @@ document.getElementById('trial-form').addEventListener('submit',async function(e
   e.preventDefault();
   const name=document.getElementById('f-name').value.trim();
   const rest=document.getElementById('f-rest').value.trim();
+  const email=document.getElementById('f-email').value.trim();
   const phone=document.getElementById('f-phone').value.trim();
-  if(!name||!rest||!phone){
-    [['f-name',name],['f-rest',rest],['f-phone',phone]].forEach(([id,v])=>{
+  const emailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if(!name||!rest||!phone||!emailOk){
+    [['f-name',name],['f-rest',rest],['f-email',emailOk],['f-phone',phone]].forEach(([id,v])=>{
       document.getElementById(id).style.borderColor=v?'var(--line)':'var(--red)';
     });
     return;
@@ -722,6 +728,7 @@ document.getElementById('trial-form').addEventListener('submit',async function(e
       body:JSON.stringify({
         name,
         restaurant:rest,
+        email,
         locations:document.getElementById('f-loc').value,
         phone,
         language:document.getElementById('f-lang').value,

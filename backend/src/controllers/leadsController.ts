@@ -17,6 +17,7 @@ import logger from "../utils/logger";
 export const createLeadSchema = z.object({
   name:       z.string().min(1, "Name is required").max(200).trim(),
   restaurant: z.string().min(1, "Restaurant is required").max(200).trim(),
+  email:      z.string().trim().email("Invalid email").max(254),
   locations:  z.string().max(10).trim().default("1"),
   // Basic sanity: 7–20 chars of digits/+/-/spaces/parens after trimming.
   phone:      z.string().trim().regex(/^[+()\-.\s\d]{7,20}$/, "Invalid phone number"),
@@ -28,7 +29,7 @@ export const createLeadSchema = z.object({
 
 export async function createLead(req: Request, res: Response, next: NextFunction) {
   try {
-    const { name, restaurant, locations, phone, language, pageLang, company } =
+    const { name, restaurant, email, locations, phone, language, pageLang, company } =
       req.body as z.infer<typeof createLeadSchema>;
 
     // Honeypot tripped — pretend success, store nothing.
@@ -38,7 +39,7 @@ export async function createLead(req: Request, res: Response, next: NextFunction
     }
 
     const lead = await prisma.lead.create({
-      data: { name, restaurant, locations, phone, language, pageLang },
+      data: { name, restaurant, email, locations, phone, language, pageLang },
     });
 
     // Fire-and-forget notification — email failure must never fail the lead.
