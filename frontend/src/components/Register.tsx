@@ -20,6 +20,11 @@ function decodeInviteToken(token: string): { restaurantName?: string; email?: st
 const inputCls =
   "w-full px-3 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#0a0a0a] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors";
 
+// Re-enable after Stripe self-serve onboarding. Mirrors the backend flag in
+// authController.register (SELF_SERVE_SIGNUP_ENABLED env var) — flip both
+// together. Invite links (/register?token=...) are unaffected either way.
+const SELF_SERVE_SIGNUP_ENABLED = false;
+
 export function Register() {
   const { register, loginWithSession } = useAuth();
   const navigate = useNavigate();
@@ -75,6 +80,39 @@ export function Register() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Self-serve registration is closed — invitation required. The token flow
+  // below is untouched; only the tokenless visit gets this notice.
+  if (!isInviteMode && !SELF_SERVE_SIGNUP_ENABLED) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="w-full max-w-sm">
+          <div className="flex justify-center mb-8">
+            <img src={process.env.PUBLIC_URL + '/kyru-logo-vertical.svg'} alt="Kyru" className="object-contain" style={{ width: '140px', height: 'auto' }} />
+          </div>
+          <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-[12px] p-6">
+            <h1 className="text-[18px] font-semibold text-white">{t.auth.inviteOnlyTitle}</h1>
+            <p className="text-[13px] text-[#555] mt-2 leading-relaxed">
+              {t.auth.inviteOnlyBody}{" "}
+              <a href="mailto:israel@kyruadvisory.com" className="text-[#3dbf8a] hover:text-[#35a87a] font-medium transition-colors">
+                israel@kyruadvisory.com
+              </a>{" "}
+              {t.auth.inviteOnlyOr}{" "}
+              <a href="https://kyruadvisory.com" className="text-[#3dbf8a] hover:text-[#35a87a] font-medium transition-colors">
+                kyruadvisory.com
+              </a>.
+            </p>
+            <Link
+              to="/login"
+              className="block text-center mt-5 py-2.5 rounded-[8px] border border-[#2a2a2a] text-[#888] hover:text-white hover:border-[#444] text-sm transition-colors"
+            >
+              {t.auth.backToSignIn}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
