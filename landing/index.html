@@ -267,6 +267,41 @@ h2{font-weight:700;font-size:clamp(28px,3.4vw,40px);line-height:1.1;letter-spaci
 .ent-q{font-weight:600;font-size:17px}
 .ent-a{font-family:var(--mono);font-size:13.5px;color:var(--green)}
 
+/* ===== FAQ ===== */
+.faq-filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:28px}
+.faq-filter{
+  background:none;border:1px solid var(--line);border-radius:99px;
+  color:var(--dim);font-family:var(--mono);font-size:13px;
+  padding:8px 18px;cursor:pointer;transition:background .15s,color .15s,border-color .15s;
+}
+.faq-filter:hover{border-color:var(--dim)}
+.faq-filter.active{background:var(--green);color:#06231A;border-color:var(--green);font-weight:600}
+.faq-list{display:flex;flex-direction:column;gap:12px}
+.faq-item{
+  background:var(--card);border:1px solid var(--line);border-radius:12px;
+  overflow:hidden;transition:border-color .15s;
+}
+.faq-item:hover{border-color:#3a4042}
+.faq-item.hidden{display:none}
+.faq-q{
+  width:100%;display:flex;justify-content:space-between;align-items:center;gap:16px;
+  background:none;border:none;text-align:left;cursor:pointer;
+  padding:22px 26px;font-family:var(--body);font-weight:600;font-size:17px;color:var(--txt);
+}
+.faq-chevron{flex:none;font-family:var(--mono);font-size:16px;color:var(--green);transition:transform .25s}
+.faq-item.open .faq-chevron{transform:rotate(180deg)}
+.faq-a{max-height:0;overflow:hidden;transition:max-height .3s ease;padding:0 26px;color:var(--dim);font-size:15.5px}
+.faq-item.open .faq-a{padding-bottom:24px}
+.faq-a p{margin-bottom:10px}
+.faq-a ol,.faq-a ul{padding-left:22px;margin-bottom:10px;display:flex;flex-direction:column;gap:6px}
+.faq-a strong{color:var(--txt);font-weight:600}
+.faq-tip{font-family:var(--mono);font-size:13px;color:var(--green);border-top:1px dashed var(--line);padding-top:12px;margin-top:6px}
+.faq-example{background:var(--raise);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:10px 0;font-size:14.5px;line-height:1.7}
+@media (max-width:960px){
+  .faq-q{font-size:15.5px;padding:18px 18px}
+  .faq-a{padding:0 18px}
+}
+
 /* ===== FORM ===== */
 #trial{scroll-margin-top:84px}
 .form-shell{
@@ -479,6 +514,66 @@ footer{
   </a>
 </section>
 
+<section class="section" id="faq">
+  <div class="section-head">
+    <h2 data-i18n="faq.title">Frequently asked questions</h2>
+    <p class="section-sub" data-i18n="faq.sub">Everything you need to know — from setup to your first P&amp;L.</p>
+  </div>
+  <div class="faq-filters" role="group" aria-label="FAQ categories">
+    <button class="faq-filter active" data-cat="all" data-i18n="faq.cat.all">All topics</button>
+    <button class="faq-filter" data-cat="getting-started" data-i18n="faq.cat.start">Getting started</button>
+    <button class="faq-filter" data-cat="features" data-i18n="faq.cat.features">Features</button>
+    <button class="faq-filter" data-cat="troubleshooting" data-i18n="faq.cat.trouble">Troubleshooting</button>
+    <button class="faq-filter" data-cat="pricing" data-i18n="faq.cat.pricing">Pricing</button>
+  </div>
+  <div class="faq-list" id="faq-list">
+    <div class="faq-item" data-category="getting-started">
+      <button class="faq-q"><span data-i18n="faq.q1">How do I start using Kyru?</span><span class="faq-chevron">▾</span></button>
+      <div class="faq-a" data-i18n="faq.a1"></div>
+    </div>
+    <div class="faq-item" data-category="getting-started">
+      <button class="faq-q"><span data-i18n="faq.q2">How long does it take to set up my restaurant account?</span><span class="faq-chevron">▾</span></button>
+      <div class="faq-a" data-i18n="faq.a2"></div>
+    </div>
+    <div class="faq-item" data-category="features">
+      <button class="faq-q"><span data-i18n="faq.q3">What is the Invoice Scanner and how does it work?</span><span class="faq-chevron">▾</span></button>
+      <div class="faq-a" data-i18n="faq.a3"></div>
+    </div>
+    <div class="faq-item" data-category="features">
+      <button class="faq-q"><span data-i18n="faq.q4">How does Recipe Costing work?</span><span class="faq-chevron">▾</span></button>
+      <div class="faq-a" data-i18n="faq.a4"></div>
+    </div>
+    <div class="faq-item" data-category="features">
+      <button class="faq-q"><span data-i18n="faq.q5">What are the industry standards for food cost %?</span><span class="faq-chevron">▾</span></button>
+      <div class="faq-a" data-i18n="faq.a5"></div>
+    </div>
+    <div class="faq-item" data-category="troubleshooting">
+      <button class="faq-q"><span data-i18n="faq.q6">I didn't receive the signup invite email. What do I do?</span><span class="faq-chevron">▾</span></button>
+      <div class="faq-a" data-i18n="faq.a6"></div>
+    </div>
+    <div class="faq-item" data-category="troubleshooting">
+      <button class="faq-q"><span data-i18n="faq.q7">I forgot my password. How do I reset it?</span><span class="faq-chevron">▾</span></button>
+      <div class="faq-a" data-i18n="faq.a7"></div>
+    </div>
+    <div class="faq-item" data-category="troubleshooting">
+      <button class="faq-q"><span data-i18n="faq.q8">The app is slow or won't load. What should I do?</span><span class="faq-chevron">▾</span></button>
+      <div class="faq-a" data-i18n="faq.a8"></div>
+    </div>
+    <div class="faq-item" data-category="troubleshooting">
+      <button class="faq-q"><span data-i18n="faq.q9">Invoice scanner didn't extract the data correctly. What went wrong?</span><span class="faq-chevron">▾</span></button>
+      <div class="faq-a" data-i18n="faq.a9"></div>
+    </div>
+    <div class="faq-item" data-category="troubleshooting">
+      <button class="faq-q"><span data-i18n="faq.q10">A product shows "Below Minimum" in red. What does that mean?</span><span class="faq-chevron">▾</span></button>
+      <div class="faq-a" data-i18n="faq.a10"></div>
+    </div>
+    <div class="faq-item" data-category="pricing">
+      <button class="faq-q"><span data-i18n="faq.q11">How much does Kyru cost?</span><span class="faq-chevron">▾</span></button>
+      <div class="faq-a" data-i18n="faq.a11"></div>
+    </div>
+  </div>
+</section>
+
 <section class="section" id="trial">
   <div class="form-shell">
     <div id="form-body">
@@ -580,6 +675,31 @@ en:{
  "p3.title":"Restaurant Group","p3.desc":"Up to 5 locations, plus priority support & quarterly ops review.",
  "p3.per":" / month","p3.note":"Setup and onboarding included",
  "ent.q":"More than 5?","ent.a":"Contact for enterprise pricing →",
+ "faq.title":"Frequently asked questions",
+ "faq.sub":"Everything you need to know — from setup to your first P&L.",
+ "faq.cat.all":"All topics","faq.cat.start":"Getting started","faq.cat.features":"Features","faq.cat.trouble":"Troubleshooting","faq.cat.pricing":"Pricing",
+ "faq.q1":"How do I start using Kyru?",
+ "faq.a1":"<p>Getting started is simple and takes about 5 minutes:</p><ol><li><strong>Sign up</strong> with your restaurant email and create a password</li><li><strong>Upload your first invoice</strong> — take a photo of any supplier invoice using the camera in the app</li><li><strong>Explore your inventory</strong> — Kyru AI extracts all products and costs automatically</li><li><strong>Check your costs</strong> — see your food &amp; beverage cost % in real-time</li></ol><div class='faq-tip'>Tip: You can upload invoices from any supplier (produce, meat, dairy, beverages, etc.). Kyru learns your cost structure.</div>",
+ "faq.q2":"How long does it take to set up my restaurant account?",
+ "faq.a2":"<p><strong>Less than 5 minutes.</strong></p><p>Just provide:</p><ul><li>Restaurant name</li><li>Your email</li><li>A password</li><li>Logo (optional — but it looks great on your dashboard!)</li></ul><p>After signup, you'll get a welcome email with a link to your dashboard. Click it and you're in.</p>",
+ "faq.q3":"What is the Invoice Scanner and how does it work?",
+ "faq.a3":"<p>The Invoice Scanner uses AI to automatically extract invoice data from photos. Here's how:</p><ol><li>Take a photo of your supplier invoice with your phone camera</li><li>The app uploads it to our server</li><li>Claude AI (our AI) analyzes the invoice and extracts product names, quantities, units, and prices</li><li>The data appears in your Inventory automatically</li><li>Your food cost % updates in real-time</li></ol><div class='faq-tip'>Tip: The scanner works even with blurry, folded, or poorly lit photos. But good lighting = better accuracy.</div>",
+ "faq.q4":"How does Recipe Costing work?",
+ "faq.a4":"<p><strong>Set up your recipe once. Kyru calculates exact cost per dish, forever.</strong></p><div class='faq-example'><strong>Example:</strong> Chicken Pasta = 4 oz chicken ($2.50) + 2 oz pasta ($0.30) + sauce ($0.40) = <strong>$3.20 cost per plate</strong><br>At $14.99 selling price = 21.3% food cost ✓ (within industry standard)</div><p>To set up a recipe:</p><ol><li>Click “Recipes” in the app</li><li>Click “+ New Recipe”</li><li>Name it (e.g., “Grilled Chicken Sandwich”)</li><li>Select category: Kitchen or Bar</li><li>Set selling price</li><li>Add ingredients (search from your inventory)</li><li>Enter quantity used per serving (oz, cups, pours, etc.)</li><li>Done! Your exact cost appears instantly</li></ol><div class='faq-tip'>Tip: As you upload new invoices, ingredient costs update automatically. Your recipe costs recalculate instantly.</div>",
+ "faq.q5":"What are the industry standards for food cost %?",
+ "faq.a5":"<div class='faq-example'><strong>Healthy restaurant cost targets:</strong><br>Food cost: 28–35%<br>Beverage cost: 24–30%</div><p>If your food cost is above 35% or beverage above 30%, you're losing profit. Kyru helps you identify where.</p><p><strong>Example:</strong> If you did $50,000 in sales this month:</p><ul><li>Target food cost: $50k × 30% = $15,000 max spend on food</li><li>If you spent $18,000 → you're 6% over. That's profit you lost.</li></ul>",
+ "faq.q6":"I didn't receive the signup invite email. What do I do?",
+ "faq.a6":"<p>Check these 3 things in order:</p><ol><li><strong>Check your spam folder</strong> — sometimes our invite email ends up there. Look for “from: Kyru Advisory”</li><li><strong>Check for typos in your email</strong> — if you used a typo during signup, the invite went to the wrong address</li><li><strong>Contact us</strong> — if neither worked, email <strong>support@kyruadvisory.com</strong> with your restaurant name and email. We'll resend the link</li></ol><div class='faq-tip'>Note: Invite links are valid for 72 hours. If yours expired, just ask us to resend.</div>",
+ "faq.q7":"I forgot my password. How do I reset it?",
+ "faq.a7":"<p>Easy fix:</p><ol><li>Go to the login page: <strong>app.kyruadvisory.com</strong></li><li>Click “Forgot Password?” at the bottom</li><li>Enter your email</li><li>Check your inbox for a reset link from Kyru</li><li>Click the link and create a new password</li><li>Log in with your new password</li></ol><div class='faq-tip'>Tip: Can't find the reset email? Check your spam folder. If it's not there, email <strong>support@kyruadvisory.com</strong> and we'll help.</div>",
+ "faq.q8":"The app is slow or won't load. What should I do?",
+ "faq.a8":"<p>Try these fixes in order:</p><ol><li><strong>Check your internet connection</strong> — make sure you have a strong WiFi or cellular signal</li><li><strong>Refresh the page</strong> — press F5 (Windows) or Cmd+R (Mac), or pull down on mobile to refresh</li><li><strong>Clear your browser cache</strong> — Chrome: Ctrl+Shift+Delete → Clear all time → Clear</li><li><strong>Restart your device</strong> — power off and back on (sounds silly but it works!)</li></ol><div class='faq-tip'>Still stuck? Email <strong>support@kyruadvisory.com</strong> with a screenshot of what you're seeing.</div>",
+ "faq.q9":"Invoice scanner didn't extract the data correctly. What went wrong?",
+ "faq.a9":"<p>Our AI does a great job, but lighting matters. Here's what to do:</p><ol><li><strong>Take a new photo with better lighting</strong> — use natural sunlight or a bright lamp, and make sure the invoice is flat</li><li><strong>Upload the new photo</strong> — the scanner will try again</li><li><strong>If it still doesn't work</strong> — you can manually enter the products and costs</li></ol><div class='faq-tip'>Tip: Kyru improves with every scan. The more invoices you upload, the better it learns your suppliers' format.</div>",
+ "faq.q10":"A product shows “Below Minimum” in red. What does that mean?",
+ "faq.a10":"<p><strong>It means your stock dropped below the minimum level you set.</strong></p><p>This is a helpful alert that you're running low on that item. To fix it:</p><ol><li>Click the product in Inventory</li><li>You'll see the current stock and the minimum threshold</li><li>Either order more of that product, or adjust the minimum threshold if it's too high</li></ol><div class='faq-tip'>Coming soon: We'll notify you automatically when stock is low so you don't run out.</div>",
+ "faq.q11":"How much does Kyru cost?",
+ "faq.a11":"<div class='faq-example'><strong>$199/month</strong> — Single location<br><strong>$399/month</strong> — Multi-unit (up to 3 locations)<br><strong>$699/month</strong> — Restaurant group (up to 5 locations)</div><p><strong>What's included on every plan:</strong></p><ul><li>Unlimited invoice uploads (AI-powered scanning)</li><li>Real-time inventory tracking</li><li>Recipe costing engine</li><li>Monthly P&amp;L dashboard</li><li>Food cost % analytics</li><li>Email support (Friday 9am–6pm CST)</li></ul><div class='faq-tip'>No contract. Cancel anytime. We're confident you'll see ROI in the first month.</div>",
  "form.title":"Start your free trial",
  "form.sub":"Tell us about your restaurant. Your account is set up for you within 24 hours — with your products, your language, your locations.",
  "form.name":"Your name","form.rest":"Restaurant name","form.email":"Email","form.loc":"Locations","form.loc4":"4 or more",
@@ -627,6 +747,31 @@ es:{
  "p3.title":"Grupo","p3.desc":"Hasta 5 sucursales, con soporte prioritario y revisión operativa trimestral.",
  "p3.per":" / mes","p3.note":"Configuración y capacitación incluidas",
  "ent.q":"¿Más de 5?","ent.a":"Contáctanos para precio empresarial →",
+ "faq.title":"Preguntas frecuentes",
+ "faq.sub":"Todo lo que necesitas saber — desde la configuración hasta tu primer P&L.",
+ "faq.cat.all":"Todos los temas","faq.cat.start":"Primeros pasos","faq.cat.features":"Funciones","faq.cat.trouble":"Solución de problemas","faq.cat.pricing":"Precios",
+ "faq.q1":"¿Cómo comienzo a usar Kyru?",
+ "faq.a1":"<p>Comenzar es simple y toma unos 5 minutos:</p><ol><li><strong>Regístrate</strong> con el correo de tu restaurante y crea una contraseña</li><li><strong>Carga tu primera factura</strong> — toma una foto de cualquier factura del proveedor usando la cámara de la aplicación</li><li><strong>Explora tu inventario</strong> — Kyru AI extrae automáticamente todos los productos y costos</li><li><strong>Verifica tus costos</strong> — ve tu porcentaje de costo de alimentos y bebidas en tiempo real</li></ol><div class='faq-tip'>Consejo: Puedes cargar facturas de cualquier proveedor (producción, carnes, lácteos, bebidas, etc.). Kyru aprende tu estructura de costos.</div>",
+ "faq.q2":"¿Cuánto tiempo tarda en configurar mi cuenta de restaurante?",
+ "faq.a2":"<p><strong>Menos de 5 minutos.</strong></p><p>Solo proporciona:</p><ul><li>Nombre del restaurante</li><li>Tu correo electrónico</li><li>Una contraseña</li><li>Logo (opcional, ¡pero se ve genial en tu panel!)</li></ul><p>Después del registro, recibirás un correo de bienvenida con un enlace a tu panel. Haz clic y listo.</p>",
+ "faq.q3":"¿Qué es el Escáner de Facturas y cómo funciona?",
+ "faq.a3":"<p>El Escáner de Facturas utiliza IA para extraer automáticamente datos de facturas a partir de fotos. Así funciona:</p><ol><li>Toma una foto de la factura del proveedor con la cámara de tu teléfono</li><li>La aplicación la carga en nuestro servidor</li><li>Claude AI (nuestra IA) analiza la factura y extrae nombres de productos, cantidades, unidades y precios</li><li>Los datos aparecen en tu Inventario automáticamente</li><li>Tu porcentaje de costo de alimentos se actualiza en tiempo real</li></ol><div class='faq-tip'>Consejo: El escáner funciona incluso con fotos borrosas, dobladas o con poca iluminación. Pero buena iluminación = mejor precisión.</div>",
+ "faq.q4":"¿Cómo funciona el Costeo de Recetas?",
+ "faq.a4":"<p><strong>Configura tu receta una vez. Kyru calcula el costo exacto por plato, siempre.</strong></p><div class='faq-example'><strong>Ejemplo:</strong> Pasta de Pollo = 4 oz pollo ($2.50) + 2 oz pasta ($0.30) + salsa ($0.40) = <strong>$3.20 costo por plato</strong><br>A $14.99 precio de venta = 21.3% costo de alimentos ✓ (dentro del estándar de la industria)</div><p>Para configurar una receta:</p><ol><li>Haz clic en “Recetas” en la aplicación</li><li>Haz clic en “+ Nueva Receta”</li><li>Nómbrala (p. ej., “Sándwich de Pollo a la Parrilla”)</li><li>Selecciona categoría: Cocina o Bar</li><li>Establece el precio de venta</li><li>Agrega ingredientes (busca en tu inventario)</li><li>Ingresa la cantidad utilizada por porción (oz, tazas, vasos, etc.)</li><li>¡Hecho! Tu costo exacto aparece al instante</li></ol><div class='faq-tip'>Consejo: A medida que cargues nuevas facturas, los costos de ingredientes se actualizan automáticamente. Tus costos de receta se recalculan al instante.</div>",
+ "faq.q5":"¿Cuáles son los estándares de la industria para el % de costo de alimentos?",
+ "faq.a5":"<div class='faq-example'><strong>Objetivos saludables de costo de restaurante:</strong><br>Costo de alimentos: 28–35%<br>Costo de bebidas: 24–30%</div><p>Si tu costo de alimentos está por encima del 35% o tus bebidas por encima del 30%, estás perdiendo ganancias. Kyru te ayuda a identificar dónde.</p><p><strong>Ejemplo:</strong> Si obtuviste $50,000 en ventas este mes:</p><ul><li>Costo de alimentos objetivo: $50k × 30% = máximo $15,000 de gasto en alimentos</li><li>Si gastaste $18,000 → estás 6% por encima. Esa es la ganancia que perdiste.</li></ul>",
+ "faq.q6":"No recibí el correo de invitación de registro. ¿Qué hago?",
+ "faq.a6":"<p>Verifica estas 3 cosas en orden:</p><ol><li><strong>Revisa tu carpeta de spam</strong> — a veces nuestro correo de invitación termina allí. Busca “de: Kyru Advisory”</li><li><strong>Verifica errores de escritura en tu correo</strong> — si hubo un error al registrarte, la invitación llegó a la dirección equivocada</li><li><strong>Contáctanos</strong> — si nada de esto funcionó, escribe a <strong>support@kyruadvisory.com</strong> con el nombre de tu restaurante y tu correo. Reenviamos el enlace</li></ol><div class='faq-tip'>Nota: Los enlaces de invitación son válidos por 72 horas. Si el tuyo expiró, solo pídenos que lo reenviemos.</div>",
+ "faq.q7":"Olvidé mi contraseña. ¿Cómo la restablezco?",
+ "faq.a7":"<p>Fácil de arreglar:</p><ol><li>Ve a la página de inicio de sesión: <strong>app.kyruadvisory.com</strong></li><li>Haz clic en “¿Olvidaste tu contraseña?” en la parte inferior</li><li>Ingresa tu correo electrónico</li><li>Revisa tu bandeja de entrada para un enlace de restablecimiento de Kyru</li><li>Haz clic en el enlace y crea una nueva contraseña</li><li>Inicia sesión con tu nueva contraseña</li></ol><div class='faq-tip'>Consejo: ¿No encuentras el correo? Revisa tu carpeta de spam. Si no está allí, escribe a <strong>support@kyruadvisory.com</strong> y te ayudamos.</div>",
+ "faq.q8":"La aplicación es lenta o no carga. ¿Qué debo hacer?",
+ "faq.a8":"<p>Intenta estas soluciones en orden:</p><ol><li><strong>Verifica tu conexión a internet</strong> — asegúrate de tener buena señal de WiFi o datos móviles</li><li><strong>Actualiza la página</strong> — presiona F5 (Windows) o Cmd+R (Mac), o desliza hacia abajo en el móvil</li><li><strong>Borra el caché del navegador</strong> — Chrome: Ctrl+Shift+Supr → Borrar todo → Borrar datos</li><li><strong>Reinicia tu dispositivo</strong> — apágalo y enciéndelo de nuevo (suena tonto, pero funciona)</li></ol><div class='faq-tip'>¿Sigue sin funcionar? Escribe a <strong>support@kyruadvisory.com</strong> con una captura de pantalla.</div>",
+ "faq.q9":"El escáner de facturas no extrajo los datos correctamente. ¿Qué salió mal?",
+ "faq.a9":"<p>Nuestra IA hace un gran trabajo, pero la iluminación importa. Esto es lo que debes hacer:</p><ol><li><strong>Toma una nueva foto con mejor iluminación</strong> — usa luz natural o una lámpara brillante, y asegúrate de que la factura esté plana</li><li><strong>Carga la nueva foto</strong> — el escáner lo intentará de nuevo</li><li><strong>Si aún no funciona</strong> — puedes ingresar manualmente los productos y costos</li></ol><div class='faq-tip'>Consejo: Kyru mejora con cada escaneo. Cuantas más facturas cargues, mejor aprende el formato de tus proveedores.</div>",
+ "faq.q10":"Un producto muestra “Por debajo del mínimo” en rojo. ¿Qué significa?",
+ "faq.a10":"<p><strong>Significa que tu inventario cayó por debajo del nivel mínimo que estableciste.</strong></p><p>Esta es una alerta útil de que se te está acabando ese producto. Para solucionarlo:</p><ol><li>Haz clic en el producto en Inventario</li><li>Verás el stock actual y el umbral mínimo</li><li>Ordena más de ese producto, o ajusta el umbral mínimo si es demasiado alto</li></ol><div class='faq-tip'>Próximamente: te notificaremos automáticamente cuando el stock sea bajo para que no se te acabe.</div>",
+ "faq.q11":"¿Cuánto cuesta Kyru?",
+ "faq.a11":"<div class='faq-example'><strong>$199/mes</strong> — Una sucursal<br><strong>$399/mes</strong> — Multi-sucursal (hasta 3 ubicaciones)<br><strong>$699/mes</strong> — Grupo restaurantero (hasta 5 ubicaciones)</div><p><strong>Qué incluye en todos los planes:</strong></p><ul><li>Cargas de facturas ilimitadas (escaneo con IA)</li><li>Seguimiento de inventario en tiempo real</li><li>Motor de costeo de recetas</li><li>Panel de P&amp;L mensual</li><li>Análisis de porcentaje de costo de alimentos</li><li>Soporte por correo (viernes 9am–6pm CST)</li></ul><div class='faq-tip'>Sin contrato. Cancela cuando quieras. Estamos seguros de que verás retorno desde el primer mes.</div>",
  "form.title":"Empieza tu prueba gratis",
  "form.sub":"Cuéntanos de tu restaurante. Tu cuenta queda lista en 24 horas — con tus productos, tu idioma y tus sucursales.",
  "form.name":"Tu nombre","form.rest":"Nombre del restaurante","form.email":"Correo electrónico","form.loc":"Sucursales","form.loc4":"4 o más",
@@ -649,7 +794,40 @@ function setLang(l){
   });
   document.getElementById('hero-title').innerHTML=I[l]['hero.title'];
   document.getElementById('fc-delta').textContent=I[l]['demo.delta'];
+  document.querySelectorAll('.faq-item.open .faq-a').forEach(a=>{
+    a.style.maxHeight=a.scrollHeight+'px';
+  });
 }
+setLang('en');
+
+document.querySelectorAll('.faq-q').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const item=btn.parentElement;
+    const ans=item.querySelector('.faq-a');
+    if(item.classList.contains('open')){
+      item.classList.remove('open');
+      ans.style.maxHeight=null;
+    }else{
+      item.classList.add('open');
+      ans.style.maxHeight=ans.scrollHeight+'px';
+    }
+  });
+});
+
+document.querySelectorAll('.faq-filter').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.faq-filter').forEach(b=>b.classList.toggle('active',b===btn));
+    const cat=btn.getAttribute('data-cat');
+    document.querySelectorAll('.faq-item').forEach(item=>{
+      const show=cat==='all'||item.getAttribute('data-category')===cat;
+      item.classList.toggle('hidden',!show);
+      if(!show){
+        item.classList.remove('open');
+        item.querySelector('.faq-a').style.maxHeight=null;
+      }
+    });
+  });
+});
 
 const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
