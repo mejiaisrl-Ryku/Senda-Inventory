@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 import { signToken, signRefreshToken, verifyRefreshToken, signResetToken, verifyResetToken, JwtPayload } from "../lib/jwt";
-import { sendPasswordResetEmail } from "../lib/mailer";
+import { sendPasswordResetEmail, sendWelcomeEmail } from "../lib/mailer";
 import { getFrontendUrl } from "../lib/urls";
 import { AuthRequest } from "../types";
 import logger, { sanitizeEmail } from "../utils/logger";
@@ -14,6 +14,7 @@ export const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
   restaurantName: z.string().min(1, "Restaurant name is required").max(255).trim(),
+  language: z.enum(["en", "es"]).optional().default("en"),
 });
 
 export const loginSchema = z.object({
@@ -93,11 +94,12 @@ export async function register(req: Request, res: Response, next: NextFunction) 
       });
     }
 
-    const { name, email, password, restaurantName } = req.body as {
+    const { name, email, password, restaurantName, language = "en" } = req.body as {
       name: string;
       email: string;
       password: string;
       restaurantName: string;
+      language?: string;
     };
     const hashed = await bcrypt.hash(password, 12);
 
@@ -111,6 +113,11 @@ export async function register(req: Request, res: Response, next: NextFunction) 
     });
 
     const tokens = makeTokenPair(user.id, user.role, user.restaurantId, user.restaurant?.ownerAccountId ?? user.ownerAccountId);
+
+    sendWelcomeEmail({ to: email, restaurantName, language }).catch((err) => {
+      console.error("[mailer] welcome email failed:", err.message);
+    });
+
     res.status(201).json({ user: toUserResponse(user), ...tokens });
   } catch (err) {
     next(err);
