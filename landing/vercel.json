@@ -3,6 +3,7 @@
   "trailingSlash": false,
   "redirects": [
     { "source": "/inicio", "destination": "/", "permanent": true },
+    { "source": "/landing", "destination": "/", "permanent": true },
 
     { "source": "/login", "destination": "https://app.kyruadvisory.com/login", "permanent": true },
     { "source": "/register", "destination": "https://app.kyruadvisory.com/register", "permanent": true },
