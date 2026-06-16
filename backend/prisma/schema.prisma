@@ -132,15 +132,17 @@ model Restaurant {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  users           User[]
-  products        Product[]
-  orders          Order[]
-  salesEntries    SalesEntry[]
-  laborEntries    LaborEntry[]
-  countSessions   CountSession[]
-  recipes         Recipe[]
-  budgets         LocationBudget[]
-  toastConnection ToastConnection?
+  users             User[]
+  products          Product[]
+  orders            Order[]
+  salesEntries      SalesEntry[]
+  laborEntries      LaborEntry[]
+  countSessions     CountSession[]
+  recipes           Recipe[]
+  budgets           LocationBudget[]
+  toastConnection   ToastConnection?
+  toastMenuItems    ToastMenuItem[]
+  toastTransactions ToastTransaction[]
 
   @@index([ownerAccountId])
   @@map("restaurants")
@@ -194,6 +196,7 @@ model Product {
   orderItems        OrderItem[]
   countEntries      CountEntry[]
   recipeIngredients RecipeIngredient[]
+  toastMenuItems    ToastMenuItem[]
 
   @@index([restaurantId])
   @@index([cogsCategoryId])
@@ -480,6 +483,50 @@ model ToastConnection {
   updatedAt       DateTime   @updatedAt
 
   @@map("toast_connections")
+}
+
+// ── Toast menu item → Kyru product mapping ───────────────────────────────────
+
+model ToastMenuItem {
+  id              String    @id @default(cuid())
+  restaurantId    String
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  toastItemId     String    // Toast's internal menu item GUID
+  toastItemName   String
+  kyruProductId   String?   // FK to Product (null until manually mapped)
+  product         Product?  @relation(fields: [kyruProductId], references: [id], onDelete: SetNull)
+  lastSyncedAt    DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([restaurantId, toastItemId])
+  @@index([restaurantId])
+  @@index([kyruProductId])
+  @@map("toast_menu_items")
+}
+
+// ── Toast transaction audit log ───────────────────────────────────────────────
+// Immutable once status = "synced". rawData preserves the original Toast JSON.
+
+model ToastTransaction {
+  id                  String     @id @default(cuid())
+  restaurantId        String
+  restaurant          Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  toastTransactionId  String     // Toast order / check GUID
+  transactionDate     DateTime   // UTC — convert to local in the frontend
+  amount              Float      // total transaction value
+  category            String     // raw Toast category string
+  itemDetails         Json       // [{toastItemId, name, qty, unitPrice}]
+  rawData             Json       // original Toast JSON for audit
+  status              String     @default("synced") // "synced" | "failed"
+  syncedAt            DateTime   @default(now())
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  @@unique([restaurantId, toastTransactionId])
+  @@index([restaurantId])
+  @@index([restaurantId, transactionDate])
+  @@map("toast_transactions")
 }
 
 // ── Marketing leads (landing page) ───────────────────────────────────────────

@@ -11,6 +11,7 @@ import {
   getRestaurantInfo,
 } from "../lib/toast-client";
 import { setOAuthState, consumeOAuthState } from "../lib/toast-state";
+import { syncTransactionsForRestaurant } from "../services/toast-sync";
 import { AuthRequest } from "../types";
 import { getFrontendUrl } from "../lib/urls";
 import logger from "../utils/logger";
@@ -182,5 +183,82 @@ async function status(req: AuthRequest, res: Response, next: NextFunction) {
 }
 
 router.get("/status", authenticate as never, status as never);
+
+// ── POST /api/toast/sync ──────────────────────────────────────────────────────
+// Manually trigger a transaction sync for the authenticated restaurant.
+
+async function sync(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const restaurantId = req.user.restaurantId;
+    if (!restaurantId) {
+      return res.status(403).json({ error: "No restaurant associated with this account." });
+    }
+
+    const result = await syncTransactionsForRestaurant(restaurantId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+router.post("/sync", authenticate as never, sync as never);
+
+// ── GET /api/toast/transactions ───────────────────────────────────────────────
+
+const txQuerySchema = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  take:      z.coerce.number().int().min(1).max(500).optional().default(100),
+  skip:      z.coerce.number().int().min(0).optional().default(0),
+});
+
+async function transactions(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const restaurantId = req.user.restaurantId;
+    if (!restaurantId) {
+      return res.status(403).json({ error: "No restaurant associated with this account." });
+    }
+
+    const parsed = txQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid query parameters.", issues: parsed.error.flatten().fieldErrors });
+    }
+    const { startDate, endDate, take, skip } = parsed.data;
+
+    const where: Record<string, unknown> = { restaurantId };
+    if (startDate || endDate) {
+      where.transactionDate = {
+        ...(startDate ? { gte: new Date(`${startDate}T00:00:00.000Z`) } : {}),
+        ...(endDate   ? { lte: new Date(`${endDate}T23:59:59.999Z`)   } : {}),
+      };
+    }
+
+    const [rows, total] = await Promise.all([
+      (prisma as any).toastTransaction.findMany({
+        where,
+        orderBy: { transactionDate: "desc" },
+        take,
+        skip,
+        select: {
+          id:                 true,
+          toastTransactionId: true,
+          transactionDate:    true,
+          amount:             true,
+          category:           true,
+          itemDetails:        true,
+          status:             true,
+          syncedAt:           true,
+        },
+      }),
+      (prisma as any).toastTransaction.count({ where }),
+    ]);
+
+    res.json({ transactions: rows, total });
+  } catch (err) {
+    next(err);
+  }
+}
+
+router.get("/transactions", authenticate as never, transactions as never);
 
 export default router;
