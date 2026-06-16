@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { POSIntegrations } from "./POSIntegrations";
 import { useLanguage } from "../context/LanguageContext";
 import { SalesCategory, SalesEntry } from "../types";
 import { salesApi } from "../api";
@@ -167,8 +166,6 @@ function SalesTab({
 
   return (
     <>
-      <POSIntegrations />
-
       {/* Entry form */}
       <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-5">
         <h2 className="text-[13px] font-semibold text-[#888] mb-4 uppercase tracking-[0.08em]">Daily Entry</h2>
