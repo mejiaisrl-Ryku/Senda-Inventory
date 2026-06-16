@@ -24,6 +24,7 @@ import { CountsPage } from "./components/CountsPage";
 import { CountSessionDetail } from "./components/CountSessionDetail";
 import { CountReportView } from "./components/CountReportView";
 import { RecipesPage } from "./components/RecipesPage";
+import { CostAnalysis } from "./components/CostAnalysis";
 import { MultiLocationOverview } from "./components/MultiLocationOverview";
 import { ProfilePage } from "./components/ProfilePage";
 import { ResetPassword } from "./components/ResetPassword";
@@ -157,6 +158,7 @@ function AppRoutes() {
             <Route path="inventory/:id"         element={<CountSessionDetail />} />
             <Route path="inventory/:id/report"  element={<CountReportView />} />
             <Route path="recipes"               element={<RecipesPage />} />
+            <Route path="cost-analysis"        element={<CostAnalysis />} />
 
             <Route element={<AdminRoute />}>
               <Route path="sales" element={<SalesPage />} />
