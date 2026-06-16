@@ -132,14 +132,15 @@ model Restaurant {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  users         User[]
-  products      Product[]
-  orders        Order[]
-  salesEntries  SalesEntry[]
-  laborEntries  LaborEntry[]
-  countSessions CountSession[]
-  recipes       Recipe[]
-  budgets       LocationBudget[]
+  users           User[]
+  products        Product[]
+  orders          Order[]
+  salesEntries    SalesEntry[]
+  laborEntries    LaborEntry[]
+  countSessions   CountSession[]
+  recipes         Recipe[]
+  budgets         LocationBudget[]
+  toastConnection ToastConnection?
 
   @@index([ownerAccountId])
   @@map("restaurants")
@@ -462,6 +463,23 @@ model LocationBudget {
   @@index([restaurantId])
   @@index([ownerAccountId])
   @@map("location_budgets")
+}
+
+// ── Toast POS integration ─────────────────────────────────────────────────────
+// One record per restaurant. Tokens stored AES-256-GCM encrypted.
+
+model ToastConnection {
+  id              String     @id @default(cuid())
+  restaurantId    String     @unique
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  toastLocationId String
+  accessToken     String     // AES-256-GCM encrypted
+  refreshToken    String     // AES-256-GCM encrypted
+  expiresAt       DateTime
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@map("toast_connections")
 }
 
 // ── Marketing leads (landing page) ───────────────────────────────────────────
