@@ -353,10 +353,11 @@ model Recipe {
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
-  ingredients RecipeIngredient[]
+  ingredients    RecipeIngredient[]
+  toastMenuItems ToastMenuItem[]
 
   @@index([restaurantId])
-  @@index([restaurantId, name])        // name-based recipe lookups across locations
+  @@index([restaurantId, name])
   @@map("recipes")
 }
 
@@ -495,6 +496,8 @@ model ToastMenuItem {
   toastItemName   String
   kyruProductId   String?   // FK to Product (null until manually mapped)
   product         Product?  @relation(fields: [kyruProductId], references: [id], onDelete: SetNull)
+  kyruRecipeId    String?   // FK to Recipe — set when this menu item maps to a costed recipe
+  recipe          Recipe?   @relation(fields: [kyruRecipeId], references: [id], onDelete: SetNull)
   lastSyncedAt    DateTime
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -502,6 +505,7 @@ model ToastMenuItem {
   @@unique([restaurantId, toastItemId])
   @@index([restaurantId])
   @@index([kyruProductId])
+  @@index([kyruRecipeId])
   @@map("toast_menu_items")
 }
 
