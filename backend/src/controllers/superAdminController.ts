@@ -32,7 +32,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prismaAdmin as prisma } from "../lib/prisma";
 import { signToken, signRefreshToken, signInviteToken, signResetToken } from "../lib/jwt";
-import { sendInviteEmail, sendPasswordResetEmail, sendPartnerInviteEmail } from "../lib/mailer";
+import { sendInviteEmail, sendPasswordResetEmail, sendPartnerInviteEmail, sendWelcomeEmail } from "../lib/mailer";
 import { getFrontendUrl } from "../lib/urls";
 import { AuthRequest } from "../types";
 import logger, { sanitizeEmail } from "../utils/logger";
@@ -190,6 +190,11 @@ export async function completePartnerSetup(req: Request, res: Response, next: Ne
     const tokenPayload = { userId: user.id, role: user.role, restaurantId: user.restaurantId! };
 
     console.log(`[completePartnerSetup] ✓ Partner onboarded. userId="${user.id}" restaurant="${restaurantName}"`);
+
+    console.log(`[welcomeEmail] Queuing welcome email to="${invite.email}" restaurant="${restaurantName}"`);
+    sendWelcomeEmail({ to: invite.email, restaurantName, language: "en" })
+      .then(() => console.log(`[welcomeEmail] ✓ Sent to="${invite.email}"`))
+      .catch((err) => console.error(`[welcomeEmail] ✗ Failed: ${err.message}`));
 
     res.status(201).json({
       user:         userResponse,
