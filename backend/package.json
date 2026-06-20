@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "./node_modules/.bin/tsc",
-    "postbuild": "ts-node scripts/upload-sourcemaps.ts",
+    "postbuild": "echo 'Sourcemap upload disabled'",
     "start": "node dist/index.js",
     "start:prod": "npm run migrate && npm start",
     "worker": "node dist/worker.js",
