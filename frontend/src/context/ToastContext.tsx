@@ -43,13 +43,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const api: ToastApi = {
-    success: (m) => add("success", m),
-    error: (m) => add("error", m),
-    warning: (m) => add("warning", m),
-    info: (m) => add("info", m),
-    dismiss,
-  };
+  // Memoized so consumers can safely list `toast` in their own hook
+  // dependency arrays without it changing identity on every render.
+  const api: ToastApi = useMemo(
+    () => ({
+      success: (m: string) => add("success", m),
+      error: (m: string) => add("error", m),
+      warning: (m: string) => add("warning", m),
+      info: (m: string) => add("info", m),
+      dismiss,
+    }),
+    [add, dismiss]
+  );
 
   return (
     <ToastContext.Provider value={api}>

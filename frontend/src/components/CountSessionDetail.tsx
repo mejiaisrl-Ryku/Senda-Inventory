@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { CountEntry, CountSession } from "../types";
 import { countsApi } from "../api";
@@ -88,13 +88,13 @@ export function CountSessionDetail() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, toast]);
 
   useEffect(() => { load(); }, [load]);
 
   // ── Derived data ────────────────────────────────────────────────────────────
 
-  const entries: CountEntry[] = session?.entries ?? [];
+  const entries: CountEntry[] = useMemo(() => session?.entries ?? [], [session]);
 
   /** Entries filtered by current dept tab. */
   const filtered = useMemo(() => {

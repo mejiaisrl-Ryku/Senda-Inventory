@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import { stockApi, gmApi } from "../api";
 import { StockReport, GMDashboard, GMAlert } from "../types";
 import { formatCurrency } from "../utils/stock";
@@ -219,7 +218,6 @@ function GMPerformanceSection() {
 export function Dashboard() {
   const { user } = useAuth();
   const { t } = useLanguage();
-  const navigate = useNavigate();
   const pageTitle = user?.restaurantName ? `${user.restaurantName} ${t.dashboard.title}` : t.dashboard.title;
   const [report, setReport] = useState<StockReport | null>(null);
   const [loading, setLoading] = useState(true);

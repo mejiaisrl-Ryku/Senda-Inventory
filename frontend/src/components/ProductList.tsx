@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { Product, Department, Unit } from "../types";
+import { Product } from "../types";
 import { productsApi } from "../api";
 import { useLanguage } from "../context/LanguageContext";
 import { unitLabel, formatCurrency } from "../utils/stock";
@@ -18,9 +18,6 @@ import { getApiError } from "../utils/errorUtils";
 import { useStockSocket } from "../hooks/useStockSocket";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-// DEPT_TABS labels are set inside the component after getting translations
-const DEPT_TAB_KEYS = ["ALL", "BOH", "FOH", "BAR"] as const;
 
 type DeptView = "ALL" | "BOH" | "FOH" | "BAR";
 
@@ -390,13 +387,6 @@ export function ProductList() {
     { value: "BAR",  label: t.ui.bar },
   ] as const;
 
-  const FIELD_LABELS: FieldLabels = {
-    name:     t.invoices.productName,
-    purveyor: t.common.purveyor,
-    sku:      t.common.sku,
-    date:     t.common.date,
-  };
-
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading]   = useState(true);
   const [search, setSearch]     = useState("");
@@ -505,7 +495,7 @@ export function ProductList() {
     searchMatches.forEach((m) => m.matchFields.forEach((f) => allFields.add(f)));
     const fl: FieldLabels = { name: t.invoices.productName, purveyor: t.common.purveyor, sku: t.common.sku, date: t.common.date };
     return [...allFields].map((f) => fl[f]).join(", ");
-  }, [searchMatches, search]);
+  }, [searchMatches, search, t]);
 
   return (
     <div className="p-6 sm:p-8 space-y-4">

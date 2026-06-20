@@ -107,7 +107,6 @@ function SalesTab({
   setFilterStart: (v: string) => void;
   setFilterEnd: (v: string) => void;
 }) {
-  const { t } = useLanguage();
   const [date, setDate]           = useState(todayLocal());
   const [amounts, setAmounts]     = useState<SalesAmountMap>(emptySales);
   const [submitting, setSubmitting] = useState(false);

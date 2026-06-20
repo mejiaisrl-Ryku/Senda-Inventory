@@ -23,12 +23,6 @@ function pct(v: number | null): string {
   return v === null ? "—" : `${v.toFixed(1)}%`;
 }
 
-function delta(v: number | null, decimals = 1): string {
-  if (v === null || v === 0) return "—";
-  const sign = v > 0 ? "+" : "";
-  return `${sign}${v.toFixed(decimals)}%`;
-}
-
 function vsBestColor(v: number | null): string {
   if (v === null)   return "text-[#555]";
   if (v === 0)      return "text-[#3dbf8a]";
@@ -361,7 +355,7 @@ export default function PrimeCostAnalysis() {
     );
   }
 
-  const { benchmark, locations } = data;
+  const { locations } = data;
   const locs = locations;
 
   // Overview card values

@@ -167,7 +167,7 @@ export function CountsPage() {
       .then(setSessions)
       .catch(() => toast.error("Failed to load count sessions."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [toast]);
 
   useEffect(() => { load(); }, [load]);
 

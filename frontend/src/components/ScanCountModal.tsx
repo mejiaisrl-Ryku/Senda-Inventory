@@ -55,7 +55,6 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
 
   const [screen,     setScreen]     = useState<"camera" | "review">("camera");
   const [scanning,   setScanning]   = useState(false);
-  const [creating,   setCreating]   = useState(false);
   const [camError,   setCamError]   = useState("");
   const inventoryScan = useScanJobPolling<{ items: ScanItem[]; rawText: string }>({ timeoutMs: 60000 });
   const [items,      setItems]      = useState<ReviewItem[]>([]);
@@ -155,30 +154,6 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
         setScanning(false);
       }
     }, "image/jpeg", 0.85);
-  }
-
-  // ── Create count ───────────────────────────────────────────────────────────
-  async function handleCreate() {
-    const toCreate = items.filter((i) => !i.skipped && i.matchedProductId != null);
-    if (toCreate.length === 0) {
-      toast.error("No matched items to add.");
-      return;
-    }
-
-    setCreating(true);
-    try {
-      const session = await countsApi.create({ date, department });
-      await countsApi.updateEntries(
-        session.id,
-        toCreate.map((i) => ({ productId: i.matchedProductId!, actualQuantity: i.reviewQty }))
-      );
-      toast.success("Count session created from scan.");
-      onCreated(session);
-    } catch (err) {
-      toast.error(getApiError(err));
-    } finally {
-      setCreating(false);
-    }
   }
 
   // ── Shared close — warns if batch has pending items ───────────────────────
@@ -590,10 +565,9 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
           {/* Add to batch */}
           <button
             onClick={addToBatch}
-            disabled={creating || matchedCount === 0}
+            disabled={matchedCount === 0}
             className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-[13px] font-semibold rounded-xl transition-colors"
           >
-            {creating && <Spinner size="sm" />}
             Add to Batch{pendingBatch.length > 0 ? ` (${pendingBatch.length + 1})` : ""}
           </button>
         </div>

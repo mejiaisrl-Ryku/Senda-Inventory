@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Product, Recipe, RecipeDepartment, RecipeIngredient } from "../types";
+import { Product, Recipe, RecipeDepartment } from "../types";
 import { productsApi, recipesApi } from "../api";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
@@ -216,7 +216,7 @@ export function RecipesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => { load(); }, [load]);
 

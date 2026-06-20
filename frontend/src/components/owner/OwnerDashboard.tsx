@@ -197,7 +197,7 @@ function LocationCard({
 
 export function OwnerDashboard() {
   const { t, lang } = useLanguage();
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const o = t.owner;
   const p = t.performance;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Product } from "../types";
 import { stockApi } from "../api";
 import { getStockStatus, statusStyles, unitLabel } from "../utils/stock";
@@ -21,15 +21,15 @@ export function LowStockAlerts({ compact = false }: LowStockAlertsProps) {
   const [loading, setLoading] = useState(true);
   const [adjustTarget, setAdjustTarget] = useState<Product | null>(null);
 
-  function load() {
+  const load = useCallback(() => {
     setLoading(true);
     stockApi.lowItems()
       .then(setItems)
       .catch((err) => toast.error(getApiError(err)))
       .finally(() => setLoading(false));
-  }
+  }, [toast]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const displayed = compact ? items.slice(0, 5) : items;
 
