@@ -11,6 +11,7 @@ import { Spinner } from "./shared/Spinner";
 import { useToast } from "../context/ToastContext";
 import { getApiError, getFieldErrors } from "../utils/errorUtils";
 import { CogsCategorySelect } from "./CogsCategorySelect";
+import { useScanJobPolling } from "../hooks/useScanJobPolling";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -91,6 +92,7 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
   const [capturedImage, setCapturedImage] = useState<string | null>(null); // data URL
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const invoiceScan = useScanJobPolling<AIExtractResponse>({ timeoutMs: 60000 });
 
   // Form state
   const [name, setName] = useState("");
@@ -354,10 +356,25 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
 
     try {
       const base64 = dataUrl.split(",")[1];
-      const { data } = await api.post<AIExtractResponse>("/ai/extract-invoice", {
+      const { data: enqueued } = await api.post<{ jobId: string }>("/ai/extract-invoice", {
         imageBase64: base64,
         mimeType: "image/jpeg",
       });
+
+      const job = await invoiceScan.startPolling(enqueued.jobId);
+
+      if (!job || job.status === "FAILED") {
+        setExtractError(job?.error || invoiceScan.error || "Could not extract data. Please fill in the fields manually.");
+        setExtracting(false);
+        return;
+      }
+      if (!job.extractedData) {
+        setExtractError("Scan completed with no data. Please fill in the fields manually.");
+        setExtracting(false);
+        return;
+      }
+
+      const data = job.extractedData;
       aiData = data;
 
       // Populate manual-form fallback fields
@@ -955,11 +972,29 @@ export function ScanInvoiceModal({ open, onClose, onSaved }: Props) {
 
               {/* Extracting overlay on captured image */}
               {capturedImage && (extracting || searching) && (
-                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="absolute inset-0 bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center gap-3"
+                >
                   <Spinner size="md" />
                   <p className="text-[12px] text-[#3dbf8a] font-medium">
                     {extracting ? "Analysing invoice…" : "Matching product…"}
                   </p>
+                  {extracting && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        invoiceScan.cancelPolling();
+                        setExtracting(false);
+                        setExtractError("Scan cancelled.");
+                      }}
+                      aria-label="Cancel scan"
+                      className="mt-1 px-3 py-1.5 text-[11px] font-medium text-[#aaa] border border-[#3a3a3a] rounded-lg hover:text-white hover:border-[#555] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  )}
                 </div>
               )}
             </div>

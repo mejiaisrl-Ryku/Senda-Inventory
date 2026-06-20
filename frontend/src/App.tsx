@@ -6,7 +6,6 @@ import { SocketProvider } from "./context/SocketContext";
 import { SuperAdminProvider, useSuperAdmin } from "./context/SuperAdminContext";
 import { ManagerProvider, useManager } from "./context/ManagerContext";
 import { ManagerLogin } from "./components/manager/ManagerLogin";
-import { ManagerDashboard } from "./components/manager/ManagerDashboard";
 import { OwnerDashboard } from "./components/owner/OwnerDashboard";
 import { PnLPage } from "./components/owner/PnLPage";
 import { BudgetPage } from "./components/owner/BudgetPage";

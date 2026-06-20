@@ -212,7 +212,7 @@ export function CountReportView() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, toast]);
 
   useEffect(() => { load(); }, [load]);
 

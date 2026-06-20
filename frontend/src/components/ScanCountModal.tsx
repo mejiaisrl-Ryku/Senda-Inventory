@@ -5,6 +5,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { useToast } from "../context/ToastContext";
 import { Spinner } from "./shared/Spinner";
 import { getApiError } from "../utils/errorUtils";
+import { useScanJobPolling } from "../hooks/useScanJobPolling";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +57,7 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
   const [scanning,   setScanning]   = useState(false);
   const [creating,   setCreating]   = useState(false);
   const [camError,   setCamError]   = useState("");
+  const inventoryScan = useScanJobPolling<{ items: ScanItem[]; rawText: string }>({ timeoutMs: 60000 });
   const [items,      setItems]      = useState<ReviewItem[]>([]);
   const [date,       setDate]       = useState(todayLocal());
   const [department, setDepartment] = useState<CountDepartment>("ALL");
@@ -128,8 +130,17 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
       setScanning(true);
 
       try {
-        const result = await scanApi.scanInventory(file);
-        const reviewed: ReviewItem[] = result.items.map((item) => ({
+        const { jobId } = await scanApi.scanInventory(file);
+        const job = await inventoryScan.startPolling(jobId);
+
+        if (!job || job.status === "FAILED") {
+          throw new Error(job?.error || inventoryScan.error || "Scan failed");
+        }
+        if (!job.extractedData) {
+          throw new Error("Scan completed with no data");
+        }
+
+        const reviewed: ReviewItem[] = job.extractedData.items.map((item) => ({
           ...item,
           reviewQty: item.quantity,
           skipped:   false,
@@ -310,9 +321,25 @@ export function ScanCountModal({ open, onClose, onCreated }: ScanCountModalProps
 
           {/* Scanning overlay */}
           {scanning && (
-            <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-3">
+            <div
+              role="status"
+              aria-live="polite"
+              className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-3"
+            >
               <Spinner size="lg" />
               <p className="text-white text-[14px]">{s.scanning}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  inventoryScan.cancelPolling();
+                  setScanning(false);
+                  startCamera();
+                }}
+                aria-label="Cancel scan"
+                className="mt-1 px-4 py-1.5 text-[12px] font-medium text-[#ccc] border border-white/30 rounded-lg hover:text-white hover:border-white/60 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           )}
         </div>

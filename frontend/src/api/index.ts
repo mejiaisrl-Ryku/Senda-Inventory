@@ -393,10 +393,11 @@ export interface ScanItem {
 }
 
 export const scanApi = {
+  /** Enqueues an inventory scan job — returns a jobId to poll via useScanJobPolling. */
   scanInventory: (imageFile: File) => {
     const fd = new FormData();
     fd.append("image", imageFile);
-    return api.post<{ items: ScanItem[]; rawText: string }>(
+    return api.post<{ jobId: string; status: string; statusUrl: string }>(
       "/inventory/scan",
       fd,
       { headers: { "Content-Type": "multipart/form-data" } }
