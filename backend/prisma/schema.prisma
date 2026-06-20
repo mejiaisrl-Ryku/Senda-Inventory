@@ -89,6 +89,18 @@ enum RecipeDepartment {
   BAR
 }
 
+enum ScanJobType {
+  INVOICE
+  INVENTORY
+}
+
+enum ScanJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 // ─────────────────────────────────────────────
 // Models
 // ─────────────────────────────────────────────
@@ -143,6 +155,7 @@ model Restaurant {
   toastConnection   ToastConnection?
   toastMenuItems    ToastMenuItem[]
   toastTransactions ToastTransaction[]
+  scanJobs          ScanJob[]
 
   @@index([ownerAccountId])
   @@map("restaurants")
@@ -551,4 +564,49 @@ model Lead {
 
   @@index([createdAt])
   @@map("leads")
+}
+
+// Async Claude-Vision scan job — invoice extraction or inventory-count scan.
+// Replaces the old synchronous flow (image in, Claude call awaited inline,
+// result returned directly).  Image is uploaded to S3 first; a worker
+// (separate process, see Sprint 2) picks up PENDING rows, calls Claude,
+// and writes extractedData back here.
+model ScanJob {
+  id           String        @id @default(cuid())
+  type         ScanJobType
+  status       ScanJobStatus @default(PENDING)
+
+  restaurantId String
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  imageS3Url     String
+  imageMimeType  String
+  imageSizeBytes Int
+
+  claudeModel        String   @default("claude-sonnet-4-5")
+  inputTokens        Int?
+  outputTokens       Int?
+  claudeProcessingMs Int?
+
+  extractedData   Json?
+  extractionError String?
+
+  retryCount  Int       @default(0)
+  maxRetries  Int       @default(3)
+  lastRetryAt DateTime?
+
+  webhookUrl       String?
+  webhookDelivered DateTime?
+  webhookError     String?
+
+  createdAt   DateTime  @default(now())
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  @@index([status])
+  @@index([restaurantId])
+  @@index([restaurantId, status])
+  @@index([type])
+  @@index([createdAt])
+  @@map("scan_jobs")
 }

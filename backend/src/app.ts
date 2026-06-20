@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/node";
 import express, { Request, Response, NextFunction } from "express";
 import cors, { CorsOptionsDelegate } from "cors";
 import helmet from "helmet";
@@ -28,6 +29,7 @@ import { gmRouter, ownerDashRouter } from "./routes/phase5Routes";
 import { ownerPnlRouter } from "./routes/phase6Routes";
 import { ownerBudgetRouter } from "./routes/budgetRoutes";
 import scanRouter from "./routes/scanRoutes";
+import scanJobRouter from "./routes/scanJobRoutes";
 import cogsRouter from "./routes/cogs";
 import leadsRouter from "./routes/leads";
 import toastRouter from "./routes/toast";
@@ -167,9 +169,12 @@ app.use("/api/owner",         ownerDashRouter);
 app.use("/api/owner",         ownerPnlRouter);
 app.use("/api/owner",         ownerBudgetRouter);
 app.use("/api/inventory",     scanRouter);
+app.use("/api/scan-jobs",     scanJobRouter);
 app.use("/api/cogs-categories", cogsRouter);
 app.use("/api/leads",           leadsRouter);
 app.use("/api/toast",           toastRouter);
+
+app.use(Sentry.Handlers.errorHandler());
 
 app.use(errorHandler);
 

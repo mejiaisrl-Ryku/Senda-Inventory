@@ -23,6 +23,7 @@
 
 import { PrismaClient, Prisma } from "@prisma/client";
 import { AsyncLocalStorage } from "async_hooks";
+import * as Sentry from "@sentry/node";
 import { tenantStore, isBypassRole } from "./tenantContext";
 
 // ── Connection-pool helpers ───────────────────────────────────────────────────
@@ -46,6 +47,18 @@ function poolSize(): number {
   return Number.isFinite(v) && v > 0 ? v : 5; // conservative default per role
 }
 
+// Log config shared by every client constructor below — emits a "query" event
+// (consumed by attachSlowQueryMonitor) plus plain console "warn"/"error".
+// Pulled out as a const so its literal type (not just `LogLevel[]`) flows into
+// the PrismaClient generic, which is what makes `$on("query", ...)` type-check.
+const LOG_OPTIONS: [{ emit: "event"; level: "query" }, "warn", "error"] = [
+  { emit: "event", level: "query" },
+  "warn",
+  "error",
+];
+
+type MonitoredPrismaClient = PrismaClient<{ log: typeof LOG_OPTIONS }>;
+
 /**
  * Shared Prisma constructor options.
  * Timeout: 10 s query + 15 s transaction — prevents runaway queries from tying
@@ -53,10 +66,35 @@ function poolSize(): number {
  */
 function prismaOptions(extra: ConstructorParameters<typeof PrismaClient>[0] = {}): ConstructorParameters<typeof PrismaClient>[0] {
   return {
-    log: ["warn", "error"],
+    log: LOG_OPTIONS,
     transactionOptions: { timeout: parseInt(process.env.DB_TRANSACTION_TIMEOUT_MS ?? "15000", 10) },
     ...extra,
   };
+}
+
+function attachSlowQueryMonitor(client: MonitoredPrismaClient) {
+  client.$on("query", (e: Prisma.QueryEvent) => {
+    if (e.duration <= 1000) return;
+    Sentry.addBreadcrumb({
+      category: "db.query",
+      message:  `Slow query (${e.duration}ms): ${e.query}`,
+      level:    "warning",
+      data:     { duration: e.duration, query: e.query },
+    });
+    if (e.duration > 3000) {
+      Sentry.captureMessage("Slow Prisma query detected", "warning");
+    }
+  });
+}
+
+function createMonitoredClient(options: ConstructorParameters<typeof PrismaClient>[0]): PrismaClient {
+  const client = new PrismaClient(options);
+  // All callers construct via prismaOptions()/LOG_OPTIONS, so the "query" event
+  // is always present at runtime even though the parameter above is typed as
+  // the generic-default PrismaClient (kept untyped so callers don't have to
+  // care about the log generic).
+  attachSlowQueryMonitor(client as MonitoredPrismaClient);
+  return client;
 }
 
 // ── Raw superuser client (hot-reload safe) ────────────────────────────────────
@@ -67,7 +105,7 @@ declare global {
 }
 
 export const prisma =
-  global.__prisma ?? new PrismaClient(prismaOptions());
+  global.__prisma ?? createMonitoredClient(prismaOptions());
 
 if (process.env.NODE_ENV !== "production") {
   global.__prisma = prisma;
@@ -87,6 +125,7 @@ const RESTAURANT_SCOPED = new Set([
   "countSession",
   "recipe",
   "locationBudget",
+  "scanJob",
 ]);
 
 /**
@@ -354,7 +393,7 @@ declare global {
  * DATABASE_URL must be the senda_app connection string in production.
  */
 const prismaApp: PrismaClient =
-  global.__prismaApp ?? new PrismaClient(prismaOptions());
+  global.__prismaApp ?? createMonitoredClient(prismaOptions());
 
 if (process.env.NODE_ENV !== "production") {
   global.__prismaApp = prismaApp;
@@ -394,7 +433,7 @@ declare global {
 export const prismaAdmin: PrismaClient =
   global.__prismaAdmin ??
   (process.env.ADMIN_DATABASE_URL
-    ? new PrismaClient(prismaOptions({ datasources: { db: { url: process.env.ADMIN_DATABASE_URL } } }))
+    ? createMonitoredClient(prismaOptions({ datasources: { db: { url: process.env.ADMIN_DATABASE_URL } } }))
     : prisma);  // fallback: postgres superuser (also BYPASSRLS)
 
 if (process.env.NODE_ENV !== "production") {

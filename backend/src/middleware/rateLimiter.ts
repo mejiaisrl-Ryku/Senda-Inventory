@@ -122,14 +122,15 @@ export const forgotPwLimiter = rateLimit({
 
 /**
  * AI invoice-extraction limiter — cost-control.
- * Each call hits OpenAI Vision and costs money.  20 calls per hour per IP is
- * plenty for a GM scanning invoices throughout a shift.
+ * As of Sprint 1 this gates the *enqueue* endpoint, not the Claude call itself
+ * (the worker calls Claude, unmetered by this limiter) — raised from 20 to 100
+ * per hour since enqueuing is just an S3 PUT + DB insert.
  *
  * Env overrides: AI_RATE_LIMIT_MAX, AI_RATE_LIMIT_WINDOW_MS
  */
 export const aiLimiter = rateLimit({
   windowMs: int("AI_RATE_LIMIT_WINDOW_MS", 60 * 60 * 1000), // 1 hour
-  max:      int("AI_RATE_LIMIT_MAX", 20),
+  max:      int("AI_RATE_LIMIT_MAX", 100),
   standardHeaders: "draft-7",
   legacyHeaders:   false,
   ...makeStoreOpts("ai"),
