@@ -1,5 +1,11 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  GetBucketLifecycleConfigurationCommand,
+} from "@aws-sdk/client-s3";
 import { Readable } from "stream";
+import logger from "../utils/logger";
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "us-east-1" });
 
@@ -59,6 +65,41 @@ export const s3Service = {
       });
     } catch (error) {
       throw new Error(`S3 fetch failed: ${(error as Error).message}`);
+    }
+  },
+
+  /**
+   * Logs whether the bucket has a 180-day expiration rule — informational
+   * only, doesn't block worker startup. The rule itself has to be applied via
+   * the AWS console/CLI (see .env.example); this just confirms it's still
+   * there so a manually-edited bucket policy doesn't silently start
+   * retaining scan images forever.
+   */
+  async verifyLifecyclePolicy(): Promise<boolean> {
+    try {
+      const config = await s3Client.send(
+        new GetBucketLifecycleConfigurationCommand({ Bucket: BUCKET_NAME })
+      );
+
+      const hasExpirationRule = (config.Rules ?? []).some(
+        (rule) => rule.Status === "Enabled" && rule.Expiration?.Days === 180
+      );
+
+      if (!hasExpirationRule) {
+        logger.warn("s3: no 180-day lifecycle expiration rule found on bucket", { bucket: BUCKET_NAME });
+        return false;
+      }
+
+      logger.info("s3: lifecycle policy verified (180-day expiration enabled)", { bucket: BUCKET_NAME });
+      return true;
+    } catch (error) {
+      // NoSuchLifecycleConfiguration is the expected error when no policy has
+      // been set at all — log it the same as "rule missing", not as a hard failure.
+      logger.warn("s3: failed to read lifecycle policy", {
+        bucket: BUCKET_NAME,
+        message: (error as Error).message,
+      });
+      return false;
     }
   },
 };

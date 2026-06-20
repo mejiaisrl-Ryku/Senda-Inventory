@@ -15,6 +15,12 @@
  */
 
 import "dotenv/config";
+// instrument.ts must load before anything else touches the network — the worker
+// is its own process (separate Railway service from the Express API in index.ts),
+// so it never picked up Sentry.init() from there. Without this line every
+// Sentry.captureException call below is a silent no-op.
+import "./instrument";
+import * as Sentry from "@sentry/node";
 import { Anthropic } from "@anthropic-ai/sdk";
 import { ScanJob, ScanJobType } from "@prisma/client";
 import { prismaAdmin as prisma } from "./lib/prisma";
@@ -309,6 +315,9 @@ Please extract all inventory counts from this image.`;
       message,
       totalMs: Date.now() - startedAt,
     });
+    Sentry.captureException(err, {
+      tags: { jobId: job.id, jobType: job.type, attempt: job.retryCount + 1 },
+    });
 
     if (job.retryCount < job.maxRetries) {
       await prisma.scanJob.update({
@@ -360,6 +369,7 @@ async function pollOnce(): Promise<boolean> {
 
 async function mainLoop(): Promise<void> {
   logger.info("worker: started", { pollIntervalMs: POLL_INTERVAL_MS });
+  await s3Service.verifyLifecyclePolicy();
 
   // eslint-disable-next-line no-constant-condition
   while (true) {
@@ -370,6 +380,7 @@ async function mainLoop(): Promise<void> {
       logger.error("worker: unhandled error in main loop", {
         message: err instanceof Error ? err.message : String(err),
       });
+      Sentry.captureException(err, { tags: { scope: "worker-main-loop" } });
       await sleep(POLL_INTERVAL_MS);
     }
   }
@@ -389,5 +400,10 @@ process.on("SIGINT", () => void shutdown("SIGINT"));
 
 mainLoop().catch((err) => {
   logger.error("worker: fatal error", { message: err instanceof Error ? err.message : String(err) });
-  prisma.$disconnect().finally(() => process.exit(1));
+  Sentry.captureException(err, { tags: { scope: "worker-fatal" } });
+  // process.exit() races ahead of Sentry's async event delivery — flush first
+  // so a fatal crash doesn't also silently drop the error report.
+  Sentry.flush(2000)
+    .catch(() => undefined)
+    .finally(() => prisma.$disconnect().finally(() => process.exit(1)));
 });
