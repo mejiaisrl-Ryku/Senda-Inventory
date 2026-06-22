@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Product, Recipe, RecipeDepartment } from "../types";
-import { productsApi, recipesApi } from "../api";
+import { Product, Recipe, RecipeDepartment, Preparation, Allergen, RecipeCategory, KitchenStation } from "../types";
+import { productsApi, recipesApi, preparationsApi, allergensApi } from "../api";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
 import { PageSpinner, Spinner } from "./shared/Spinner";
@@ -171,6 +171,23 @@ function blankForm() {
     department:   "KITCHEN" as RecipeDepartment,
     sellingPrice: "",
     ingredients:  [] as IngredientLine[],
+
+    portions:          "",
+    batchWeight:       "",
+    preparationMethod: "",
+    platingNotes:      "",
+    photoUrl:          "",
+    category:          "" as RecipeCategory | "",
+    station:           "" as KitchenStation | "",
+
+    prepIds: [] as number[],
+
+    // Checked allergen ids, plus whether the chef has touched the allergen
+    // section at all this session — only send allergenIds to the backend if
+    // touched, so untouched cascade-only allergens aren't clobbered into
+    // "manual" on every unrelated save (see allergenController cascade docs).
+    allergenIds: [] as number[],
+    allergensTouched: false,
   };
 }
 
@@ -178,10 +195,12 @@ function blankForm() {
 
 export function RecipesPage() {
   const toast = useToast();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const [recipes,  setRecipes]  = useState<Recipe[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [preparations, setPreparations] = useState<Preparation[]>([]);
+  const [allergens,    setAllergens]    = useState<Allergen[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [tab,      setTab]      = useState<RecipeDepartment>("KITCHEN");
 
@@ -195,6 +214,14 @@ export function RecipesPage() {
   // Form fields
   const [form, setForm] = useState(blankForm());
 
+  // Prep search (mirrors ingredient search below)
+  const [prepSearch,     setPrepSearch]     = useState("");
+  const [prepSearchOpen, setPrepSearchOpen] = useState(false);
+  const prepSearchRef = useRef<HTMLDivElement>(null);
+
+  // Non-destructive scaling preview — never sent to the backend
+  const [scalingMultiplier, setScalingMultiplier] = useState(1);
+
   // Ingredient search
   const [ingSearch,    setIngSearch]    = useState("");
   const [searchOpen,   setSearchOpen]   = useState(false);
@@ -205,12 +232,16 @@ export function RecipesPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [r, p] = await Promise.all([
+      const [r, p, preps, alls] = await Promise.all([
         recipesApi.list(),
         productsApi.list(),
+        preparationsApi.list(),
+        allergensApi.list(),
       ]);
       setRecipes(r);
       setProducts(p);
+      setPreparations(preps);
+      setAllergens(alls);
     } catch (err) {
       toast.error(getApiError(err));
     } finally {
@@ -219,6 +250,18 @@ export function RecipesPage() {
   }, [toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── Close prep search dropdown on outside click ────────────────────────────
+
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (prepSearchRef.current && !prepSearchRef.current.contains(e.target as Node)) {
+        setPrepSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
 
   // ── Close ingredient search dropdown on outside click ──────────────────────
 
@@ -251,6 +294,18 @@ export function RecipesPage() {
       .slice(0, 8);
   }, [ingSearch, products, form.ingredients]);
 
+  const prepSearchResults = useMemo(() => {
+    if (!prepSearch.trim()) return [];
+    const q = prepSearch.toLowerCase();
+    return preparations
+      .filter(
+        (p) =>
+          (p.name.toLowerCase().includes(q) || (p.almacen ?? "").toLowerCase().includes(q)) &&
+          !form.prepIds.includes(p.id)
+      )
+      .slice(0, 8);
+  }, [prepSearch, preparations, form.prepIds]);
+
   // ── Computed totals ───────────────────────────────────────────────────────
 
   const recipeCost = useMemo(
@@ -262,12 +317,23 @@ export function RecipesPage() {
     return sp > 0 ? (recipeCost / sp) * 100 : 0;
   }, [recipeCost, form.sellingPrice]);
 
+  // Cascade-vs-manual source, as of when the modal was opened (editTarget is
+  // a snapshot — it won't reflect in-progress checkbox edits, which is fine
+  // since this is purely a display hint).
+  const allergenSource = useMemo(() => {
+    const map = new Map<number, boolean>(); // allergenId -> manuallyOverridden
+    for (const a of editTarget?.allergens ?? []) map.set(a.id, a.manuallyOverridden);
+    return map;
+  }, [editTarget]);
+
   // ── Modal helpers ─────────────────────────────────────────────────────────
 
   function openAdd() {
     setEditTarget(null);
     setForm({ ...blankForm(), department: tab });
     setIngSearch("");
+    setPrepSearch("");
+    setScalingMultiplier(1);
     setModalOpen(true);
   }
 
@@ -301,8 +367,20 @@ export function RecipesPage() {
           unitsPerCase,
         };
       }),
+      portions:          recipe.portions != null ? String(recipe.portions) : "",
+      batchWeight:       recipe.batchWeight != null ? String(recipe.batchWeight) : "",
+      preparationMethod: recipe.preparationMethod ?? "",
+      platingNotes:      recipe.platingNotes ?? "",
+      photoUrl:          recipe.photoUrl ?? "",
+      category:          recipe.category ?? "",
+      station:           recipe.station ?? "",
+      prepIds:           (recipe.preparations ?? []).map((p) => p.id),
+      allergenIds:       (recipe.allergens ?? []).filter((a) => a.isPresent).map((a) => a.id),
+      allergensTouched:  false,
     });
     setIngSearch("");
+    setPrepSearch("");
+    setScalingMultiplier(1);
     setModalOpen(true);
   }
 
@@ -312,6 +390,29 @@ export function RecipesPage() {
     setForm(blankForm());
     setIngSearch("");
     setSearchOpen(false);
+    setPrepSearch("");
+    setPrepSearchOpen(false);
+    setScalingMultiplier(1);
+  }
+
+  function addPrep(p: Preparation) {
+    setForm((f) => ({ ...f, prepIds: [...f.prepIds, p.id] }));
+    setPrepSearch("");
+    setPrepSearchOpen(false);
+  }
+
+  function removePrep(prepId: number) {
+    setForm((f) => ({ ...f, prepIds: f.prepIds.filter((id) => id !== prepId) }));
+  }
+
+  function toggleAllergen(allergenId: number) {
+    setForm((f) => ({
+      ...f,
+      allergensTouched: true,
+      allergenIds: f.allergenIds.includes(allergenId)
+        ? f.allergenIds.filter((id) => id !== allergenId)
+        : [...f.allergenIds, allergenId],
+    }));
   }
 
   function addIngredient(p: Product) {
@@ -443,6 +544,15 @@ export function RecipesPage() {
             conversionFactor,
           };
         }),
+        portions:          form.portions ? parseInt(form.portions, 10) : null,
+        batchWeight:       form.batchWeight ? parseFloat(form.batchWeight) : null,
+        preparationMethod: form.preparationMethod.trim() || null,
+        platingNotes:      form.platingNotes.trim() || null,
+        photoUrl:          form.photoUrl.trim() || null,
+        category:          form.category || null,
+        station:           form.station || null,
+        prepIds:           form.prepIds,
+        ...(form.allergensTouched ? { allergenIds: form.allergenIds } : {}),
       };
 
       let saved: Recipe;
@@ -942,6 +1052,240 @@ export function RecipesPage() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </div>
+
+              {/* Linked Preparations */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em]">
+                    {t.recipes.linkedPreparations}
+                  </label>
+                  <span className="text-[11px] text-[#444]">{form.prepIds.length}</span>
+                </div>
+
+                <div className="relative" ref={prepSearchRef}>
+                  <input
+                    value={prepSearch}
+                    onChange={(e) => { setPrepSearch(e.target.value); setPrepSearchOpen(true); }}
+                    onFocus={() => setPrepSearchOpen(true)}
+                    placeholder={t.recipes.searchPreparations}
+                    className="w-full px-3 py-2.5 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                  />
+                  {prepSearchOpen && prepSearchResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-[#161616] border border-[#2a2a2a] rounded-[8px] shadow-lg z-10 max-h-56 overflow-y-auto">
+                      {prepSearchResults.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => addPrep(p)}
+                          className="w-full text-left px-3 py-2 hover:bg-[#1f1f1f] border-b border-[#1a1a1a] last:border-b-0"
+                        >
+                          <p className="text-sm text-white">{p.name}</p>
+                          <p className="text-[11px] text-[#555]">{formatCurrency(p.cost)} · {p.almacen || "—"}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {form.prepIds.length === 0 ? (
+                  <p className="text-[12px] text-[#555] mt-2">{t.recipes.noPrepsLinked}</p>
+                ) : (
+                  <div className="space-y-2 mt-2">
+                    {form.prepIds.map((prepId) => {
+                      const prep = preparations.find((p) => p.id === prepId);
+                      if (!prep) return null;
+                      return (
+                        <div key={prepId} className="flex items-center justify-between bg-[#111] border border-[#1a1a1a] rounded-[8px] px-3 py-2">
+                          <div>
+                            <p className="text-sm text-white">{prep.name}</p>
+                            <p className="text-[11px] text-[#555]">{formatCurrency(prep.cost)}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removePrep(prepId)}
+                            className="text-[12px] text-red-400 hover:text-red-300"
+                          >
+                            {t.common.delete}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Portions & yield */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
+                    {t.recipes.portions}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={form.portions}
+                    onChange={(e) => setForm((f) => ({ ...f, portions: e.target.value }))}
+                    placeholder="4"
+                    className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
+                    {t.recipes.batchWeight}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={form.batchWeight}
+                    onChange={(e) => setForm((f) => ({ ...f, batchWeight: e.target.value }))}
+                    placeholder="2.5"
+                    className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                  />
+                </div>
+              </div>
+
+              {/* Category & station */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
+                    {t.recipes.category}
+                  </label>
+                  <select
+                    value={form.category}
+                    onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as RecipeCategory | "" }))}
+                    className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                  >
+                    <option value="">—</option>
+                    {(["STARTER", "MAIN", "DESSERT", "SNACK", "BEVERAGE"] as RecipeCategory[]).map((c) => (
+                      <option key={c} value={c}>{t.recipes.categories[c]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
+                    {t.recipes.station}
+                  </label>
+                  <select
+                    value={form.station}
+                    onChange={(e) => setForm((f) => ({ ...f, station: e.target.value as KitchenStation | "" }))}
+                    className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                  >
+                    <option value="">—</option>
+                    {(["GRILL", "SAUCIER", "PANTRY", "PASTRY", "BAR", "FRYER"] as KitchenStation[]).map((s) => (
+                      <option key={s} value={s}>{t.recipes.stations[s]}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Preparation method & plating notes */}
+              <div>
+                <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
+                  {t.recipes.preparationMethod}
+                </label>
+                <textarea
+                  value={form.preparationMethod}
+                  onChange={(e) => setForm((f) => ({ ...f, preparationMethod: e.target.value }))}
+                  rows={3}
+                  className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
+                  {t.recipes.platingNotes}
+                </label>
+                <textarea
+                  value={form.platingNotes}
+                  onChange={(e) => setForm((f) => ({ ...f, platingNotes: e.target.value }))}
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                />
+              </div>
+
+              {/* Photo URL */}
+              <div>
+                <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
+                  {t.recipes.photoUrl}
+                </label>
+                <input
+                  type="text"
+                  value={form.photoUrl}
+                  onChange={(e) => setForm((f) => ({ ...f, photoUrl: e.target.value }))}
+                  placeholder="https://…"
+                  className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                />
+              </div>
+
+              {/* Allergens */}
+              <div>
+                <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
+                  {t.recipes.allergens}
+                </label>
+                {allergens.length === 0 ? (
+                  <p className="text-[12px] text-[#555]">—</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {allergens.map((a) => {
+                      const checked = form.allergenIds.includes(a.id);
+                      const wasOverridden = allergenSource.get(a.id);
+                      const tag = wasOverridden === undefined ? null : wasOverridden ? t.recipes.manual : t.recipes.fromPrep;
+                      return (
+                        <label key={a.id} className="flex items-center gap-2 text-sm text-[#888] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleAllergen(a.id)}
+                            className="rounded border-[#2a2a2a] bg-[#111] text-[#3dbf8a] focus:ring-[#3dbf8a]"
+                          />
+                          <span className={checked ? "text-white" : ""}>
+                            {lang === "es" ? a.labelES : a.labelEN}
+                          </span>
+                          {checked && tag && <span className="text-[10px] text-[#555]">({tag})</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Scaling preview — client-only, never sent to the backend */}
+              <div>
+                <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
+                  {t.recipes.scalingPreview}
+                </label>
+                <div className="flex gap-2 mb-2">
+                  {[0.5, 1, 2, 3, 5].map((mult) => (
+                    <button
+                      key={mult}
+                      type="button"
+                      onClick={() => setScalingMultiplier(mult)}
+                      className={`px-3 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors ${
+                        scalingMultiplier === mult
+                          ? "bg-[#3dbf8a] text-black"
+                          : "bg-[#1a1a1a] text-[#888] hover:text-white"
+                      }`}
+                    >
+                      {mult === 0.5 ? "÷2" : `×${mult}`}
+                    </button>
+                  ))}
+                </div>
+                {scalingMultiplier !== 1 && form.ingredients.length > 0 && (
+                  <div className="bg-[#111] border border-[#1a1a1a] rounded-[8px] p-3 space-y-1">
+                    {form.ingredients.map((ing) => {
+                      const q = parseFloat(ing.quantity);
+                      const scaled = isNaN(q) ? ing.quantity : (q * scalingMultiplier).toFixed(2);
+                      return (
+                        <p key={ing.key} className="text-[12px] text-[#888]">
+                          {ing.productName}: {ing.quantity} {ing.unit} → <span className="text-white">{scaled} {ing.unit}</span>
+                        </p>
+                      );
+                    })}
+                    <p className="text-[12px] text-[#3dbf8a] pt-1 border-t border-[#1a1a1a] mt-1">
+                      {t.recipes.scaledCost}: {formatCurrency(recipeCost * scalingMultiplier)}
+                    </p>
                   </div>
                 )}
               </div>

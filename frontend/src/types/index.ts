@@ -289,6 +289,26 @@ export interface RecipeIngredient {
   };
 }
 
+export type RecipeCategory = "STARTER" | "MAIN" | "DESSERT" | "SNACK" | "BEVERAGE";
+export type KitchenStation = "GRILL" | "SAUCIER" | "PANTRY" | "PASTRY" | "BAR" | "FRYER";
+
+export interface RecipePreparationRef {
+  id:       number;
+  name:     string;
+  cost:     number;
+  quantity: number | null;
+  unit:     string | null;
+}
+
+export interface RecipeAllergenRef {
+  id:                 number;
+  code:               string;
+  labelEN:            string;
+  labelES:            string;
+  isPresent:          boolean;
+  manuallyOverridden: boolean;
+}
+
 export interface Recipe {
   id:           string;
   restaurantId: string;
@@ -300,7 +320,48 @@ export interface Recipe {
   /** Computed by backend from live product prices */
   recipeCost?:  number;
   costPct?:     number;
+  costPerPortion?:     number | null;
   ingredients?: RecipeIngredient[];
+  portions?:           number | null;
+  batchWeight?:        number | null;
+  preparationMethod?:  string | null;
+  platingNotes?:       string | null;
+  photoUrl?:           string | null;
+  yieldPercent?:       number | null;
+  category?:           RecipeCategory | null;
+  station?:            KitchenStation | null;
+  preparations?:       RecipePreparationRef[];
+  allergens?:          RecipeAllergenRef[];
+}
+
+export type ConservationType = "REFRIGERADO" | "CONGELADO" | "AMBIENTE";
+
+export interface Allergen {
+  id:      number;
+  code:    string;
+  labelEN: string;
+  labelES: string;
+}
+
+export interface Preparation {
+  id:                     number;
+  restaurantId:           string;
+  name:                   string;
+  description:            string | null;
+  preparationMethod:      string | null;
+  platingNotes:           string | null;
+  photoUrl:               string | null;
+  shelfLifeDays:          number | null;
+  storageTemp:            string | null;
+  conservationType:       ConservationType | null;
+  almacen:                string | null;
+  recipeYield:            number | null;
+  recipeYieldUnit:        string | null;
+  cost:                   number;
+  costPerPortionEstimate: number | null;
+  createdBy:              string | null;
+  createdAt:              string;
+  updatedAt:              string;
 }
 
 export interface TeamMember {

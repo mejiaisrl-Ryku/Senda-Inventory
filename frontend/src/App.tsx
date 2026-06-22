@@ -23,6 +23,7 @@ import { CountsPage } from "./components/CountsPage";
 import { CountSessionDetail } from "./components/CountSessionDetail";
 import { CountReportView } from "./components/CountReportView";
 import { RecipesPage } from "./components/RecipesPage";
+import { PreparationsPage } from "./components/PreparationsPage";
 import { CostAnalysis } from "./components/CostAnalysis";
 import { POSPage } from "./components/POSPage";
 import { MultiLocationOverview } from "./components/MultiLocationOverview";
@@ -158,6 +159,7 @@ function AppRoutes() {
             <Route path="inventory/:id"         element={<CountSessionDetail />} />
             <Route path="inventory/:id/report"  element={<CountReportView />} />
             <Route path="recipes"               element={<RecipesPage />} />
+            <Route path="preparations"          element={<PreparationsPage />} />
             <Route path="cost-analysis"        element={<CostAnalysis />} />
             <Route path="pos"                  element={<POSPage />} />
 

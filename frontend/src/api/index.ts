@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig, AxiosError } from "axios";
-import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember, CountSession, CountEntry, CountDepartment, CountReport, Recipe, RecipeDepartment, CogsCategory, Preparation, ConservationType, Allergen } from "../types";
+import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember, CountSession, CountEntry, CountDepartment, CountReport, Recipe, RecipeDepartment, CogsCategory, Preparation, ConservationType, Allergen, RecipeCategory, KitchenStation } from "../types";
 import { cacheGet, cacheSet, cachePurge } from "../utils/offlineCache";
 
 const BASE = process.env.REACT_APP_API_URL;
@@ -406,28 +406,34 @@ export const scanApi = {
 };
 
 // ── Recipes ───────────────────────────────────────────────────────────────────
+export interface RecipeUpsertRequest {
+  name: string;
+  department: RecipeDepartment;
+  sellingPrice: number;
+  ingredients: { productId: string; quantity: number; unit: string; conversionFactor?: number | null }[];
+  portions?: number | null;
+  batchWeight?: number | null;
+  preparationMethod?: string | null;
+  platingNotes?: string | null;
+  photoUrl?: string | null;
+  yieldPercent?: number | null;
+  category?: RecipeCategory | null;
+  station?: KitchenStation | null;
+  prepIds?: number[];
+  allergenIds?: number[];
+}
+
 export const recipesApi = {
   list: (department?: RecipeDepartment) =>
     api.get<Recipe[]>("/recipes", { params: department ? { department } : {} }).then((r) => r.data),
 
   get: (id: string) => api.get<Recipe>(`/recipes/${id}`).then((r) => r.data),
 
-  create: (data: {
-    name: string;
-    department: RecipeDepartment;
-    sellingPrice: number;
-    ingredients: { productId: string; quantity: number; unit: string }[];
-  }) => api.post<Recipe>("/recipes", data).then((r) => r.data),
+  create: (data: RecipeUpsertRequest) =>
+    api.post<Recipe>("/recipes", data).then((r) => r.data),
 
-  update: (
-    id: string,
-    data: {
-      name: string;
-      department: RecipeDepartment;
-      sellingPrice: number;
-      ingredients: { productId: string; quantity: number; unit: string }[];
-    }
-  ) => api.put<Recipe>(`/recipes/${id}`, data).then((r) => r.data),
+  update: (id: string, data: RecipeUpsertRequest) =>
+    api.put<Recipe>(`/recipes/${id}`, data).then((r) => r.data),
 
   delete: (id: string) => api.delete(`/recipes/${id}`),
 
