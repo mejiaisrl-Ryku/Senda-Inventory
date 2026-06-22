@@ -2,6 +2,7 @@ import { Response, NextFunction } from "express";
 import { z } from "zod";
 import { prismaT as prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
+import { cascadeAllergensFromPrepToLinkedRecipes } from "../lib/allergenCascade";
 
 const ConservationTypeEnum = z.enum(["REFRIGERADO", "CONGELADO", "AMBIENTE"]);
 
@@ -19,7 +20,29 @@ export const upsertPreparationSchema = z.object({
   recipeYieldUnit:        z.string().nullable().optional(),
   cost:                   z.number().nonnegative().optional(),
   costPerPortionEstimate: z.number().nonnegative().nullable().optional(),
+  allergenIds:            z.array(z.number().int().positive()).optional(),
 });
+
+/** Replace a preparation's allergen set, validating every id exists, then
+ *  cascade the new set to every recipe currently linked to this prep. */
+async function setPreparationAllergens(preparationId: number, allergenIds: number[]) {
+  const found = await prisma.allergen.findMany({
+    where: { id: { in: allergenIds } },
+    select: { id: true },
+  });
+  if (found.length !== allergenIds.length) {
+    throw Object.assign(new Error("One or more allergens not found"), { status: 400 });
+  }
+
+  await prisma.preparationAllergen.deleteMany({ where: { preparationId } });
+  if (allergenIds.length > 0) {
+    await prisma.preparationAllergen.createMany({
+      data: allergenIds.map((allergenId) => ({ preparationId, allergenId })),
+    });
+  }
+
+  await cascadeAllergensFromPrepToLinkedRecipes(preparationId);
+}
 
 function round4(n: number): number { return Math.round(n * 10000) / 10000; }
 
@@ -102,6 +125,10 @@ export async function createPreparation(req: AuthRequest, res: Response, next: N
       },
     });
 
+    if (body.allergenIds !== undefined) {
+      await setPreparationAllergens(created.id, body.allergenIds);
+    }
+
     res.status(201).json(serialize(created));
   } catch (err) { next(err); }
 }
@@ -117,11 +144,16 @@ export async function updatePreparation(req: AuthRequest, res: Response, next: N
     if (!existing) return res.status(404).json({ error: "Preparation not found" });
 
     const body = upsertPreparationSchema.partial().parse(req.body);
+    const { allergenIds, ...scalarFields } = body;
 
     const updated = await prisma.preparation.update({
       where: { id: existing.id },
-      data:  body,
+      data:  scalarFields,
     });
+
+    if (allergenIds !== undefined) {
+      await setPreparationAllergens(existing.id, allergenIds);
+    }
 
     res.json(serialize(updated));
   } catch (err) { next(err); }

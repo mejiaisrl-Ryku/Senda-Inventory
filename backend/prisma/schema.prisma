@@ -410,9 +410,26 @@ model Preparation {
   updatedAt              DateTime          @updatedAt @map("updated_at")
 
   recipePreparations     RecipePreparation[]
+  preparationAllergens   PreparationAllergen[]
 
   @@index([restaurantId])
   @@map("preparations")
+}
+
+model PreparationAllergen {
+  id             Int         @id @default(autoincrement())
+  preparationId  Int         @map("preparation_id")
+  allergenId     Int         @map("allergen_id")
+
+  preparation    Preparation @relation(fields: [preparationId], references: [id], onDelete: Cascade)
+  allergen       Allergen    @relation(fields: [allergenId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  @@unique([preparationId, allergenId])
+  @@index([preparationId])
+  @@index([allergenId])
+  @@map("preparation_allergens")
 }
 
 model RecipePreparation {
@@ -439,7 +456,8 @@ model Allergen {
   labelEN String @map("label_en") @db.VarChar(100)
   labelES String @map("label_es") @db.VarChar(100)
 
-  recipeAllergens RecipeAllergen[]
+  recipeAllergens      RecipeAllergen[]
+  preparationAllergens PreparationAllergen[]
 
   @@map("allergens")
 }

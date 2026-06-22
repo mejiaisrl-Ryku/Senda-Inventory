@@ -2,6 +2,7 @@ import { Response, NextFunction } from "express";
 import { z } from "zod";
 import { prismaT as prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
+import { cascadeAllergensToRecipe } from "../lib/allergenCascade";
 
 // ── Proxy models (Prisma client not yet regenerated) ──────────────────────────
 const recipeModel      = (prisma as any).recipe           as any;
@@ -249,11 +250,41 @@ async function setRecipeLinks(
     if (found.length !== allergenIds.length) {
       throw Object.assign(new Error("One or more allergens not found"), { status: 400 });
     }
-    await (prisma as any).recipeAllergen.deleteMany({ where: { recipeId } });
-    if (allergenIds.length > 0) {
-      await (prisma as any).recipeAllergen.createMany({
-        data: allergenIds.map((allergenId) => ({ recipeId, allergenId })),
+
+    // Upsert, never delete: an allergen the chef excludes must still leave a
+    // row behind (isPresent=false, manuallyOverridden=true) so a later prep
+    // cascade sees "already decided" and skips it instead of re-adding it.
+    // Deleting the row would make it indistinguishable from "never set",
+    // which is exactly what let a removed allergen silently come back.
+    const onSet = new Set(allergenIds);
+    const existingRows = await (prisma as any).recipeAllergen.findMany({
+      where: { recipeId },
+      select: { allergenId: true },
+    });
+    const existingIds = new Set<number>(existingRows.map((r: any) => r.allergenId));
+
+    for (const allergenId of allergenIds) {
+      await (prisma as any).recipeAllergen.upsert({
+        where:  { recipeId_allergenId: { recipeId, allergenId } },
+        create: { recipeId, allergenId, isPresent: true, manuallyOverridden: true },
+        update: { isPresent: true, manuallyOverridden: true },
       });
+    }
+    for (const allergenId of existingIds) {
+      if (onSet.has(allergenId)) continue;
+      await (prisma as any).recipeAllergen.update({
+        where: { recipeId_allergenId: { recipeId, allergenId } },
+        data:  { isPresent: false, manuallyOverridden: true },
+      });
+    }
+  }
+
+  // Cascade allergens from every currently-linked prep. Insert-only, so this
+  // is safe to run unconditionally after a full prep-link replace above —
+  // it only fills in allergens the recipe doesn't already have a row for.
+  if (prepIds !== undefined) {
+    for (const preparationId of prepIds) {
+      await cascadeAllergensToRecipe(recipeId, preparationId);
     }
   }
 }
