@@ -1,5 +1,5 @@
 import axios, { AxiosRequestConfig, AxiosError } from "axios";
-import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember, CountSession, CountEntry, CountDepartment, CountReport, Recipe, RecipeDepartment, CogsCategory } from "../types";
+import { Order, Product, StockLog, StockReport, StockReason, OrderStatus, DailyReport, WeeklyReport, SalesEntry, SalesCategory, LaborEntry, CogsReport, TeamMember, CountSession, CountEntry, CountDepartment, CountReport, Recipe, RecipeDepartment, CogsCategory, Preparation, ConservationType, Allergen } from "../types";
 import { cacheGet, cacheSet, cachePurge } from "../utils/offlineCache";
 
 const BASE = process.env.REACT_APP_API_URL;
@@ -436,6 +436,39 @@ export const recipesApi = {
       "/recipes/copy",
       { sourceRecipeId, sourceRestaurantId, targetRestaurantId }
     ).then((r) => r.data),
+};
+
+export interface PreparationRequest {
+  name: string;
+  description?: string | null;
+  preparationMethod?: string | null;
+  platingNotes?: string | null;
+  photoUrl?: string | null;
+  shelfLifeDays?: number | null;
+  storageTemp?: string | null;
+  conservationType?: ConservationType | null;
+  almacen?: string | null;
+  recipeYield?: number | null;
+  recipeYieldUnit?: string | null;
+  allergenIds?: number[];
+}
+
+export const preparationsApi = {
+  list: () => api.get<Preparation[]>("/preparations").then((r) => r.data),
+
+  get: (id: number) => api.get<Preparation>(`/preparations/${id}`).then((r) => r.data),
+
+  create: (data: PreparationRequest) =>
+    api.post<Preparation>("/preparations", data).then((r) => r.data),
+
+  update: (id: number, data: Partial<PreparationRequest>) =>
+    api.patch<Preparation>(`/preparations/${id}`, data).then((r) => r.data),
+
+  delete: (id: number) => api.delete(`/preparations/${id}`),
+};
+
+export const allergensApi = {
+  list: () => api.get<Allergen[]>("/allergens").then((r) => r.data),
 };
 
 // ── Labor ─────────────────────────────────────────────────────────────────────
