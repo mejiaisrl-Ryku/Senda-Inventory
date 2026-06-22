@@ -138,14 +138,14 @@ CREATE POLICY tenant_isolation ON recipe_preparations
     EXISTS (
       SELECT 1 FROM recipes r
       WHERE  r.id = recipe_preparations.recipe_id
-        AND  r.restaurant_id = current_setting('app.restaurant_id', true)
+        AND  r."restaurantId" = current_setting('app.restaurant_id', true)
     )
   )
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM recipes r
       WHERE  r.id = recipe_preparations.recipe_id
-        AND  r.restaurant_id = current_setting('app.restaurant_id', true)
+        AND  r."restaurantId" = current_setting('app.restaurant_id', true)
     )
   );
 
@@ -156,14 +156,14 @@ CREATE POLICY tenant_isolation ON recipe_allergens
     EXISTS (
       SELECT 1 FROM recipes r
       WHERE  r.id = recipe_allergens.recipe_id
-        AND  r.restaurant_id = current_setting('app.restaurant_id', true)
+        AND  r."restaurantId" = current_setting('app.restaurant_id', true)
     )
   )
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM recipes r
       WHERE  r.id = recipe_allergens.recipe_id
-        AND  r.restaurant_id = current_setting('app.restaurant_id', true)
+        AND  r."restaurantId" = current_setting('app.restaurant_id', true)
     )
   );
 
