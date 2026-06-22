@@ -22,6 +22,16 @@ export const upsertRecipeSchema = z.object({
   department:   RecipeDeptEnum,
   sellingPrice: z.number().positive("Selling price must be positive"),
   ingredients:  z.array(ingredientSchema).min(1, "At least one ingredient is required"),
+  portions:          z.number().int().positive().nullable().optional(),
+  batchWeight:       z.number().positive().nullable().optional(),
+  preparationMethod: z.string().nullable().optional(),
+  platingNotes:      z.string().nullable().optional(),
+  photoUrl:          z.string().nullable().optional(),
+  yieldPercent:      z.number().min(0).max(100).nullable().optional(),
+  category:          z.enum(["STARTER", "MAIN", "DESSERT", "SNACK", "BEVERAGE"]).nullable().optional(),
+  station:           z.enum(["GRILL", "SAUCIER", "PANTRY", "PASTRY", "BAR", "FRYER"]).nullable().optional(),
+  prepIds:           z.array(z.number().int().positive()).optional(),
+  allergenIds:       z.array(z.number().int().positive()).optional(),
 });
 
 // ── Unit conversion helpers ───────────────────────────────────────────────────
@@ -67,7 +77,43 @@ function num(v: unknown): number {
 
 function round2(n: number): number { return Math.round(n * 100) / 100; }
 
-/** Compute recipeCost and costPct from a list of hydrated ingredients. */
+/** Sum ingredient costs (raw products only). */
+function ingredientCost(
+  ingredients: Array<{
+    quantity:         unknown;
+    unit:             string;
+    conversionFactor: unknown;
+    product:          { costPerUnit: unknown; unit: string };
+  }>
+): number {
+  return ingredients.reduce((sum, ing) => {
+    const q    = num(ing.quantity);
+    const cost = num(ing.product.costPerUnit);
+
+    const autoFactor = getAutoFactor(ing.unit, ing.product.unit);
+    if (autoFactor !== null) {
+      // Same system: cost = (q / factor) × costPerUnit
+      return sum + (q / autoFactor) * cost;
+    }
+
+    // Cross-system: use the stored conversionFactor
+    const cf = ing.conversionFactor ? num(ing.conversionFactor) : 0;
+    if (cf <= 0) return sum; // incomplete — exclude from total
+    return sum + (q / cf) * cost;
+  }, 0);
+}
+
+/** Sum linked preparation costs (recipe_preparations.quantity × preparation cost is not
+ *  tracked per-unit — preps store a single pre-calculated total cost, so each linked
+ *  prep contributes its full cost once, regardless of the junction's quantity/unit,
+ *  which only describe how much of the prep's yield the recipe consumes for reference. */
+function preparationCost(
+  recipePreparations: Array<{ preparation: { cost: unknown } }>
+): number {
+  return recipePreparations.reduce((sum, rp) => sum + num(rp.preparation.cost), 0);
+}
+
+/** Compute recipeCost and costPct, including linked preparation costs. */
 function computeCosts(
   ingredients: Array<{
     quantity:         unknown;
@@ -75,25 +121,10 @@ function computeCosts(
     conversionFactor: unknown;
     product:          { costPerUnit: unknown; unit: string };
   }>,
+  recipePreparations: Array<{ preparation: { cost: unknown } }>,
   sellingPrice: number
 ): { recipeCost: number; costPct: number } {
-  const recipeCost = round2(
-    ingredients.reduce((sum, ing) => {
-      const q    = num(ing.quantity);
-      const cost = num(ing.product.costPerUnit);
-
-      const autoFactor = getAutoFactor(ing.unit, ing.product.unit);
-      if (autoFactor !== null) {
-        // Same system: cost = (q / factor) × costPerUnit
-        return sum + (q / autoFactor) * cost;
-      }
-
-      // Cross-system: use the stored conversionFactor
-      const cf = ing.conversionFactor ? num(ing.conversionFactor) : 0;
-      if (cf <= 0) return sum; // incomplete — exclude from total
-      return sum + (q / cf) * cost;
-    }, 0)
-  );
+  const recipeCost = round2(ingredientCost(ingredients) + preparationCost(recipePreparations));
   const costPct = sellingPrice > 0 ? round2((recipeCost / sellingPrice) * 100) : 0;
   return { recipeCost, costPct };
 }
@@ -109,22 +140,45 @@ const recipeInclude = {
       },
     },
   },
+  recipePreparations: {
+    include: {
+      preparation: {
+        select: { id: true, name: true, cost: true, recipeYieldUnit: true },
+      },
+    },
+  },
+  recipeAllergens: {
+    include: {
+      allergen: {
+        select: { id: true, code: true, labelEN: true, labelES: true },
+      },
+    },
+  },
 };
 
 /** Serialize a recipe row to the API response shape. */
 function serialize(r: any) {
   const sp = num(r.sellingPrice);
-  const { recipeCost, costPct } = computeCosts(r.ingredients ?? [], sp);
+  const { recipeCost, costPct } = computeCosts(r.ingredients ?? [], r.recipePreparations ?? [], sp);
   return {
     id:           r.id,
     restaurantId: r.restaurantId,
     name:         r.name,
     department:   r.department,
     sellingPrice: round2(sp),
+    portions:          r.portions ?? null,
+    batchWeight:       r.batchWeight !== null && r.batchWeight !== undefined ? num(r.batchWeight) : null,
+    preparationMethod: r.preparationMethod ?? null,
+    platingNotes:      r.platingNotes ?? null,
+    photoUrl:          r.photoUrl ?? null,
+    yieldPercent:      r.yieldPercent !== null && r.yieldPercent !== undefined ? num(r.yieldPercent) : null,
+    category:          r.category ?? null,
+    station:           r.station ?? null,
     createdAt:    r.createdAt,
     updatedAt:    r.updatedAt,
     recipeCost,
     costPct,
+    costPerPortion: r.portions ? round2(recipeCost / r.portions) : null,
     ingredients:  (r.ingredients ?? []).map((ing: any) => ({
       id:               ing.id,
       productId:        ing.productId,
@@ -139,10 +193,70 @@ function serialize(r: any) {
         category:    ing.product.category,
       },
     })),
+    preparations: (r.recipePreparations ?? []).map((rp: any) => ({
+      id:            rp.preparation.id,
+      name:          rp.preparation.name,
+      cost:          round2(num(rp.preparation.cost)),
+      quantity:      rp.quantity !== null ? num(rp.quantity) : null,
+      unit:          rp.unit,
+    })),
+    allergens: (r.recipeAllergens ?? []).map((ra: any) => ({
+      id:                 ra.allergen.id,
+      code:               ra.allergen.code,
+      labelEN:            ra.allergen.labelEN,
+      labelES:            ra.allergen.labelES,
+      isPresent:          ra.isPresent,
+      manuallyOverridden: ra.manuallyOverridden,
+    })),
   };
 }
 
 // ── Controllers ───────────────────────────────────────────────────────────────
+
+/**
+ * Replace a recipe's linked preparations and allergens.
+ * Validates that every prepId/allergenId referenced belongs to the
+ * requesting restaurant (preps) or exists at all (allergens are a
+ * global lookup table, not tenant-scoped).
+ */
+async function setRecipeLinks(
+  recipeId: string,
+  restaurantId: string,
+  prepIds: number[] | undefined,
+  allergenIds: number[] | undefined
+) {
+  if (prepIds !== undefined) {
+    const owned = await prisma.preparation.findMany({
+      where: { id: { in: prepIds }, restaurantId },
+      select: { id: true },
+    });
+    if (owned.length !== prepIds.length) {
+      throw Object.assign(new Error("One or more preparations not found"), { status: 400 });
+    }
+    await (prisma as any).recipePreparation.deleteMany({ where: { recipeId } });
+    if (prepIds.length > 0) {
+      await (prisma as any).recipePreparation.createMany({
+        data: prepIds.map((preparationId) => ({ recipeId, preparationId })),
+      });
+    }
+  }
+
+  if (allergenIds !== undefined) {
+    const found = await prisma.allergen.findMany({
+      where: { id: { in: allergenIds } },
+      select: { id: true },
+    });
+    if (found.length !== allergenIds.length) {
+      throw Object.assign(new Error("One or more allergens not found"), { status: 400 });
+    }
+    await (prisma as any).recipeAllergen.deleteMany({ where: { recipeId } });
+    if (allergenIds.length > 0) {
+      await (prisma as any).recipeAllergen.createMany({
+        data: allergenIds.map((allergenId) => ({ recipeId, allergenId })),
+      });
+    }
+  }
+}
 
 /**
  * GET /api/recipes
@@ -190,14 +304,23 @@ export async function getRecipe(req: AuthRequest, res: Response, next: NextFunct
  */
 export async function createRecipe(req: AuthRequest, res: Response, next: NextFunction) {
   try {
+    if (!req.user.restaurantId) return res.status(403).json({ error: "No restaurant assigned to this user" });
     const body = upsertRecipeSchema.parse(req.body);
 
     const created = await recipeModel.create({
       data: {
-        restaurantId: req.user.restaurantId,
-        name:         body.name,
-        department:   body.department as never,
-        sellingPrice: body.sellingPrice,
+        restaurantId:      req.user.restaurantId,
+        name:              body.name,
+        department:        body.department as never,
+        sellingPrice:      body.sellingPrice,
+        portions:          body.portions ?? null,
+        batchWeight:       body.batchWeight ?? null,
+        preparationMethod: body.preparationMethod ?? null,
+        platingNotes:      body.platingNotes ?? null,
+        photoUrl:          body.photoUrl ?? null,
+        yieldPercent:      body.yieldPercent ?? null,
+        category:          (body.category as never) ?? null,
+        station:           (body.station as never) ?? null,
       },
     });
 
@@ -210,6 +333,8 @@ export async function createRecipe(req: AuthRequest, res: Response, next: NextFu
         conversionFactor: ing.conversionFactor ?? null,
       })),
     });
+
+    await setRecipeLinks(created.id, req.user.restaurantId, body.prepIds, body.allergenIds);
 
     const recipe = await recipeModel.findFirst({
       where:   { id: created.id },
@@ -226,6 +351,7 @@ export async function createRecipe(req: AuthRequest, res: Response, next: NextFu
  */
 export async function updateRecipe(req: AuthRequest, res: Response, next: NextFunction) {
   try {
+    if (!req.user.restaurantId) return res.status(403).json({ error: "No restaurant assigned to this user" });
     await recipeModel.findFirstOrThrow({
       where: { id: req.params.id, restaurantId: req.user.restaurantId },
     });
@@ -235,9 +361,17 @@ export async function updateRecipe(req: AuthRequest, res: Response, next: NextFu
     await recipeModel.update({
       where: { id: req.params.id },
       data:  {
-        name:         body.name,
-        department:   body.department as never,
-        sellingPrice: body.sellingPrice,
+        name:              body.name,
+        department:        body.department as never,
+        sellingPrice:      body.sellingPrice,
+        portions:          body.portions ?? null,
+        batchWeight:       body.batchWeight ?? null,
+        preparationMethod: body.preparationMethod ?? null,
+        platingNotes:      body.platingNotes ?? null,
+        photoUrl:          body.photoUrl ?? null,
+        yieldPercent:      body.yieldPercent ?? null,
+        category:          (body.category as never) ?? null,
+        station:           (body.station as never) ?? null,
       },
     });
 
@@ -252,6 +386,8 @@ export async function updateRecipe(req: AuthRequest, res: Response, next: NextFu
         conversionFactor: ing.conversionFactor ?? null,
       })),
     });
+
+    await setRecipeLinks(req.params.id, req.user.restaurantId, body.prepIds, body.allergenIds);
 
     const recipe = await recipeModel.findFirst({
       where:   { id: req.params.id },

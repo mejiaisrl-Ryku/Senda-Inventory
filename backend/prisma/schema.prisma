@@ -156,6 +156,7 @@ model Restaurant {
   toastMenuItems    ToastMenuItem[]
   toastTransactions ToastTransaction[]
   scanJobs          ScanJob[]
+  preparations      Preparation[]
 
   @@index([ownerAccountId])
   @@map("restaurants")
@@ -366,12 +367,128 @@ model Recipe {
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
-  ingredients    RecipeIngredient[]
-  toastMenuItems ToastMenuItem[]
+  portions          Int?
+  batchWeight       Decimal?        @map("batch_weight") @db.Decimal(10, 2)
+  preparationMethod String?         @map("preparation_method") @db.Text
+  platingNotes      String?         @map("plating_notes") @db.Text
+  photoUrl          String?         @map("photo_url") @db.VarChar(512)
+  yieldPercent      Decimal?        @map("yield_percent") @db.Decimal(5, 2)
+  category          RecipeCategory?
+  station           KitchenStation?
+
+  ingredients        RecipeIngredient[]
+  toastMenuItems      ToastMenuItem[]
+  recipePreparations  RecipePreparation[]
+  recipeAllergens     RecipeAllergen[]
 
   @@index([restaurantId])
   @@index([restaurantId, name])
   @@map("recipes")
+}
+
+model Preparation {
+  id                     Int               @id @default(autoincrement())
+  restaurantId           String            @map("restaurant_id")
+  restaurant             Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name                   String            @db.VarChar(255)
+  description            String?           @db.Text
+  preparationMethod      String?           @map("preparation_method") @db.Text
+  platingNotes           String?           @map("plating_notes") @db.Text
+  photoUrl               String?           @map("photo_url") @db.VarChar(512)
+  shelfLifeDays          Int?              @map("shelf_life_days")
+  storageTemp            String?           @map("storage_temp") @db.VarChar(50)
+  conservationType       ConservationType? @map("conservation_type")
+  almacen                String?           @db.VarChar(100)
+  recipeYield            Decimal?          @map("recipe_yield") @db.Decimal(10, 2)
+  recipeYieldUnit        String?           @map("recipe_yield_unit") @db.VarChar(20)
+  cost                   Decimal           @default(0) @db.Decimal(10, 4)
+  costPerPortionEstimate Decimal?          @map("cost_per_portion_estimate") @db.Decimal(10, 4)
+
+  createdBy              String?           @map("created_by")
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+
+  recipePreparations     RecipePreparation[]
+
+  @@index([restaurantId])
+  @@map("preparations")
+}
+
+model RecipePreparation {
+  id             Int         @id @default(autoincrement())
+  recipeId       String      @map("recipe_id")
+  preparationId  Int         @map("preparation_id")
+
+  recipe         Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  preparation    Preparation @relation(fields: [preparationId], references: [id], onDelete: Cascade)
+
+  quantity       Decimal?    @db.Decimal(10, 4)
+  unit           String?     @db.VarChar(20)
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  @@unique([recipeId, preparationId])
+  @@index([recipeId])
+  @@index([preparationId])
+  @@map("recipe_preparations")
+}
+
+model Allergen {
+  id      Int    @id @default(autoincrement())
+  code    String @unique @db.VarChar(50)
+  labelEN String @map("label_en") @db.VarChar(100)
+  labelES String @map("label_es") @db.VarChar(100)
+
+  recipeAllergens RecipeAllergen[]
+
+  @@map("allergens")
+}
+
+model RecipeAllergen {
+  id                 Int      @id @default(autoincrement())
+  recipeId           String   @map("recipe_id")
+  allergenId         Int      @map("allergen_id")
+
+  recipe             Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  allergen           Allergen @relation(fields: [allergenId], references: [id], onDelete: Cascade)
+
+  isPresent          Boolean  @default(true) @map("is_present")
+  manuallyOverridden Boolean  @default(false) @map("manually_overridden")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@unique([recipeId, allergenId])
+  @@index([recipeId])
+  @@index([allergenId])
+  @@map("recipe_allergens")
+}
+
+enum ConservationType {
+  REFRIGERADO
+  CONGELADO
+  AMBIENTE
+
+  @@map("conservation_type")
+}
+
+enum RecipeCategory {
+  STARTER
+  MAIN
+  DESSERT
+  SNACK
+  BEVERAGE
+
+  @@map("recipe_category")
+}
+
+enum KitchenStation {
+  GRILL
+  SAUCIER
+  PANTRY
+  PASTRY
+  BAR
+  FRYER
+
+  @@map("kitchen_station")
 }
 
 // A pending invitation sent to a prospective partner (restaurant admin).
