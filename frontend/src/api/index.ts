@@ -419,7 +419,7 @@ export interface RecipeUpsertRequest {
   yieldPercent?: number | null;
   category?: RecipeCategory | null;
   station?: KitchenStation | null;
-  prepIds?: number[];
+  preparations?: { preparationId: number; quantity: number; unit: string; conversionFactor?: number | null }[];
   allergenIds?: number[];
 }
 

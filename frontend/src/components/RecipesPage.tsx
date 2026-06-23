@@ -165,6 +165,36 @@ function ingCost(ing: IngredientLine): number {
   return (q / cf) * ing.costPerUnit;
 }
 
+// ── Linked-preparation row in the modal ───────────────────────────────────────
+// A preparation used as an "ingredient" in a recipe: same shape/cost formula
+// as IngredientLine, except costPerUnit/productUnit come from the prep's own
+// yield (costPerPortionEstimate, recipeYieldUnit) instead of a Product.
+
+interface PrepLine {
+  key:              string;
+  preparationId:    number;
+  name:             string;
+  yieldUnit:        string;
+  costPerUnit:      number;
+  quantity:         string;
+  unit:             string;
+  conversionFactor: string;
+}
+
+function prepCost(p: PrepLine): number {
+  const q = parseFloat(p.quantity);
+  if (isNaN(q) || q <= 0) return 0;
+
+  const autoFactor = getAutoFactor(p.unit, p.yieldUnit);
+  if (autoFactor !== null) {
+    return (q / autoFactor) * p.costPerUnit;
+  }
+
+  const cf = parseFloat(p.conversionFactor);
+  if (isNaN(cf) || cf <= 0) return 0;
+  return (q / cf) * p.costPerUnit;
+}
+
 // ── Blank ingredient form state ───────────────────────────────────────────────
 
 function blankForm() {
@@ -182,7 +212,7 @@ function blankForm() {
     category:          "" as RecipeCategory | "",
     station:           "" as KitchenStation | "",
 
-    prepIds: [] as number[],
+    preparations: [] as PrepLine[],
 
     // Checked allergen ids, plus whether the chef has touched the allergen
     // section at all this session — only send allergenIds to the backend if
@@ -305,16 +335,18 @@ export function RecipesPage() {
       .filter(
         (p) =>
           (p.name.toLowerCase().includes(q) || (p.almacen ?? "").toLowerCase().includes(q)) &&
-          !form.prepIds.includes(p.id)
+          !form.preparations.some((pl) => pl.preparationId === p.id)
       )
       .slice(0, 8);
-  }, [prepSearch, preparations, form.prepIds]);
+  }, [prepSearch, preparations, form.preparations]);
 
   // ── Computed totals ───────────────────────────────────────────────────────
 
   const recipeCost = useMemo(
-    () => form.ingredients.reduce((s, i) => s + ingCost(i), 0),
-    [form.ingredients]
+    () =>
+      form.ingredients.reduce((s, i) => s + ingCost(i), 0) +
+      form.preparations.reduce((s, p) => s + prepCost(p), 0),
+    [form.ingredients, form.preparations]
   );
   const costPct = useMemo(() => {
     const sp = parseFloat(form.sellingPrice);
@@ -378,7 +410,16 @@ export function RecipesPage() {
       photoUrl:          recipe.photoUrl ?? "",
       category:          recipe.category ?? "",
       station:           recipe.station ?? "",
-      prepIds:           (recipe.preparations ?? []).map((p) => p.id),
+      preparations:      (recipe.preparations ?? []).map((p) => ({
+        key:              String(p.id),
+        preparationId:    p.id,
+        name:             p.name,
+        yieldUnit:        p.recipeYieldUnit ?? p.unit ?? "EA",
+        costPerUnit:      p.costPerUnit,
+        quantity:         p.quantity != null ? String(p.quantity) : "1",
+        unit:             p.unit ?? (p.recipeYieldUnit ?? "EA"),
+        conversionFactor: p.conversionFactor != null ? String(p.conversionFactor) : "",
+      })),
       allergenIds:       (recipe.allergens ?? []).filter((a) => a.isPresent).map((a) => a.id),
       allergensTouched:  false,
     });
@@ -400,13 +441,37 @@ export function RecipesPage() {
   }
 
   function addPrep(p: Preparation) {
-    setForm((f) => ({ ...f, prepIds: [...f.prepIds, p.id] }));
+    const yieldUnit = p.recipeYieldUnit ?? "EA";
+    const costPerUnit = p.costPerPortionEstimate ?? (p.recipeYield ? p.cost / p.recipeYield : p.cost);
+    setForm((f) => ({
+      ...f,
+      preparations: [
+        ...f.preparations,
+        {
+          key:              `${p.id}-${Date.now()}`,
+          preparationId:    p.id,
+          name:             p.name,
+          yieldUnit,
+          costPerUnit,
+          quantity:         "1",
+          unit:             toRecipeUnit(yieldUnit),
+          conversionFactor: "",
+        },
+      ],
+    }));
     setPrepSearch("");
     setPrepSearchOpen(false);
   }
 
-  function removePrep(prepId: number) {
-    setForm((f) => ({ ...f, prepIds: f.prepIds.filter((id) => id !== prepId) }));
+  function removePrep(key: string) {
+    setForm((f) => ({ ...f, preparations: f.preparations.filter((p) => p.key !== key) }));
+  }
+
+  function updatePrep(key: string, patch: Partial<PrepLine>) {
+    setForm((f) => ({
+      ...f,
+      preparations: f.preparations.map((p) => (p.key === key ? { ...p, ...patch } : p)),
+    }));
   }
 
   function toggleAllergen(allergenId: number) {
@@ -555,7 +620,16 @@ export function RecipesPage() {
         photoUrl:          form.photoUrl.trim() || null,
         category:          form.category || null,
         station:           form.station || null,
-        prepIds:           form.prepIds,
+        preparations: form.preparations
+          .filter((p) => parseFloat(p.quantity) > 0)
+          .map((p) => ({
+            preparationId: p.preparationId,
+            quantity:      parseFloat(p.quantity),
+            unit:          p.unit,
+            conversionFactor: needsConversionInput(p.unit, p.yieldUnit)
+              ? (parseFloat(p.conversionFactor) || null)
+              : null,
+          })),
         ...(form.allergensTouched ? { allergenIds: form.allergenIds } : {}),
       };
 
@@ -1087,13 +1161,13 @@ export function RecipesPage() {
                 )}
               </div>
 
-              {/* Linked Preparations */}
+              {/* Linked Preparations — same quantity/unit/cost parameters as Ingredients */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em]">
                     {t.recipes.linkedPreparations}
                   </label>
-                  <span className="text-[11px] text-[#444]">{form.prepIds.length}</span>
+                  <span className="text-[11px] text-[#444]">{form.preparations.length}</span>
                 </div>
 
                 <div className="relative" ref={prepSearchRef}>
@@ -1121,26 +1195,132 @@ export function RecipesPage() {
                   )}
                 </div>
 
-                {form.prepIds.length === 0 ? (
+                {form.preparations.length === 0 ? (
                   <p className="text-[12px] text-[#555] mt-2">{t.recipes.noPrepsLinked}</p>
                 ) : (
-                  <div className="space-y-2 mt-2">
-                    {form.prepIds.map((prepId) => {
-                      const prep = preparations.find((p) => p.id === prepId);
-                      if (!prep) return null;
+                  <div className="mt-3 space-y-2">
+                    {/* Column headers — identical to the Ingredients table */}
+                    <div className="grid grid-cols-[1fr_68px_100px_72px_28px] gap-1.5 px-1">
+                      <span className="text-[10px] text-[#444] uppercase tracking-wider">{t.productForm.nameLabel}</span>
+                      <span className="text-[10px] text-[#444] uppercase tracking-wider text-right">{t.recipes.quantityLabel}</span>
+                      <span className="text-[10px] text-[#444] uppercase tracking-wider">{t.recipes.unitLabel}</span>
+                      <span className="text-[10px] text-[#444] uppercase tracking-wider text-right">{t.productForm.costUnitLabel}</span>
+                      <span />
+                    </div>
+                    {form.preparations.map((p) => {
+                      const needsConv = needsConversionInput(p.unit, p.yieldUnit);
+                      const autoFactor = getAutoFactor(p.unit, p.yieldUnit);
+                      const cost = prepCost(p);
                       return (
-                        <div key={prepId} className="flex items-center justify-between bg-[#111] border border-[#1a1a1a] rounded-[8px] px-3 py-2">
-                          <div>
-                            <p className="text-sm text-white">{prep.name}</p>
-                            <p className="text-[11px] text-[#555]">{formatCurrency(prep.cost)}</p>
+                        <div
+                          key={p.key}
+                          className={`bg-[#111] border rounded-lg px-3 py-2 space-y-2 ${
+                            needsConv && (!p.conversionFactor || parseFloat(p.conversionFactor) <= 0)
+                              ? "border-amber-600/30"
+                              : "border-[#1a1a1a]"
+                          }`}
+                        >
+                          {/* Main row */}
+                          <div className="grid grid-cols-[1fr_68px_100px_72px_28px] gap-1.5 items-center">
+                            <div className="min-w-0">
+                              <p className="text-[13px] text-white font-medium truncate">{p.name}</p>
+                              <p className="text-[11px] text-[#444]">
+                                {formatCurrency(p.costPerUnit)}/{unitLabel(p.yieldUnit)}
+                                {autoFactor !== null && autoFactor !== 1 && (
+                                  <span className="ml-1 text-[#3dbf8a]/60">
+                                    · auto {autoFactor > 1 ? `÷${autoFactor}` : `×${1 / autoFactor}`}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={p.quantity}
+                              onChange={(e) => updatePrep(p.key, { quantity: e.target.value })}
+                              className="w-full text-right px-2 py-1.5 rounded-[6px] bg-[#0a0a0a] border border-[#2a2a2a] text-white text-sm focus:outline-none focus:border-[#3dbf8a] transition-colors"
+                            />
+
+                            <select
+                              value={p.unit}
+                              onChange={(e) => updatePrep(p.key, { unit: e.target.value })}
+                              className="w-full px-2 py-1.5 rounded-[6px] bg-[#0a0a0a] border border-[#2a2a2a] text-white text-[12px] focus:outline-none focus:border-[#3dbf8a] transition-colors appearance-none cursor-pointer"
+                            >
+                              {RECIPE_UNITS.map(({ value, label }) => (
+                                <option key={value} value={value}>{label}</option>
+                              ))}
+                            </select>
+
+                            <span className={`text-right text-[12px] tabular-nums leading-tight ${
+                              needsConv && cost === 0 ? "text-[#444]" : "text-[#888]"
+                            }`}>
+                              {needsConv && cost === 0 ? "—" : formatCurrency(cost)}
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => removePrep(p.key)}
+                              className="w-6 h-6 flex items-center justify-center rounded-md text-[#444] hover:text-red-400 hover:bg-red-400/10 transition-colors mx-auto"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => removePrep(prepId)}
-                            className="text-[12px] text-red-400 hover:text-red-300"
-                          >
-                            {t.common.delete}
-                          </button>
+
+                          {/* OZ quick-select — shown when unit is OZ */}
+                          {p.unit === "OZ" && (
+                            <div className="flex items-center gap-1.5 pt-1.5 border-t border-[#1d1d1d]">
+                              <span className="text-[10px] text-[#444] uppercase tracking-wider mr-0.5 flex-shrink-0">oz</span>
+                              {OZ_PRESETS.map(({ value, label }) => {
+                                const isActive = parseFloat(p.quantity) === parseFloat(value);
+                                return (
+                                  <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => updatePrep(p.key, { quantity: value })}
+                                    className={`px-2.5 py-1 rounded-[6px] text-[12px] font-medium tabular-nums transition-colors flex-shrink-0 ${
+                                      isActive
+                                        ? "bg-[#3dbf8a] text-white"
+                                        : "bg-[#0a0a0a] border border-[#2a2a2a] text-[#666] hover:text-white hover:border-[#444]"
+                                    }`}
+                                  >
+                                    {label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Generic conversion factor row — cross-system pairs */}
+                          {needsConv && (
+                            <div className="flex items-center gap-2 pt-1.5 border-t border-[#1d1d1d]">
+                              <svg className="w-3 h-3 text-amber-500/60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                              </svg>
+                              <span className="text-[11px] text-[#555] whitespace-nowrap">
+                                How many <span className="text-amber-400/80 font-medium">{unitLabel(p.unit)}</span> per{" "}
+                                <span className="text-[#888] font-medium">{unitLabel(p.yieldUnit)}</span>?
+                              </span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={p.conversionFactor}
+                                onChange={(e) => updatePrep(p.key, { conversionFactor: e.target.value })}
+                                placeholder="e.g. 450"
+                                className="w-24 text-right px-2 py-1 rounded-[6px] bg-[#0a0a0a] border border-amber-500/30 text-amber-300 text-[12px] placeholder-[#444] focus:outline-none focus:border-amber-400 transition-colors"
+                              />
+                              <span className="text-[11px] text-[#444] whitespace-nowrap">
+                                {unitLabel(p.unit)}/{unitLabel(p.yieldUnit)}
+                              </span>
+                              {p.conversionFactor && parseFloat(p.conversionFactor) > 0 && (
+                                <span className="ml-auto text-[11px] text-[#3dbf8a]/70 tabular-nums whitespace-nowrap">
+                                  = {formatCurrency(cost)}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1210,7 +1390,7 @@ export function RecipesPage() {
                     </button>
                   ))}
                 </div>
-                {scalingMultiplier !== 1 && form.ingredients.length > 0 && (
+                {scalingMultiplier !== 1 && (form.ingredients.length > 0 || form.preparations.length > 0) && (
                   <div className="bg-[#111] border border-[#1a1a1a] rounded-[8px] p-3 space-y-1">
                     {form.ingredients.map((ing) => {
                       const q = parseFloat(ing.quantity);
@@ -1218,6 +1398,15 @@ export function RecipesPage() {
                       return (
                         <p key={ing.key} className="text-[12px] text-[#888]">
                           {ing.productName}: {ing.quantity} {ing.unit} → <span className="text-white">{scaled} {ing.unit}</span>
+                        </p>
+                      );
+                    })}
+                    {form.preparations.map((p) => {
+                      const q = parseFloat(p.quantity);
+                      const scaled = isNaN(q) ? p.quantity : (q * scalingMultiplier).toFixed(2);
+                      return (
+                        <p key={p.key} className="text-[12px] text-[#888]">
+                          {p.name}: {p.quantity} {p.unit} → <span className="text-white">{scaled} {p.unit}</span>
                         </p>
                       );
                     })}
@@ -1229,7 +1418,7 @@ export function RecipesPage() {
               </div>
 
               {/* Cost summary */}
-              {form.ingredients.length > 0 && (
+              {(form.ingredients.length > 0 || form.preparations.length > 0) && (
                 <div className="bg-[#111] border border-[#1a1a1a] rounded-xl px-5 py-4 grid grid-cols-3 gap-4">
                   <div className="text-center">
                     <p className="text-[10px] text-[#444] uppercase tracking-wider mb-1">{t.recipes.recipeCost}</p>

@@ -19,6 +19,13 @@ const ingredientSchema = z.object({
   conversionFactor: z.number().positive().nullable().optional(),
 });
 
+const recipePreparationSchema = z.object({
+  preparationId:    z.number().int().positive(),
+  quantity:         z.number().positive("Quantity must be positive"),
+  unit:             z.string().min(1),
+  conversionFactor: z.number().positive().nullable().optional(),
+});
+
 export const produceRecipeSchema = z.object({
   quantity: z.number().positive("Quantity must be positive"),
   notes:    z.string().max(500).optional(),
@@ -37,19 +44,60 @@ export const upsertRecipeSchema = z.object({
   yieldPercent:      z.number().min(0).max(100).nullable().optional(),
   category:          z.enum(["STARTER", "MAIN", "DESSERT", "SNACK", "BEVERAGE"]).nullable().optional(),
   station:           z.enum(["GRILL", "SAUCIER", "PANTRY", "PASTRY", "BAR", "FRYER"]).nullable().optional(),
-  prepIds:           z.array(z.number().int().positive()).optional(),
+  preparations:      z.array(recipePreparationSchema).optional(),
   allergenIds:       z.array(z.number().int().positive()).optional(),
 });
 
 
-/** Sum linked preparation costs (recipe_preparations.quantity × preparation cost is not
- *  tracked per-unit — preps store a single pre-calculated total cost, so each linked
- *  prep contributes its full cost once, regardless of the junction's quantity/unit,
- *  which only describe how much of the prep's yield the recipe consumes for reference. */
+/**
+ * Cost contributed by one linked preparation, scaled by how much of it the
+ * recipe actually uses (recipe_preparations.quantity/unit), exactly like an
+ * ingredient line: the preparation's cost-per-yield-unit stands in for a
+ * product's costPerUnit, and its recipeYieldUnit stands in for the
+ * product's unit, so the same auto-convert / manual-conversionFactor
+ * formula (ingredientCost) applies unchanged.
+ *
+ * Legacy rows with no quantity/unit set (created before this junction
+ * carried usage data) fall back to contributing the prep's full cost, since
+ * there's no usage amount to scale by.
+ */
+function preparationUsageCost(rp: {
+  quantity:         unknown;
+  unit:             string | null;
+  conversionFactor: unknown;
+  preparation: { cost: unknown; recipeYield: unknown; recipeYieldUnit: string | null; costPerPortionEstimate: unknown };
+}): number {
+  if (rp.quantity === null || rp.unit === null) return num(rp.preparation.cost);
+
+  const yieldAmount = rp.preparation.recipeYield !== null ? num(rp.preparation.recipeYield) : null;
+  const costPerYieldUnit =
+    rp.preparation.costPerPortionEstimate !== null
+      ? num(rp.preparation.costPerPortionEstimate)
+      : yieldAmount && yieldAmount > 0
+        ? num(rp.preparation.cost) / yieldAmount
+        : num(rp.preparation.cost);
+  const yieldUnit = rp.preparation.recipeYieldUnit ?? rp.unit;
+
+  return ingredientCost([
+    {
+      quantity:         rp.quantity,
+      unit:             rp.unit,
+      conversionFactor: rp.conversionFactor,
+      product:          { costPerUnit: costPerYieldUnit, unit: yieldUnit },
+    },
+  ]);
+}
+
+/** Sum linked preparation costs, each scaled by its recipe usage quantity. */
 function preparationCost(
-  recipePreparations: Array<{ preparation: { cost: unknown } }>
+  recipePreparations: Array<{
+    quantity:         unknown;
+    unit:             string | null;
+    conversionFactor: unknown;
+    preparation: { cost: unknown; recipeYield: unknown; recipeYieldUnit: string | null; costPerPortionEstimate: unknown };
+  }>
 ): number {
-  return recipePreparations.reduce((sum, rp) => sum + num(rp.preparation.cost), 0);
+  return recipePreparations.reduce((sum, rp) => sum + preparationUsageCost(rp), 0);
 }
 
 /** Compute recipeCost and costPct, including linked preparation costs. */
@@ -60,7 +108,12 @@ function computeCosts(
     conversionFactor: unknown;
     product:          { costPerUnit: unknown; unit: string };
   }>,
-  recipePreparations: Array<{ preparation: { cost: unknown } }>,
+  recipePreparations: Array<{
+    quantity:         unknown;
+    unit:             string | null;
+    conversionFactor: unknown;
+    preparation: { cost: unknown; recipeYield: unknown; recipeYieldUnit: string | null; costPerPortionEstimate: unknown };
+  }>,
   sellingPrice: number
 ): { recipeCost: number; costPct: number } {
   const recipeCost = round2(ingredientCost(ingredients) + preparationCost(recipePreparations));
@@ -82,7 +135,10 @@ const recipeInclude = {
   recipePreparations: {
     include: {
       preparation: {
-        select: { id: true, name: true, cost: true, recipeYieldUnit: true },
+        select: {
+          id: true, name: true, cost: true, recipeYield: true,
+          recipeYieldUnit: true, costPerPortionEstimate: true,
+        },
       },
     },
   },
@@ -133,11 +189,21 @@ function serialize(r: any) {
       },
     })),
     preparations: (r.recipePreparations ?? []).map((rp: any) => ({
-      id:            rp.preparation.id,
-      name:          rp.preparation.name,
-      cost:          round2(num(rp.preparation.cost)),
-      quantity:      rp.quantity !== null ? num(rp.quantity) : null,
-      unit:          rp.unit,
+      id:               rp.preparation.id,
+      name:             rp.preparation.name,
+      cost:             round2(num(rp.preparation.cost)),
+      quantity:         rp.quantity !== null ? num(rp.quantity) : null,
+      unit:             rp.unit,
+      conversionFactor: rp.conversionFactor ?? null,
+      recipeYieldUnit:  rp.preparation.recipeYieldUnit,
+      costPerUnit:      round2(
+        rp.preparation.costPerPortionEstimate !== null
+          ? num(rp.preparation.costPerPortionEstimate)
+          : rp.preparation.recipeYield
+            ? num(rp.preparation.cost) / num(rp.preparation.recipeYield)
+            : num(rp.preparation.cost)
+      ),
+      usageCost: round2(preparationUsageCost(rp)),
     })),
     allergens: (r.recipeAllergens ?? []).map((ra: any) => ({
       id:                 ra.allergen.id,
@@ -161,10 +227,11 @@ function serialize(r: any) {
 async function setRecipeLinks(
   recipeId: string,
   restaurantId: string,
-  prepIds: number[] | undefined,
+  preparations: Array<{ preparationId: number; quantity: number; unit: string; conversionFactor?: number | null }> | undefined,
   allergenIds: number[] | undefined
 ) {
-  if (prepIds !== undefined) {
+  if (preparations !== undefined) {
+    const prepIds = preparations.map((p) => p.preparationId);
     const owned = await prisma.preparation.findMany({
       where: { id: { in: prepIds }, restaurantId },
       select: { id: true },
@@ -173,9 +240,15 @@ async function setRecipeLinks(
       throw Object.assign(new Error("One or more preparations not found"), { status: 400 });
     }
     await (prisma as any).recipePreparation.deleteMany({ where: { recipeId } });
-    if (prepIds.length > 0) {
+    if (preparations.length > 0) {
       await (prisma as any).recipePreparation.createMany({
-        data: prepIds.map((preparationId) => ({ recipeId, preparationId })),
+        data: preparations.map((p) => ({
+          recipeId,
+          preparationId:    p.preparationId,
+          quantity:         p.quantity,
+          unit:             p.unit,
+          conversionFactor: p.conversionFactor ?? null,
+        })),
       });
     }
   }
@@ -220,8 +293,8 @@ async function setRecipeLinks(
   // Cascade allergens from every currently-linked prep. Insert-only, so this
   // is safe to run unconditionally after a full prep-link replace above —
   // it only fills in allergens the recipe doesn't already have a row for.
-  if (prepIds !== undefined) {
-    for (const preparationId of prepIds) {
+  if (preparations !== undefined) {
+    for (const { preparationId } of preparations) {
       await cascadeAllergensToRecipe(recipeId, preparationId);
     }
   }
@@ -303,7 +376,7 @@ export async function createRecipe(req: AuthRequest, res: Response, next: NextFu
       })),
     });
 
-    await setRecipeLinks(created.id, req.user.restaurantId, body.prepIds, body.allergenIds);
+    await setRecipeLinks(created.id, req.user.restaurantId, body.preparations, body.allergenIds);
 
     const recipe = await recipeModel.findFirst({
       where:   { id: created.id },
@@ -356,7 +429,7 @@ export async function updateRecipe(req: AuthRequest, res: Response, next: NextFu
       })),
     });
 
-    await setRecipeLinks(req.params.id, req.user.restaurantId, body.prepIds, body.allergenIds);
+    await setRecipeLinks(req.params.id, req.user.restaurantId, body.preparations, body.allergenIds);
 
     const recipe = await recipeModel.findFirst({
       where:   { id: req.params.id },
@@ -507,14 +580,26 @@ export async function produceRecipe(req: AuthRequest, res: Response, next: NextF
     }
 
     // ── Linked preparation consumption ─────────────────────────────────────
+    // rp.quantity/unit is whatever unit the recipe uses the prep in (e.g.
+    // "2 OZ" of a prep whose own stock/yield is tracked in "batch") — convert
+    // into the preparation's recipeYieldUnit before touching its stock, using
+    // the same auto-convert / manual-conversionFactor rule as costing.
     const skippedPreps: string[] = [];
     const consumptionByPrep = new Map<number, number>();
     for (const rp of recipe.recipePreparations) {
-      if (rp.quantity === null) {
+      if (rp.quantity === null || rp.unit === null) {
         skippedPreps.push(rp.preparation.name);
         continue;
       }
-      const consumed = num(rp.quantity) * quantity;
+      const yieldUnit = rp.preparation.recipeYieldUnit ?? rp.unit;
+      const autoFactor = getAutoFactor(rp.unit, yieldUnit);
+      const cf = rp.conversionFactor !== null ? num(rp.conversionFactor) : 0;
+      const perBatchInYieldUnits = autoFactor !== null ? num(rp.quantity) / autoFactor : cf > 0 ? num(rp.quantity) / cf : null;
+      if (perBatchInYieldUnits === null) {
+        skippedPreps.push(rp.preparation.name);
+        continue;
+      }
+      const consumed = perBatchInYieldUnits * quantity;
       consumptionByPrep.set(rp.preparationId, (consumptionByPrep.get(rp.preparationId) ?? 0) + consumed);
     }
 

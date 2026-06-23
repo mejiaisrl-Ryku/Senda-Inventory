@@ -293,11 +293,15 @@ export type RecipeCategory = "STARTER" | "MAIN" | "DESSERT" | "SNACK" | "BEVERAG
 export type KitchenStation = "GRILL" | "SAUCIER" | "PANTRY" | "PASTRY" | "BAR" | "FRYER";
 
 export interface RecipePreparationRef {
-  id:       number;
-  name:     string;
-  cost:     number;
-  quantity: number | null;
-  unit:     string | null;
+  id:               number;
+  name:             string;
+  cost:             number;
+  quantity:         number | null;
+  unit:             string | null;
+  conversionFactor: number | null;
+  recipeYieldUnit:  string | null;
+  costPerUnit:      number;
+  usageCost:        number;
 }
 
 export interface RecipeAllergenRef {

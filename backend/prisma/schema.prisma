@@ -479,9 +479,10 @@ model RecipePreparation {
   recipe         Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
   preparation    Preparation @relation(fields: [preparationId], references: [id], onDelete: Cascade)
 
-  quantity       Decimal?    @db.Decimal(10, 4)
-  unit           String?     @db.VarChar(20)
-  createdAt      DateTime    @default(now()) @map("created_at")
+  quantity         Decimal?    @db.Decimal(10, 4)
+  unit             String?     @db.VarChar(20)
+  conversionFactor Float?      @map("conversion_factor")
+  createdAt        DateTime    @default(now()) @map("created_at")
 
   @@unique([recipeId, preparationId])
   @@index([recipeId])
