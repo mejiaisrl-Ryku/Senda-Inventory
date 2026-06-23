@@ -14,6 +14,10 @@ interface Props {
   initialAllergenIds?: number[];
 }
 
+const inputClass =
+  "w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors";
+const labelClass = "text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2";
+
 export function PreparationModal({ open, onClose, onSaved, initialData, initialAllergenIds }: Props) {
   const { t, lang } = useLanguage();
   const toast = useToast();
@@ -115,84 +119,98 @@ export function PreparationModal({ open, onClose, onSaved, initialData, initialA
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{isEditing ? t.preparations.edit : t.preparations.addNew}</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl leading-none">×</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+
+      <div className="relative w-full max-w-2xl bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl shadow-2xl flex flex-col max-h-[92vh]">
+
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3 border-b border-[#1a1a1a] flex-shrink-0">
+          <h2 className="text-[15px] font-semibold text-white">
+            {isEditing ? t.preparations.edit : t.preparations.addNew}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-[#555] hover:text-white hover:bg-[#1a1a1a] transition-colors flex-shrink-0"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className={labelClass}>
               {t.preparations.name} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3dbf8a]"
+              className={inputClass}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t.preparations.description}</label>
+            <label className={labelClass}>{t.preparations.description}</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3dbf8a]"
+              className={inputClass}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t.preparations.preparationMethod}</label>
+            <label className={labelClass}>{t.preparations.preparationMethod}</label>
             <textarea
               value={preparationMethod}
               onChange={(e) => setPreparationMethod(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3dbf8a]"
+              className={inputClass}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t.preparations.platingNotes}</label>
+            <label className={labelClass}>{t.preparations.platingNotes}</label>
             <textarea
               value={platingNotes}
               onChange={(e) => setPlatingNotes(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3dbf8a]"
+              className={inputClass}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t.preparations.shelfLifeDays}</label>
+              <label className={labelClass}>{t.preparations.shelfLifeDays}</label>
               <input
                 type="number"
                 value={shelfLifeDays}
                 onChange={(e) => setShelfLifeDays(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3dbf8a]"
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t.preparations.storageTemp}</label>
+              <label className={labelClass}>{t.preparations.storageTemp}</label>
               <input
                 type="text"
                 value={storageTemp}
                 onChange={(e) => setStorageTemp(e.target.value)}
                 placeholder="e.g., 4°C"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3dbf8a]"
+                className={inputClass}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t.preparations.conservationType}</label>
+            <label className={labelClass}>{t.preparations.conservationType}</label>
             <select
               value={conservationType}
               onChange={(e) => setConservationType(e.target.value as ConservationType | "")}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3dbf8a]"
+              className={inputClass}
             >
               <option value="">—</option>
               <option value="REFRIGERADO">{t.preparations.conservationTypes.REFRIGERADO}</option>
@@ -202,32 +220,32 @@ export function PreparationModal({ open, onClose, onSaved, initialData, initialA
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t.preparations.almacen}</label>
+            <label className={labelClass}>{t.preparations.almacen}</label>
             <input
               type="text"
               value={almacen}
               onChange={(e) => setAlmacen(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3dbf8a]"
+              className={inputClass}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t.preparations.recipeYield}</label>
+              <label className={labelClass}>{t.preparations.recipeYield}</label>
               <input
                 type="number"
                 step="0.01"
                 value={recipeYield}
                 onChange={(e) => setRecipeYield(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3dbf8a]"
+                className={inputClass}
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">{t.preparations.recipeYieldUnit}</label>
+              <label className={labelClass}>{t.preparations.recipeYieldUnit}</label>
               <select
                 value={recipeYieldUnit}
                 onChange={(e) => setRecipeYieldUnit(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3dbf8a]"
+                className={inputClass}
               >
                 <option value="">—</option>
                 {t.preparations.yieldUnits.map((u) => (
@@ -238,44 +256,51 @@ export function PreparationModal({ open, onClose, onSaved, initialData, initialA
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t.preparations.photoUrl}</label>
+            <label className={labelClass}>{t.preparations.photoUrl}</label>
             <input
               type="text"
               value={photoUrl}
               onChange={(e) => setPhotoUrl(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#3dbf8a]"
+              className={inputClass}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t.preparations.allergens}</label>
+            <label className={labelClass}>{t.preparations.allergens}</label>
             {allergens.length === 0 ? (
-              <p className="text-sm text-gray-500">{t.preparations.noAllergens}</p>
+              <p className="text-[13px] text-[#555]">{t.preparations.noAllergens}</p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {allergens.map((a) => (
-                  <label key={a.id} className="flex items-center gap-2 text-sm text-gray-700">
+                  <label key={a.id} className="flex items-center gap-2 text-sm text-[#888] cursor-pointer">
                     <input
                       type="checkbox"
                       checked={allergenIds.includes(a.id)}
                       onChange={() => toggleAllergen(a.id)}
-                      className="rounded border-gray-300 text-[#3dbf8a] focus:ring-[#3dbf8a]"
+                      className="rounded border-[#2a2a2a] bg-[#111] text-[#3dbf8a] focus:ring-[#3dbf8a]"
                     />
-                    {lang === "es" ? a.labelES : a.labelEN}
+                    <span className={allergenIds.includes(a.id) ? "text-white" : ""}>
+                      {lang === "es" ? a.labelES : a.labelEN}
+                    </span>
                   </label>
                 ))}
               </div>
             )}
           </div>
 
-          <div className="flex gap-2 justify-end pt-4 border-t border-gray-200">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50">
+          <div className="flex gap-2 justify-end pt-4 border-t border-[#1a1a1a]">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="px-4 py-2 rounded-[8px] border border-[#2a2a2a] text-[13px] text-[#666] hover:text-white hover:border-[#3a3a3a] disabled:opacity-50 transition-colors"
+            >
               {t.common.cancel}
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-4 py-2 bg-[#3dbf8a] text-white rounded-md hover:bg-[#35a478] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-50 text-white text-[13px] font-semibold transition-colors"
             >
               {saving && <Spinner size="sm" />}
               {saving ? t.common.saving : t.common.save}
