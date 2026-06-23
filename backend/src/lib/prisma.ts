@@ -126,6 +126,7 @@ const RESTAURANT_SCOPED = new Set([
   "recipe",
   "locationBudget",
   "scanJob",
+  "preparation",
 ]);
 
 /**
@@ -133,6 +134,21 @@ const RESTAURANT_SCOPED = new Set([
  * The extension injects `{ ownerAccountId }` and sets `app.owner_account_id` GUC.
  */
 const OWNER_SCOPED = new Set(["cogsCategory"]);
+
+/**
+ * Join/child tables that have no restaurantId column of their own — tenancy
+ * is enforced purely by their RLS policy joining back to a scoped parent
+ * (e.g. recipe_preparations -> recipes.restaurantId). These models must NOT
+ * get WHERE/CREATE filter injection (there's no such column to inject), but
+ * they DO need the app.restaurant_id GUC set so the RLS join check passes.
+ * Without this, INSERTs on these tables fail RLS WITH CHECK and surface as a
+ * 500 (e.g. linking a preparation to a recipe).
+ */
+const JOIN_SCOPED_GUC_ONLY = new Set([
+  "recipePreparation",
+  "recipeAllergen",
+  "preparationAllergen",
+]);
 
 // ── ALS flag: prevents the extension from recursing when it calls prisma.$transaction ──
 
@@ -227,7 +243,11 @@ function buildRLSContext(model: string): {
 
   const modelKey = model.charAt(0).toLowerCase() + model.slice(1);
 
-  if (!RESTAURANT_SCOPED.has(modelKey) && !OWNER_SCOPED.has(modelKey)) {
+  if (
+    !RESTAURANT_SCOPED.has(modelKey) &&
+    !OWNER_SCOPED.has(modelKey) &&
+    !JOIN_SCOPED_GUC_ONLY.has(modelKey)
+  ) {
     return null;  // not a tenant model — no GUC needed
   }
 
