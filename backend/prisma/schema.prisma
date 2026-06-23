@@ -42,6 +42,7 @@ enum StockReason {
   USED
   ADJUSTED
   WASTE
+  PRODUCED
 }
 
 enum OrderStatus {
@@ -180,7 +181,8 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @default(now()) @updatedAt
 
-  stockLogs StockLog[]
+  stockLogs             StockLog[]
+  preparationStockLogs  PreparationStockLog[]
 
   @@index([restaurantId])
   @@index([ownerAccountId])
@@ -414,9 +416,28 @@ model Preparation {
   recipePreparations     RecipePreparation[]
   preparationAllergens   PreparationAllergen[]
   preparationIngredients PreparationIngredient[]
+  preparationStockLogs   PreparationStockLog[]
 
   @@index([restaurantId])
   @@map("preparations")
+}
+
+model PreparationStockLog {
+  id               String      @id @default(cuid())
+  preparationId    Int         @map("preparation_id")
+  preparation      Preparation @relation(fields: [preparationId], references: [id], onDelete: Cascade)
+  previousQuantity Float       @map("previous_quantity")
+  newQuantity      Float       @map("new_quantity")
+  change           Float
+  reason           StockReason
+  timestamp        DateTime    @default(now())
+  userId           String      @map("user_id")
+  user             User        @relation(fields: [userId], references: [id])
+  notes            String?
+
+  @@index([preparationId])
+  @@index([userId])
+  @@map("preparation_stock_logs")
 }
 
 model PreparationIngredient {

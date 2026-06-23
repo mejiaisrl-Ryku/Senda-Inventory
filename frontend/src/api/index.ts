@@ -442,6 +442,9 @@ export const recipesApi = {
       "/recipes/copy",
       { sourceRecipeId, sourceRestaurantId, targetRestaurantId }
     ).then((r) => r.data),
+
+  produce: (id: string, data: { quantity: number; notes?: string }) =>
+    api.post<Recipe & { skippedPreparations: string[] }>(`/recipes/${id}/produce`, data).then((r) => r.data),
 };
 
 export interface PreparationRequest {
@@ -479,6 +482,9 @@ export const preparationsApi = {
     api.patch<Preparation>(`/preparations/${id}`, data).then((r) => r.data),
 
   delete: (id: number) => api.delete(`/preparations/${id}`),
+
+  produce: (id: number, data: { quantityProduced: number; notes?: string }) =>
+    api.post<Preparation>(`/preparations/${id}/produce`, data).then((r) => r.data),
 };
 
 export const allergensApi = {

@@ -5,6 +5,11 @@ import { AuthRequest } from "../types";
 import { cascadeAllergensFromPrepToLinkedRecipes } from "../lib/allergenCascade";
 import { ingredientCost, num, round2 } from "../lib/ingredientCosting";
 
+export const producePreparationSchema = z.object({
+  quantityProduced: z.number().positive("Quantity produced must be positive"),
+  notes:            z.string().max(500).optional(),
+});
+
 const ConservationTypeEnum = z.enum(["REFRIGERADO", "CONGELADO", "AMBIENTE"]);
 
 const ingredientSchema = z.object({
@@ -250,5 +255,104 @@ export async function deletePreparation(req: AuthRequest, res: Response, next: N
 
     await prisma.preparation.delete({ where: { id: existing.id } });
     res.status(204).end();
+  } catch (err) { next(err); }
+}
+
+/**
+ * POST /api/preparations/:id/produce
+ *
+ * Records that a batch of this preparation was made: deducts the consumed
+ * quantity of each linked ingredient (Product) from stock and increases the
+ * preparation's own currentStock by quantityProduced. Ingredient consumption
+ * is scaled relative to the preparation's recipeYield — e.g. producing twice
+ * the yield consumes twice the stored ingredient quantities.
+ */
+export async function producePreparation(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { quantityProduced, notes } = producePreparationSchema.parse(req.body);
+
+    const prep = await prisma.preparation.findFirst({
+      where:   { id: Number(req.params.id), restaurantId: req.user.restaurantId },
+      include: preparationInclude,
+    });
+    if (!prep) return res.status(404).json({ error: "Preparation not found" });
+
+    const yieldAmount = prep.recipeYield !== null ? num(prep.recipeYield) : null;
+    const scale = yieldAmount && yieldAmount > 0 ? quantityProduced / yieldAmount : 1;
+
+    // Sum consumption per product (a product could appear more than once).
+    const consumptionByProduct = new Map<string, number>();
+    for (const ing of prep.preparationIngredients) {
+      const consumed = num(ing.quantity) * scale;
+      consumptionByProduct.set(
+        ing.productId,
+        (consumptionByProduct.get(ing.productId) ?? 0) + consumed
+      );
+    }
+
+    const productIds = [...consumptionByProduct.keys()];
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds }, restaurantId: req.user.restaurantId },
+    });
+    const productById = new Map(products.map((p) => [p.id, p]));
+
+    const insufficient: string[] = [];
+    for (const [productId, consumed] of consumptionByProduct) {
+      const product = productById.get(productId);
+      if (!product || product.currentStock - consumed < 0) {
+        insufficient.push(product?.name ?? productId);
+      }
+    }
+    if (insufficient.length > 0) {
+      return res.status(400).json({
+        error: `Not enough stock to produce this batch: ${insufficient.join(", ")}`,
+      });
+    }
+
+    const ops: any[] = [];
+    for (const [productId, consumed] of consumptionByProduct) {
+      const product = productById.get(productId)!;
+      const newQuantity = product.currentStock - consumed;
+      ops.push(
+        prisma.stockLog.create({
+          data: {
+            productId,
+            previousQuantity: product.currentStock,
+            newQuantity,
+            change: -consumed,
+            reason: "USED",
+            unitCost: product.costPerUnit,
+            userId: req.user.userId,
+            notes: notes ?? `Used to produce ${prep.name}`,
+          },
+        }),
+        prisma.product.update({ where: { id: productId }, data: { currentStock: newQuantity } })
+      );
+    }
+
+    const prevPrepStock = num(prep.currentStock);
+    const newPrepStock = prevPrepStock + quantityProduced;
+    ops.push(
+      prisma.preparationStockLog.create({
+        data: {
+          preparationId:    prep.id,
+          previousQuantity: prevPrepStock,
+          newQuantity:      newPrepStock,
+          change:           quantityProduced,
+          reason:           "PRODUCED",
+          userId:           req.user.userId,
+          notes,
+        },
+      }),
+      prisma.preparation.update({ where: { id: prep.id }, data: { currentStock: newPrepStock } })
+    );
+
+    await prisma.$transaction(ops);
+
+    const final = await prisma.preparation.findFirstOrThrow({
+      where:   { id: prep.id },
+      include: preparationInclude,
+    });
+    res.json(serialize(final));
   } catch (err) { next(err); }
 }

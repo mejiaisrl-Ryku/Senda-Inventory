@@ -7,6 +7,7 @@ import { getApiError } from "../utils/errorUtils";
 import { PageSpinner } from "./shared/Spinner";
 import { ConfirmDialog } from "./shared/ConfirmDialog";
 import { PreparationModal } from "./PreparationModal";
+import { ProduceDialog } from "./ProduceDialog";
 
 export function PreparationsPage() {
   const { t } = useLanguage();
@@ -21,6 +22,9 @@ export function PreparationsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Preparation | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [produceTarget, setProduceTarget] = useState<Preparation | null>(null);
+  const [producing, setProducing] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,6 +72,21 @@ export function PreparationsPage() {
       toast.error(getApiError(err));
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleProduce = async (quantityProduced: number) => {
+    if (!produceTarget) return;
+    setProducing(true);
+    try {
+      const updated = await preparationsApi.produce(produceTarget.id, { quantityProduced });
+      setPreparations((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      toast.success(t.recipes.productionRecorded);
+      setProduceTarget(null);
+    } catch (err) {
+      toast.error(getApiError(err));
+    } finally {
+      setProducing(false);
     }
   };
 
@@ -124,6 +143,7 @@ export function PreparationsPage() {
                     { label: t.preparations.conservationType, right: false },
                     { label: t.preparations.almacen,          right: false },
                     { label: t.preparations.cost,             right: true  },
+                    { label: t.preparations.stock,            right: true  },
                     { label: "",                              right: false },
                   ].map(({ label, right }, i) => (
                     <th
@@ -147,8 +167,17 @@ export function PreparationsPage() {
                     </td>
                     <td className="px-5 py-4 text-[#888] text-[13px]">{prep.almacen || "—"}</td>
                     <td className="px-5 py-4 text-right text-[#888] tabular-nums">${prep.cost.toFixed(2)}</td>
+                    <td className="px-5 py-4 text-right text-[#888] tabular-nums">
+                      {prep.currentStock.toFixed(2)} {prep.recipeYieldUnit ?? ""}
+                    </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => setProduceTarget(prep)}
+                          className="text-[12px] px-2.5 py-1 rounded-lg text-[#3dbf8a] hover:bg-[#3dbf8a]/10 transition-colors"
+                        >
+                          {t.recipes.produce}
+                        </button>
                         <button
                           onClick={() => { setEditingPrep(prep); setModalOpen(true); }}
                           className="text-[12px] px-2.5 py-1 rounded-lg text-[#888] hover:text-white hover:bg-[#1a1a1a] transition-colors"
@@ -186,6 +215,18 @@ export function PreparationsPage() {
         loading={deleting}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ProduceDialog
+        open={!!produceTarget}
+        title={`${t.recipes.recordProduction} — ${produceTarget?.name ?? ""}`}
+        quantityLabel={t.preparations.quantityProduced}
+        unitHint={produceTarget?.recipeYieldUnit ?? undefined}
+        confirmLabel={t.recipes.produce}
+        cancelLabel={t.common.cancel}
+        loading={producing}
+        onConfirm={handleProduce}
+        onCancel={() => setProduceTarget(null)}
       />
     </div>
   );

@@ -19,6 +19,11 @@ const ingredientSchema = z.object({
   conversionFactor: z.number().positive().nullable().optional(),
 });
 
+export const produceRecipeSchema = z.object({
+  quantity: z.number().positive("Quantity must be positive"),
+  notes:    z.string().max(500).optional(),
+});
+
 export const upsertRecipeSchema = z.object({
   name:         z.string().min(1, "Name is required").max(255),
   department:   RecipeDeptEnum,
@@ -460,4 +465,116 @@ export async function copyRecipe(req: AuthRequest, res: Response, next: NextFunc
     console.error("[copyRecipe] Error:", err);
     next(err);
   }
+}
+
+/**
+ * POST /api/recipes/:id/produce
+ *
+ * Records that `quantity` batches of this recipe were made/sold: deducts
+ * quantity × each ingredient's quantity from Product stock, and quantity ×
+ * each linked preparation's junction quantity from that preparation's own
+ * stock. A linked preparation with no junction quantity set is skipped (no
+ * way to know how much of it one recipe batch consumes) and reported back
+ * as a warning rather than blocking the whole request.
+ */
+export async function produceRecipe(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { quantity, notes } = produceRecipeSchema.parse(req.body);
+
+    const recipe = await prisma.recipe.findFirst({
+      where:   { id: req.params.id, restaurantId: req.user.restaurantId },
+      include: {
+        ingredients: { include: { product: true } },
+        recipePreparations: { include: { preparation: true } },
+      },
+    });
+    if (!recipe) return res.status(404).json({ error: "Recipe not found" });
+
+    // ── Ingredient (Product) consumption ──────────────────────────────────
+    const consumptionByProduct = new Map<string, number>();
+    for (const ing of recipe.ingredients) {
+      const consumed = num(ing.quantity) * quantity;
+      consumptionByProduct.set(
+        ing.productId,
+        (consumptionByProduct.get(ing.productId) ?? 0) + consumed
+      );
+    }
+
+    const insufficientProducts: string[] = [];
+    for (const [productId, consumed] of consumptionByProduct) {
+      const product = recipe.ingredients.find((i) => i.productId === productId)!.product;
+      if (product.currentStock - consumed < 0) insufficientProducts.push(product.name);
+    }
+
+    // ── Linked preparation consumption ─────────────────────────────────────
+    const skippedPreps: string[] = [];
+    const consumptionByPrep = new Map<number, number>();
+    for (const rp of recipe.recipePreparations) {
+      if (rp.quantity === null) {
+        skippedPreps.push(rp.preparation.name);
+        continue;
+      }
+      const consumed = num(rp.quantity) * quantity;
+      consumptionByPrep.set(rp.preparationId, (consumptionByPrep.get(rp.preparationId) ?? 0) + consumed);
+    }
+
+    const insufficientPreps: string[] = [];
+    for (const [prepId, consumed] of consumptionByPrep) {
+      const prep = recipe.recipePreparations.find((rp) => rp.preparationId === prepId)!.preparation;
+      if (prep.currentStock - consumed < 0) insufficientPreps.push(prep.name);
+    }
+
+    if (insufficientProducts.length > 0 || insufficientPreps.length > 0) {
+      return res.status(400).json({
+        error: `Not enough stock to produce this batch: ${[...insufficientProducts, ...insufficientPreps].join(", ")}`,
+      });
+    }
+
+    const ops: any[] = [];
+    for (const [productId, consumed] of consumptionByProduct) {
+      const product = recipe.ingredients.find((i) => i.productId === productId)!.product;
+      const newQuantity = product.currentStock - consumed;
+      ops.push(
+        prisma.stockLog.create({
+          data: {
+            productId,
+            previousQuantity: product.currentStock,
+            newQuantity,
+            change: -consumed,
+            reason: "USED",
+            unitCost: product.costPerUnit,
+            userId: req.user.userId,
+            notes: notes ?? `Used to produce ${recipe.name}`,
+          },
+        }),
+        prisma.product.update({ where: { id: productId }, data: { currentStock: newQuantity } })
+      );
+    }
+    for (const [prepId, consumed] of consumptionByPrep) {
+      const prep = recipe.recipePreparations.find((rp) => rp.preparationId === prepId)!.preparation;
+      const newQuantity = prep.currentStock - consumed;
+      ops.push(
+        prisma.preparationStockLog.create({
+          data: {
+            preparationId:    prepId,
+            previousQuantity: prep.currentStock,
+            newQuantity,
+            change:           -consumed,
+            reason:           "USED",
+            userId:           req.user.userId,
+            notes:            notes ?? `Used to produce ${recipe.name}`,
+          },
+        }),
+        prisma.preparation.update({ where: { id: prepId }, data: { currentStock: newQuantity } })
+      );
+    }
+
+    if (ops.length > 0) await prisma.$transaction(ops);
+
+    const updated = await prisma.recipe.findFirstOrThrow({
+      where:   { id: recipe.id },
+      include: recipeInclude,
+    });
+    res.json({ ...serialize(updated), skippedPreparations: skippedPreps });
+  } catch (err) { next(err); }
 }

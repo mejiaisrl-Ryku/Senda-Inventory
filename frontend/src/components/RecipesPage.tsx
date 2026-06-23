@@ -7,6 +7,7 @@ import { PageSpinner, Spinner } from "./shared/Spinner";
 import { ConfirmDialog } from "./shared/ConfirmDialog";
 import { useLanguage } from "../context/LanguageContext";
 import { AllergenMultiSelect } from "./AllergenMultiSelect";
+import { ProduceDialog } from "./ProduceDialog";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -211,6 +212,8 @@ export function RecipesPage() {
   const [saving,      setSaving]      = useState(false);
   const [deleteTarget,setDeleteTarget]= useState<Recipe | null>(null);
   const [deleting,    setDeleting]    = useState(false);
+  const [produceTarget, setProduceTarget] = useState<Recipe | null>(null);
+  const [producing,     setProducing]     = useState(false);
 
   // Form fields
   const [form, setForm] = useState(blankForm());
@@ -589,6 +592,27 @@ export function RecipesPage() {
     }
   }
 
+  async function handleProduce(quantity: number) {
+    if (!produceTarget) return;
+    setProducing(true);
+    try {
+      const result = await recipesApi.produce(produceTarget.id, { quantity });
+      setRecipes((prev) => prev.map((r) => (r.id === result.id ? result : r)));
+      if (result.skippedPreparations.length > 0) {
+        toast.error(
+          t.recipes.skippedPreparations.replace("{names}", result.skippedPreparations.join(", "))
+        );
+      } else {
+        toast.success(t.recipes.productionRecorded);
+      }
+      setProduceTarget(null);
+    } catch (err) {
+      toast.error(getApiError(err));
+    } finally {
+      setProducing(false);
+    }
+  }
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -693,6 +717,12 @@ export function RecipesPage() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => setProduceTarget(r)}
+                            className="text-[12px] px-2.5 py-1 rounded-lg text-[#3dbf8a] hover:bg-[#3dbf8a]/10 transition-colors"
+                          >
+                            {t.recipes.produce}
+                          </button>
                           <button
                             onClick={() => openEdit(r)}
                             className="text-[12px] px-2.5 py-1 rounded-lg text-[#888] hover:text-white hover:bg-[#1a1a1a] transition-colors"
@@ -1247,6 +1277,17 @@ export function RecipesPage() {
         loading={deleting}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ProduceDialog
+        open={!!produceTarget}
+        title={`${t.recipes.recordProduction} — ${produceTarget?.name ?? ""}`}
+        quantityLabel={t.recipes.batchesProduced}
+        confirmLabel={t.recipes.produce}
+        cancelLabel={t.common.cancel}
+        loading={producing}
+        onConfirm={handleProduce}
+        onCancel={() => setProduceTarget(null)}
       />
     </div>
   );
