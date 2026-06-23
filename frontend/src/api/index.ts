@@ -456,7 +456,15 @@ export interface PreparationRequest {
   almacen?: string | null;
   recipeYield?: number | null;
   recipeYieldUnit?: string | null;
+  costPerPortionEstimate?: number | null;
+  currentStock?: number;
   allergenIds?: number[];
+  ingredients?: Array<{
+    productId: string;
+    quantity: number;
+    unit: string;
+    conversionFactor?: number | null;
+  }>;
 }
 
 export const preparationsApi = {

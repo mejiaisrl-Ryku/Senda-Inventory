@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useCallback, FormEvent } from "react";
-import { Preparation, ConservationType, Allergen } from "../types";
-import { preparationsApi, allergensApi } from "../api";
+import React, { useState, useEffect, useCallback, useMemo, useRef, FormEvent } from "react";
+import { Preparation, ConservationType, Allergen, Product } from "../types";
+import { preparationsApi, allergensApi, productsApi } from "../api";
 import { useLanguage } from "../context/LanguageContext";
 import { useToast } from "../context/ToastContext";
 import { getApiError } from "../utils/errorUtils";
 import { Spinner } from "./shared/Spinner";
+import { AllergenMultiSelect } from "./AllergenMultiSelect";
+import { formatCurrency } from "../utils/stock";
+import { toLineUnit, needsConversionInput, lineCost } from "../utils/ingredientCost";
 
 interface Props {
   open: boolean;
@@ -12,6 +15,17 @@ interface Props {
   onSaved: (prep: Preparation) => void;
   initialData?: Preparation;
   initialAllergenIds?: number[];
+}
+
+interface IngredientLine {
+  key:              string;
+  productId:        string;
+  productName:      string;
+  productUnit:      string;
+  costPerUnit:      number;
+  quantity:         string;
+  unit:             string;
+  conversionFactor: string;
 }
 
 const inputClass =
@@ -34,17 +48,37 @@ export function PreparationModal({ open, onClose, onSaved, initialData, initialA
   const [almacen, setAlmacen] = useState("");
   const [recipeYield, setRecipeYield] = useState("");
   const [recipeYieldUnit, setRecipeYieldUnit] = useState("");
+  const [currentStock, setCurrentStock] = useState("");
   const [allergenIds, setAllergenIds] = useState<number[]>([]);
+  const [ingredients, setIngredients] = useState<IngredientLine[]>([]);
 
   const [allergens, setAllergens] = useState<Allergen[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [saving, setSaving] = useState(false);
+
+  const [ingSearch, setIngSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     allergensApi.list().then(setAllergens).catch((err) => {
       console.error("PreparationModal: failed to load allergens", err);
     });
+    productsApi.list().then(setProducts).catch((err) => {
+      console.error("PreparationModal: failed to load products", err);
+    });
   }, [open]);
+
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -60,7 +94,20 @@ export function PreparationModal({ open, onClose, onSaved, initialData, initialA
       setAlmacen(initialData.almacen ?? "");
       setRecipeYield(initialData.recipeYield?.toString() ?? "");
       setRecipeYieldUnit(initialData.recipeYieldUnit ?? "");
+      setCurrentStock(initialData.currentStock?.toString() ?? "0");
       setAllergenIds(initialAllergenIds ?? []);
+      setIngredients(
+        (initialData.ingredients ?? []).map((ing) => ({
+          key:              ing.id,
+          productId:        ing.productId,
+          productName:      ing.product?.name ?? "Unknown",
+          productUnit:      ing.product?.unit ?? ing.unit,
+          costPerUnit:      ing.product?.costPerUnit ?? 0,
+          quantity:         String(ing.quantity),
+          unit:             ing.unit,
+          conversionFactor: ing.conversionFactor != null ? String(ing.conversionFactor) : "",
+        }))
+      );
     } else {
       setName("");
       setDescription("");
@@ -73,13 +120,60 @@ export function PreparationModal({ open, onClose, onSaved, initialData, initialA
       setAlmacen("");
       setRecipeYield("");
       setRecipeYieldUnit("");
+      setCurrentStock("0");
       setAllergenIds([]);
+      setIngredients([]);
     }
+    setIngSearch("");
+    setSearchOpen(false);
   }, [open, initialData, initialAllergenIds]);
 
   const toggleAllergen = useCallback((id: number) => {
     setAllergenIds((prev) => (prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]));
   }, []);
+
+  const searchResults = useMemo(() => {
+    if (!ingSearch.trim()) return [];
+    const q = ingSearch.toLowerCase();
+    return products
+      .filter(
+        (p) =>
+          (p.name.toLowerCase().includes(q) || p.sku?.toLowerCase().includes(q)) &&
+          !ingredients.some((i) => i.productId === p.id)
+      )
+      .slice(0, 8);
+  }, [ingSearch, products, ingredients]);
+
+  function addIngredient(p: Product) {
+    setIngredients((prev) => [
+      ...prev,
+      {
+        key:              `${p.id}-${Date.now()}`,
+        productId:        p.id,
+        productName:      p.name,
+        productUnit:      p.unit,
+        costPerUnit:      p.costPerUnit,
+        quantity:         "1",
+        unit:             toLineUnit(p.unit),
+        conversionFactor: "",
+      },
+    ]);
+    setIngSearch("");
+    setSearchOpen(false);
+  }
+
+  function removeIngredient(key: string) {
+    setIngredients((prev) => prev.filter((i) => i.key !== key));
+  }
+
+  function updateIngredient(key: string, patch: Partial<IngredientLine>) {
+    setIngredients((prev) => prev.map((i) => (i.key === key ? { ...i, ...patch } : i)));
+  }
+
+  const totalCost = useMemo(
+    () => ingredients.reduce((sum, ing) => sum + lineCost(ing), 0),
+    [ingredients]
+  );
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -100,7 +194,16 @@ export function PreparationModal({ open, onClose, onSaved, initialData, initialA
       almacen: almacen.trim() || null,
       recipeYield: recipeYield ? parseFloat(recipeYield) : null,
       recipeYieldUnit: recipeYieldUnit || null,
+      currentStock: currentStock ? parseFloat(currentStock) : 0,
       allergenIds,
+      ingredients: ingredients
+        .filter((ing) => parseFloat(ing.quantity) > 0)
+        .map((ing) => ({
+          productId: ing.productId,
+          quantity: parseFloat(ing.quantity),
+          unit: ing.unit,
+          conversionFactor: ing.conversionFactor ? parseFloat(ing.conversionFactor) : null,
+        })),
     };
 
     setSaving(true);
@@ -173,16 +276,6 @@ export function PreparationModal({ open, onClose, onSaved, initialData, initialA
             />
           </div>
 
-          <div>
-            <label className={labelClass}>{t.preparations.platingNotes}</label>
-            <textarea
-              value={platingNotes}
-              onChange={(e) => setPlatingNotes(e.target.value)}
-              rows={2}
-              className={inputClass}
-            />
-          </div>
-
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>{t.preparations.shelfLifeDays}</label>
@@ -219,14 +312,32 @@ export function PreparationModal({ open, onClose, onSaved, initialData, initialA
             </select>
           </div>
 
-          <div>
-            <label className={labelClass}>{t.preparations.almacen}</label>
-            <input
-              type="text"
-              value={almacen}
-              onChange={(e) => setAlmacen(e.target.value)}
-              className={inputClass}
-            />
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className={labelClass}>{t.preparations.almacen}</label>
+              <input
+                type="text"
+                value={almacen}
+                onChange={(e) => setAlmacen(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>{t.preparations.cost}</label>
+              <div className={`${inputClass} flex items-center text-[#3dbf8a] font-semibold`}>
+                {formatCurrency(totalCost)}
+              </div>
+            </div>
+            <div>
+              <label className={labelClass}>{t.preparations.stock}</label>
+              <input
+                type="number"
+                step="0.01"
+                value={currentStock}
+                onChange={(e) => setCurrentStock(e.target.value)}
+                className={inputClass}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -255,38 +366,96 @@ export function PreparationModal({ open, onClose, onSaved, initialData, initialA
             </div>
           </div>
 
+          {/* Ingredients — search products and build the cost breakdown */}
           <div>
-            <label className={labelClass}>{t.preparations.photoUrl}</label>
-            <input
-              type="text"
-              value={photoUrl}
-              onChange={(e) => setPhotoUrl(e.target.value)}
-              className={inputClass}
-            />
-          </div>
+            <label className={labelClass}>{t.recipes.ingredients}</label>
+            <div ref={searchRef} className="relative">
+              <input
+                type="text"
+                value={ingSearch}
+                onChange={(e) => { setIngSearch(e.target.value); setSearchOpen(true); }}
+                onFocus={() => setSearchOpen(true)}
+                placeholder={t.recipes.addIngredient}
+                className={inputClass}
+              />
+              {searchOpen && searchResults.length > 0 && (
+                <div className="absolute z-10 mt-1 w-full max-h-56 overflow-y-auto bg-[#161616] border border-[#2a2a2a] rounded-[8px] shadow-lg py-1">
+                  {searchResults.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => addIngredient(p)}
+                      className="w-full text-left px-3 py-2 hover:bg-[#1f1f1f] transition-colors"
+                    >
+                      <p className="text-sm text-white">{p.name}</p>
+                      <p className="text-[11px] text-[#555]">{p.category} · {formatCurrency(p.costPerUnit)}/{p.unit}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
-          <div>
-            <label className={labelClass}>{t.preparations.allergens}</label>
-            {allergens.length === 0 ? (
-              <p className="text-[13px] text-[#555]">{t.preparations.noAllergens}</p>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {allergens.map((a) => (
-                  <label key={a.id} className="flex items-center gap-2 text-sm text-[#888] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={allergenIds.includes(a.id)}
-                      onChange={() => toggleAllergen(a.id)}
-                      className="rounded border-[#2a2a2a] bg-[#111] text-[#3dbf8a] focus:ring-[#3dbf8a]"
-                    />
-                    <span className={allergenIds.includes(a.id) ? "text-white" : ""}>
-                      {lang === "es" ? a.labelES : a.labelEN}
-                    </span>
-                  </label>
-                ))}
+            {ingredients.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {ingredients.map((ing) => {
+                  const showConversion = needsConversionInput(ing.unit, ing.productUnit);
+                  return (
+                    <div key={ing.key} className="bg-[#111] border border-[#1a1a1a] rounded-[8px] p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-white">{ing.productName}</p>
+                        <button
+                          type="button"
+                          onClick={() => removeIngredient(ing.key)}
+                          className="text-[12px] text-red-400 hover:text-red-300"
+                        >
+                          {t.common.delete}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={ing.quantity}
+                          onChange={(e) => updateIngredient(ing.key, { quantity: e.target.value })}
+                          placeholder={t.recipes.quantityLabel}
+                          className={inputClass}
+                        />
+                        <input
+                          type="text"
+                          value={ing.unit}
+                          onChange={(e) => updateIngredient(ing.key, { unit: e.target.value })}
+                          className={inputClass}
+                        />
+                        {showConversion ? (
+                          <input
+                            type="number"
+                            step="0.0001"
+                            value={ing.conversionFactor}
+                            onChange={(e) => updateIngredient(ing.key, { conversionFactor: e.target.value })}
+                            placeholder="conv. factor"
+                            className={inputClass}
+                          />
+                        ) : (
+                          <div className={`${inputClass} flex items-center text-[#666]`}>
+                            {formatCurrency(lineCost(ing))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
+
+          <AllergenMultiSelect
+            allergens={allergens}
+            selectedIds={allergenIds}
+            onToggle={toggleAllergen}
+            lang={lang}
+            label={t.preparations.allergens}
+            placeholder={t.preparations.noAllergens}
+          />
 
           <div className="flex gap-2 justify-end pt-4 border-t border-[#1a1a1a]">
             <button

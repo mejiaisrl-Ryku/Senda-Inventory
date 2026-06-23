@@ -6,6 +6,7 @@ import { getApiError } from "../utils/errorUtils";
 import { PageSpinner, Spinner } from "./shared/Spinner";
 import { ConfirmDialog } from "./shared/ConfirmDialog";
 import { useLanguage } from "../context/LanguageContext";
+import { AllergenMultiSelect } from "./AllergenMultiSelect";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -1117,82 +1118,7 @@ export function RecipesPage() {
                 )}
               </div>
 
-              {/* Portions & yield */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
-                    {t.recipes.portions}
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={form.portions}
-                    onChange={(e) => setForm((f) => ({ ...f, portions: e.target.value }))}
-                    placeholder="4"
-                    className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
-                    {t.recipes.batchWeight}
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={form.batchWeight}
-                    onChange={(e) => setForm((f) => ({ ...f, batchWeight: e.target.value }))}
-                    placeholder="2.5"
-                    className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
-                  />
-                </div>
-              </div>
-
-              {/* Category & station */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
-                    {t.recipes.category}
-                  </label>
-                  <select
-                    value={form.category}
-                    onChange={(e) => setForm((f) => ({ ...f, category: e.target.value as RecipeCategory | "" }))}
-                    className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm focus:outline-none focus:border-[#3dbf8a] transition-colors"
-                  >
-                    <option value="">—</option>
-                    {(["STARTER", "MAIN", "DESSERT", "SNACK", "BEVERAGE"] as RecipeCategory[]).map((c) => (
-                      <option key={c} value={c}>{t.recipes.categories[c]}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
-                    {t.recipes.station}
-                  </label>
-                  <select
-                    value={form.station}
-                    onChange={(e) => setForm((f) => ({ ...f, station: e.target.value as KitchenStation | "" }))}
-                    className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm focus:outline-none focus:border-[#3dbf8a] transition-colors"
-                  >
-                    <option value="">—</option>
-                    {(["GRILL", "SAUCIER", "PANTRY", "PASTRY", "BAR", "FRYER"] as KitchenStation[]).map((s) => (
-                      <option key={s} value={s}>{t.recipes.stations[s]}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Preparation method & plating notes */}
-              <div>
-                <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
-                  {t.recipes.preparationMethod}
-                </label>
-                <textarea
-                  value={form.preparationMethod}
-                  onChange={(e) => setForm((f) => ({ ...f, preparationMethod: e.target.value }))}
-                  rows={3}
-                  className="w-full px-3 py-2 rounded-[8px] border border-[#2a2a2a] bg-[#111] text-white text-sm placeholder-[#444] focus:outline-none focus:border-[#3dbf8a] transition-colors"
-                />
-              </div>
+              {/* Plating notes */}
               <div>
                 <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
                   {t.recipes.platingNotes}
@@ -1220,36 +1146,18 @@ export function RecipesPage() {
               </div>
 
               {/* Allergens */}
-              <div>
-                <label className="text-[11px] font-medium text-[#555] uppercase tracking-[0.08em] block mb-2">
-                  {t.recipes.allergens}
-                </label>
-                {allergens.length === 0 ? (
-                  <p className="text-[12px] text-[#555]">—</p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {allergens.map((a) => {
-                      const checked = form.allergenIds.includes(a.id);
-                      const wasOverridden = allergenSource.get(a.id);
-                      const tag = wasOverridden === undefined ? null : wasOverridden ? t.recipes.manual : t.recipes.fromPrep;
-                      return (
-                        <label key={a.id} className="flex items-center gap-2 text-sm text-[#888] cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleAllergen(a.id)}
-                            className="rounded border-[#2a2a2a] bg-[#111] text-[#3dbf8a] focus:ring-[#3dbf8a]"
-                          />
-                          <span className={checked ? "text-white" : ""}>
-                            {lang === "es" ? a.labelES : a.labelEN}
-                          </span>
-                          {checked && tag && <span className="text-[10px] text-[#555]">({tag})</span>}
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+              <AllergenMultiSelect
+                allergens={allergens}
+                selectedIds={form.allergenIds}
+                onToggle={toggleAllergen}
+                lang={lang}
+                label={t.recipes.allergens}
+                placeholder={t.recipes.allergens}
+                getTag={(id) => {
+                  const wasOverridden = allergenSource.get(id);
+                  return wasOverridden === undefined ? null : wasOverridden ? t.recipes.manual : t.recipes.fromPrep;
+                }}
+              />
 
               {/* Scaling preview — client-only, never sent to the backend */}
               <div>

@@ -152,6 +152,7 @@ const JOIN_SCOPED_GUC_ONLY = new Set([
   "stockLog",
   "orderItem",
   "countEntry",
+  "preparationIngredient",
 ]);
 
 // ── ALS flag: prevents the extension from recursing when it calls prisma.$transaction ──

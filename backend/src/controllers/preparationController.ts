@@ -3,8 +3,16 @@ import { z } from "zod";
 import { prismaT as prisma } from "../lib/prisma";
 import { AuthRequest } from "../types";
 import { cascadeAllergensFromPrepToLinkedRecipes } from "../lib/allergenCascade";
+import { ingredientCost, num, round2 } from "../lib/ingredientCosting";
 
 const ConservationTypeEnum = z.enum(["REFRIGERADO", "CONGELADO", "AMBIENTE"]);
+
+const ingredientSchema = z.object({
+  productId:        z.string().min(1),
+  quantity:         z.number().positive("Quantity must be positive"),
+  unit:             z.string().min(1),
+  conversionFactor: z.number().positive().nullable().optional(),
+});
 
 export const upsertPreparationSchema = z.object({
   name:                   z.string().min(1, "Name is required").max(255),
@@ -18,10 +26,41 @@ export const upsertPreparationSchema = z.object({
   almacen:                z.string().nullable().optional(),
   recipeYield:            z.number().positive().nullable().optional(),
   recipeYieldUnit:        z.string().nullable().optional(),
-  cost:                   z.number().nonnegative().optional(),
   costPerPortionEstimate: z.number().nonnegative().nullable().optional(),
+  currentStock:           z.number().nonnegative().optional(),
   allergenIds:            z.array(z.number().int().positive()).optional(),
+  ingredients:            z.array(ingredientSchema).optional(),
 });
+
+/** Standard include block for preparation queries. */
+const preparationInclude = {
+  preparationIngredients: {
+    include: {
+      product: {
+        select: { id: true, name: true, unit: true, costPerUnit: true, category: true },
+      },
+    },
+  },
+};
+
+/** Replace a preparation's ingredient list and recompute its cost from them. */
+async function setPreparationIngredients(
+  preparationId: number,
+  ingredients: Array<{ productId: string; quantity: number; unit: string; conversionFactor?: number | null }>
+) {
+  await prisma.preparationIngredient.deleteMany({ where: { preparationId } });
+  if (ingredients.length > 0) {
+    await prisma.preparationIngredient.createMany({
+      data: ingredients.map((ing) => ({
+        preparationId,
+        productId:        ing.productId,
+        quantity:         ing.quantity,
+        unit:             ing.unit,
+        conversionFactor: ing.conversionFactor ?? null,
+      })),
+    });
+  }
+}
 
 /** Replace a preparation's allergen set, validating every id exists, then
  *  cascade the new set to every recipe currently linked to this prep. */
@@ -64,9 +103,18 @@ function serialize(p: any) {
     recipeYieldUnit:        p.recipeYieldUnit,
     cost:                   round4(Number(p.cost)),
     costPerPortionEstimate: p.costPerPortionEstimate !== null ? round4(Number(p.costPerPortionEstimate)) : null,
+    currentStock:           Number(p.currentStock ?? 0),
     createdBy:              p.createdBy,
     createdAt:              p.createdAt,
     updatedAt:              p.updatedAt,
+    ingredients: (p.preparationIngredients ?? []).map((pi: any) => ({
+      id:               pi.id,
+      productId:        pi.productId,
+      quantity:         num(pi.quantity),
+      unit:             pi.unit,
+      conversionFactor: pi.conversionFactor !== null ? Number(pi.conversionFactor) : null,
+      product:          pi.product,
+    })),
   };
 }
 
@@ -79,6 +127,7 @@ export async function listPreparations(req: AuthRequest, res: Response, next: Ne
     const preparations = await prisma.preparation.findMany({
       where:   { restaurantId: req.user.restaurantId },
       orderBy: { name: "asc" },
+      include: preparationInclude,
     });
     res.json(preparations.map(serialize));
   } catch (err) { next(err); }
@@ -90,11 +139,34 @@ export async function listPreparations(req: AuthRequest, res: Response, next: Ne
 export async function getPreparation(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const preparation = await prisma.preparation.findFirst({
-      where: { id: Number(req.params.id), restaurantId: req.user.restaurantId },
+      where:   { id: Number(req.params.id), restaurantId: req.user.restaurantId },
+      include: preparationInclude,
     });
     if (!preparation) return res.status(404).json({ error: "Preparation not found" });
     res.json(serialize(preparation));
   } catch (err) { next(err); }
+}
+
+/** Recompute a preparation's cost (and costPerPortionEstimate, when recipeYield
+ *  is set and the caller didn't supply an explicit override) from its current
+ *  ingredient list, then persist it. */
+async function recomputeCost(preparationId: number, costPerPortionOverride?: number | null) {
+  const prep = await prisma.preparation.findUniqueOrThrow({
+    where:   { id: preparationId },
+    include: preparationInclude,
+  });
+  const cost = round2(ingredientCost(prep.preparationIngredients as any));
+  const recipeYield = prep.recipeYield !== null ? num(prep.recipeYield) : null;
+  const costPerPortionEstimate =
+    costPerPortionOverride !== undefined
+      ? costPerPortionOverride
+      : recipeYield && recipeYield > 0 ? round2(cost / recipeYield) : null;
+
+  return prisma.preparation.update({
+    where:   { id: preparationId },
+    data:    { cost, costPerPortionEstimate },
+    include: preparationInclude,
+  });
 }
 
 /**
@@ -119,8 +191,7 @@ export async function createPreparation(req: AuthRequest, res: Response, next: N
         almacen:                body.almacen ?? null,
         recipeYield:            body.recipeYield ?? null,
         recipeYieldUnit:        body.recipeYieldUnit ?? null,
-        cost:                   body.cost ?? 0,
-        costPerPortionEstimate: body.costPerPortionEstimate ?? null,
+        currentStock:           body.currentStock ?? 0,
         createdBy:              req.user.userId,
       },
     });
@@ -128,8 +199,12 @@ export async function createPreparation(req: AuthRequest, res: Response, next: N
     if (body.allergenIds !== undefined) {
       await setPreparationAllergens(created.id, body.allergenIds);
     }
+    if (body.ingredients !== undefined) {
+      await setPreparationIngredients(created.id, body.ingredients);
+    }
+    const final = await recomputeCost(created.id, body.costPerPortionEstimate);
 
-    res.status(201).json(serialize(created));
+    res.status(201).json(serialize(final));
   } catch (err) { next(err); }
 }
 
@@ -144,9 +219,9 @@ export async function updatePreparation(req: AuthRequest, res: Response, next: N
     if (!existing) return res.status(404).json({ error: "Preparation not found" });
 
     const body = upsertPreparationSchema.partial().parse(req.body);
-    const { allergenIds, ...scalarFields } = body;
+    const { allergenIds, ingredients, costPerPortionEstimate, ...scalarFields } = body;
 
-    const updated = await prisma.preparation.update({
+    await prisma.preparation.update({
       where: { id: existing.id },
       data:  scalarFields,
     });
@@ -154,8 +229,12 @@ export async function updatePreparation(req: AuthRequest, res: Response, next: N
     if (allergenIds !== undefined) {
       await setPreparationAllergens(existing.id, allergenIds);
     }
+    if (ingredients !== undefined) {
+      await setPreparationIngredients(existing.id, ingredients);
+    }
+    const final = await recomputeCost(existing.id, costPerPortionEstimate);
 
-    res.json(serialize(updated));
+    res.json(serialize(final));
   } catch (err) { next(err); }
 }
 

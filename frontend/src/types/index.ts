@@ -359,9 +359,26 @@ export interface Preparation {
   recipeYieldUnit:        string | null;
   cost:                   number;
   costPerPortionEstimate: number | null;
+  currentStock:           number;
   createdBy:              string | null;
   createdAt:              string;
   updatedAt:              string;
+  ingredients:            PreparationIngredient[];
+}
+
+export interface PreparationIngredient {
+  id:               string;
+  productId:        string;
+  quantity:         number;
+  unit:             string;
+  conversionFactor: number | null;
+  product: {
+    id:          string;
+    name:        string;
+    unit:        string;
+    costPerUnit: number;
+    category:    string | null;
+  };
 }
 
 export interface TeamMember {
