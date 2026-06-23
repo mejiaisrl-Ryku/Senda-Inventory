@@ -210,6 +210,18 @@ const WHERE_OPS = new Set([
   "count",      "aggregate", "groupBy",
 ]);
 
+// findUnique/update/delete/upsert take a *WhereUniqueInput* — Prisma requires
+// a unique field (e.g. id) at the top level, not wrapped in AND. Wrapping it
+// (as done below for the other WHERE_OPS) makes Prisma reject the query with
+// "needs at least one of `id` arguments", which surfaced as a 500 on every
+// single-record recipe update (e.g. saving a recipe after linking a prep).
+// These ops get the tenant filter merged flat alongside the unique field
+// instead, relying on Prisma's "extended where unique input" support.
+const UNIQUE_WHERE_OPS = new Set([
+  "findUnique", "findUniqueOrThrow",
+  "update", "delete", "upsert",
+]);
+
 const CREATE_OPS = new Set(["create", "createMany"]);
 
 // ── Scalar filter extractor (for CREATE injection) ────────────────────────────
@@ -325,7 +337,9 @@ export function buildTenantedClient(baseClient: PrismaClient) {
             const existingWhere = args.where ?? {};
             args = {
               ...args,
-              where: { AND: [existingWhere, filter] },
+              where: UNIQUE_WHERE_OPS.has(operation)
+                ? { ...existingWhere, ...filter }
+                : { AND: [existingWhere, filter] },
             };
           }
 
