@@ -220,7 +220,7 @@ export function PartnerSetup() {
       localStorage.removeItem(PARTNER_SETUP_TOKEN_KEY);
 
       loginWithSession(data.user, data.token, data.refreshToken);
-      navigate("/", { replace: true });
+      navigate(isOwnerInvite ? "/owner/dashboard" : "/", { replace: true });
     } catch (err: any) {
       const code: string = err?.response?.data?.code ?? "";
       const msg: string  = err?.response?.data?.error ?? "Setup failed. Please try again.";

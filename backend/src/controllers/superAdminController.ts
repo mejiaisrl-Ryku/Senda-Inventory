@@ -1145,7 +1145,7 @@ export async function createOwnerAccount(
 
     await prisma.partnerInvite.upsert({
       where:  { email: ownerEmail },
-      update: { token, status: "pending", expiresAt, ownerAccountId: ownerAccount.id },
+      update: { firstName, lastName, token, status: "pending", expiresAt, ownerAccountId: ownerAccount.id },
       create: {
         email:          ownerEmail,
         firstName:      firstName,
