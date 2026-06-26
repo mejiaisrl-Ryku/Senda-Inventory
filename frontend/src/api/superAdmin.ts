@@ -141,6 +141,12 @@ export const superAdminApi = {
   sendResetEmail: (userId: string) =>
     saApi.post(`/super-admin/users/${userId}/send-reset-email`),
 
+  /** Permanently deletes a user account. Requires the confirm header. */
+  deleteUser: (userId: string) =>
+    saApi.delete(`/super-admin/users/${userId}`, {
+      headers: { "X-Confirm-Delete": "permanent" },
+    }),
+
   // -- Invite --
   inviteAdmin: (data: { firstName: string; lastName: string; email: string; restaurantId: string }) =>
     saApi.post("/super-admin/invite", data),

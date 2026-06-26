@@ -121,6 +121,7 @@ model OwnerAccount {
   cogsCategories CogsCategory[]
   users          User[]         @relation("OwnerAccountUsers")
   budgets        LocationBudget[]
+  partnerInvites PartnerInvite[]
 
   @@index([email])
   @@map("owner_accounts")
@@ -561,6 +562,12 @@ model PartnerInvite {
   token         String   @unique
   status        String   @default("pending")  // "pending" | "accepted"
   locationCount Int      @default(1)          // carried through to restaurant on setup
+
+  // When set, this invite provisions an OWNER_SUPER_ADMIN user linked to this
+  // OwnerAccount instead of creating a new restaurant + ADMIN user.
+  ownerAccountId String?
+  ownerAccount   OwnerAccount? @relation(fields: [ownerAccountId], references: [id], onDelete: Cascade)
+
   expiresAt     DateTime
   createdAt     DateTime @default(now())
 

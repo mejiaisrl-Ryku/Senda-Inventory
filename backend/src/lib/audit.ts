@@ -29,6 +29,7 @@ export type AuditAction =
   | "owner_account.hard_delete"
   | "owner_account.archive"
   | "user.role_change"
+  | "user.hard_delete"
   | "kyru_manager.login"
   | "kyru_manager.cross_tenant_read"
   | "partner.onboard"

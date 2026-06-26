@@ -15,6 +15,7 @@ import {
   listAllUsers,
   inviteAdmin,
   sendUserResetEmail,
+  deleteUser,
   createPartnerInvite,
   validatePartnerInvite,
   completePartnerSetup,
@@ -79,6 +80,7 @@ router.delete("/restaurants/:id", deleteRestaurant as never);
 // Users (cross-restaurant)
 router.get("/users", listAllUsers as never);
 router.post("/users/:userId/send-reset-email", sendUserResetEmail as never);
+router.delete("/users/:userId", deleteUser as never);
 
 // Invite a new admin to an existing restaurant
 router.post("/invite", validate(inviteAdminSchema), inviteAdmin as never);

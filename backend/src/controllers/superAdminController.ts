@@ -54,7 +54,8 @@ export const createRestaurantSchema = z.object({
 
 export const completePartnerSetupSchema = z.object({
   token:          z.string().min(1,  "Token is required"),
-  restaurantName: z.string().min(1,  "Restaurant name is required").max(255).trim(),
+  // Optional — omitted for owner invites, which don't create a restaurant.
+  restaurantName: z.string().min(1,  "Restaurant name is required").max(255).trim().optional(),
   password:       z.string().min(8,  "Password must be at least 8 characters"),
   logo:           z.string().optional().nullable(), // base64 data URL, max ~3.6 MB encoded
 });
@@ -96,10 +97,11 @@ export async function validatePartnerInvite(req: Request, res: Response, next: N
     }
 
     res.json({
-      email:     invite.email,
-      firstName: invite.firstName,
-      lastName:  invite.lastName,
-      expiresAt: invite.expiresAt,
+      email:        invite.email,
+      firstName:    invite.firstName,
+      lastName:     invite.lastName,
+      expiresAt:    invite.expiresAt,
+      isOwnerInvite: invite.ownerAccountId != null,
     });
   } catch (err) {
     next(err);
@@ -108,15 +110,19 @@ export async function validatePartnerInvite(req: Request, res: Response, next: N
 
 /**
  * POST /api/super-admin/partner-setup  (PUBLIC)
- * Completes partner onboarding: creates the restaurant + admin user in a
- * transaction, marks the invite as "accepted", and returns auth tokens so
- * the frontend can log the new admin in immediately.
+ * Completes onboarding for either flow, branching on whether the invite is
+ * tied to an OwnerAccount:
+ *   - Owner invite  (ownerAccountId set): create an OWNER_SUPER_ADMIN user
+ *     linked to the existing OwnerAccount. No restaurant is created.
+ *   - Partner invite (ownerAccountId null): create the restaurant + ADMIN
+ *     user, as before.
+ * Marks the invite as "accepted" and returns auth tokens either way.
  */
 export async function completePartnerSetup(req: Request, res: Response, next: NextFunction) {
   try {
     const { token, restaurantName, password, logo } = req.body as {
       token: string;
-      restaurantName: string;
+      restaurantName?: string;
       password: string;
       logo?: string | null;
     };
@@ -142,6 +148,51 @@ export async function completePartnerSetup(req: Request, res: Response, next: Ne
     }
 
     const hashed = await bcrypt.hash(password, 12);
+    const isOwnerInvite = invite.ownerAccountId != null;
+
+    if (isOwnerInvite) {
+      // Owner setup: create an OWNER_SUPER_ADMIN user linked to the existing
+      // OwnerAccount. Never create a restaurant for this flow.
+      const user = await prisma.$transaction(async (tx) => {
+        const newUser = await tx.user.create({
+          data: {
+            name:           `${invite.firstName} ${invite.lastName}`,
+            email:          invite.email,
+            password:       hashed,
+            role:           "OWNER_SUPER_ADMIN",
+            ownerAccountId: invite.ownerAccountId!,
+          },
+          select: {
+            id:             true,
+            name:           true,
+            email:          true,
+            role:           true,
+            ownerAccountId: true,
+          },
+        });
+
+        await tx.partnerInvite.update({
+          where: { token },
+          data:  { status: "accepted" },
+        });
+
+        return newUser;
+      });
+
+      const tokenPayload = { userId: user.id, role: user.role };
+
+      console.log(`[completePartnerSetup] ✓ Owner onboarded. userId="${user.id}" ownerAccountId="${user.ownerAccountId}"`);
+
+      return res.status(201).json({
+        user:         user,
+        token:        signToken(tokenPayload),
+        refreshToken: signRefreshToken(tokenPayload),
+      });
+    }
+
+    if (!restaurantName || !restaurantName.trim()) {
+      return res.status(400).json({ error: "Restaurant name is required." });
+    }
 
     // Atomic: create restaurant → create admin user → mark invite accepted.
     const user = await prisma.$transaction(async (tx) => {
@@ -555,6 +606,60 @@ export async function sendUserResetEmail(req: AuthRequest, res: Response, next: 
     res.status(200).json({ ok: true, messageId });
   } catch (err) {
     console.error(`[sendUserResetEmail] Failed for userId="${req.params.userId}":`, err);
+    next(err);
+  }
+}
+
+/**
+ * DELETE /api/super-admin/users/:userId
+ * Permanently deletes a user account (partner admin/staff or owner).
+ * Requires confirmation header: X-Confirm-Delete: permanent
+ * Also removes that user's stock-log history, which would otherwise block
+ * deletion via FK constraint (StockLog/PreparationStockLog.userId has no
+ * onDelete cascade).
+ */
+export async function deleteUser(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const { userId } = req.params;
+    const confirmHeader = req.headers["x-confirm-delete"];
+
+    if (confirmHeader !== "permanent") {
+      return res.status(400).json({ error: "Missing confirmation header: X-Confirm-Delete: permanent" });
+    }
+
+    if (userId === req.user.userId) {
+      return res.status(400).json({ error: "You cannot delete your own account." });
+    }
+
+    const existing = await prisma.user.findUnique({
+      where:  { id: userId },
+      select: { id: true, name: true, email: true, role: true },
+    });
+    if (!existing) return res.status(404).json({ error: "User not found." });
+
+    logger.warn("deleteUser: entry", { userId: req.user.userId, targetUserId: userId, targetEmail: sanitizeEmail(existing.email) });
+
+    await prisma.$transaction([
+      prisma.stockLog.deleteMany({ where: { userId } }),
+      prisma.preparationStockLog.deleteMany({ where: { userId } }),
+      prisma.user.delete({ where: { id: userId } }),
+    ]);
+
+    logger.warn("deleteUser: success", { userId: req.user.userId, targetUserId: userId, targetEmail: sanitizeEmail(existing.email) });
+
+    void logAudit({
+      action:     "user.hard_delete",
+      actorId:    req.user?.userId ?? null,
+      actorRole:  req.user?.role   ?? null,
+      targetType: "user",
+      targetId:   userId,
+      metadata:   { email: existing.email, role: existing.role },
+      req,
+    });
+
+    res.json({ deleted: true, id: userId });
+  } catch (err) {
+    logger.error("deleteUser: error", { userId: req.user.userId, targetUserId: req.params.userId, message: (err as Error).message });
     next(err);
   }
 }
@@ -1040,14 +1145,15 @@ export async function createOwnerAccount(
 
     await prisma.partnerInvite.upsert({
       where:  { email: ownerEmail },
-      update: { token, status: "pending", expiresAt },
+      update: { token, status: "pending", expiresAt, ownerAccountId: ownerAccount.id },
       create: {
-        email:     ownerEmail,
-        firstName: firstName,
-        lastName:  lastName,
+        email:          ownerEmail,
+        firstName:      firstName,
+        lastName:       lastName,
         token,
-        status:    "pending",
+        status:         "pending",
         expiresAt,
+        ownerAccountId: ownerAccount.id,
       },
     });
 
@@ -1056,7 +1162,7 @@ export async function createOwnerAccount(
     const setupUrl    = `${frontendUrl}/partner-setup?token=${encodeURIComponent(token)}&type=owner`;
 
     try {
-      await sendPartnerInviteEmail({ to: ownerEmail, firstName, setupUrl });
+      await sendPartnerInviteEmail({ to: ownerEmail, firstName, setupUrl, inviteType: "owner" });
     } catch (emailErr) {
       logger.error("createOwnerAccount: email send failed", {
         userId:     req.user.userId,

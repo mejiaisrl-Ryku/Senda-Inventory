@@ -109,6 +109,7 @@ export function PartnerSetup() {
     email: string;
     firstName: string;
     lastName: string;
+    isOwnerInvite: boolean;
   } | null>(null);
 
   // Form state
@@ -187,11 +188,13 @@ export function PartnerSetup() {
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
+  const isOwnerInvite = invite?.isOwnerInvite ?? false;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError("");
 
-    if (!restaurantName.trim()) {
+    if (!isOwnerInvite && !restaurantName.trim()) {
       setFormError("Restaurant name is required.");
       return;
     }
@@ -208,9 +211,9 @@ export function PartnerSetup() {
     try {
       const data = await partnerSetupApi.complete({
         token,
-        restaurantName: restaurantName.trim(),
+        ...(isOwnerInvite ? {} : { restaurantName: restaurantName.trim() }),
         password,
-        logo: logo ?? null,
+        logo: isOwnerInvite ? null : logo ?? null,
       });
 
       // Clear the pending-setup marker before logging in.
@@ -266,7 +269,9 @@ export function PartnerSetup() {
               Welcome, {invite!.firstName}!
             </h1>
             <p className="text-[13px] text-[#555] mt-1">
-              Set up your restaurant to get started with kyru.
+              {isOwnerInvite
+                ? "Set your password to activate your owner account."
+                : "Set up your restaurant to get started with kyru."}
             </p>
             <p className="text-[12px] text-[#444] mt-2">
               Signing in as <span className="text-[#888]">{invite!.email}</span>
@@ -281,76 +286,80 @@ export function PartnerSetup() {
               </div>
             )}
 
-            {/* Restaurant name */}
-            <div>
-              <label className={labelCls}>
-                Restaurant name <span className="text-red-500">*</span>
-              </label>
-              <input
-                required
-                value={restaurantName}
-                onChange={(e) => setRestaurantName(e.target.value)}
-                placeholder="La Milagrosa"
-                maxLength={255}
-                className={inputCls}
-              />
-            </div>
-
-            {/* Logo upload */}
-            <div>
-              <label className={labelCls}>
-                Restaurant logo <span className="text-[#444]">(optional)</span>
-              </label>
-
-              {logoPreview ? (
-                <div className="flex items-center gap-3">
-                  <img
-                    src={logoPreview}
-                    alt="Logo preview"
-                    className="w-14 h-14 rounded-[8px] object-contain bg-[#111] border border-[#2a2a2a]"
+            {!isOwnerInvite && (
+              <>
+                {/* Restaurant name */}
+                <div>
+                  <label className={labelCls}>
+                    Restaurant name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    required
+                    value={restaurantName}
+                    onChange={(e) => setRestaurantName(e.target.value)}
+                    placeholder="La Milagrosa"
+                    maxLength={255}
+                    className={inputCls}
                   />
-                  <div className="flex flex-col gap-1.5">
+                </div>
+
+                {/* Logo upload */}
+                <div>
+                  <label className={labelCls}>
+                    Restaurant logo <span className="text-[#444]">(optional)</span>
+                  </label>
+
+                  {logoPreview ? (
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={logoPreview}
+                        alt="Logo preview"
+                        className="w-14 h-14 rounded-[8px] object-contain bg-[#111] border border-[#2a2a2a]"
+                      />
+                      <div className="flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => logoInputRef.current?.click()}
+                          className="text-[12px] text-[#3dbf8a] hover:text-[#35a87a] transition-colors"
+                        >
+                          Change
+                        </button>
+                        <button
+                          type="button"
+                          onClick={removeLogo}
+                          className="text-[12px] text-[#555] hover:text-red-400 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
                     <button
                       type="button"
                       onClick={() => logoInputRef.current?.click()}
-                      className="text-[12px] text-[#3dbf8a] hover:text-[#35a87a] transition-colors"
+                      className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-[8px] border border-dashed border-[#2a2a2a] hover:border-[#3dbf8a]/50 text-[#444] hover:text-[#888] transition-colors"
                     >
-                      Change
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="text-[12px]">Click to upload logo</span>
+                      <span className="text-[11px] text-[#333]">PNG, JPG, WebP · max 2.5 MB</span>
                     </button>
-                    <button
-                      type="button"
-                      onClick={removeLogo}
-                      className="text-[12px] text-[#555] hover:text-red-400 transition-colors"
-                    >
-                      Remove
-                    </button>
-                  </div>
+                  )}
+
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={handleLogoChange}
+                  />
                 </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => logoInputRef.current?.click()}
-                  className="w-full flex flex-col items-center justify-center gap-2 py-6 rounded-[8px] border border-dashed border-[#2a2a2a] hover:border-[#3dbf8a]/50 text-[#444] hover:text-[#888] transition-colors"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  <span className="text-[12px]">Click to upload logo</span>
-                  <span className="text-[11px] text-[#333]">PNG, JPG, WebP · max 2.5 MB</span>
-                </button>
-              )}
 
-              <input
-                ref={logoInputRef}
-                type="file"
-                accept="image/*"
-                className="sr-only"
-                onChange={handleLogoChange}
-              />
-            </div>
-
-            <div className="border-t border-[#1a1a1a]" />
+                <div className="border-t border-[#1a1a1a]" />
+              </>
+            )}
 
             {/* Password */}
             <div>
@@ -409,7 +418,7 @@ export function PartnerSetup() {
               className="w-full py-2.5 rounded-[8px] bg-[#3dbf8a] hover:bg-[#35a87a] disabled:opacity-60 text-white text-[13px] font-semibold transition-colors flex items-center justify-center gap-2 mt-2"
             >
               {submitting && <Spinner size="sm" />}
-              {submitting ? "Setting up…" : "Create my restaurant"}
+              {submitting ? "Setting up…" : isOwnerInvite ? "Activate my account" : "Create my restaurant"}
             </button>
 
           </form>

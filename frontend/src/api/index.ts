@@ -847,18 +847,26 @@ export const seedApi = {
 // ── Partner setup (public — used on the /partner-setup onboarding page) ───────
 
 export const partnerSetupApi = {
-  /** Validate a partner invite token before showing the setup form. */
+  /** Validate a partner/owner invite token before showing the setup form. */
   validate: (token: string) =>
     api
-      .get<{ email: string; firstName: string; lastName: string; expiresAt: string }>(
-        `/super-admin/partner-invites/validate/${encodeURIComponent(token)}`
-      )
+      .get<{
+        email: string;
+        firstName: string;
+        lastName: string;
+        expiresAt: string;
+        isOwnerInvite: boolean;
+      }>(`/super-admin/partner-invites/validate/${encodeURIComponent(token)}`)
       .then((r) => r.data),
 
-  /** Complete partner onboarding — creates the restaurant + admin account. */
+  /**
+   * Complete onboarding. For partner invites, creates the restaurant + admin
+   * account — restaurantName is required. For owner invites, restaurantName
+   * is omitted and an OWNER_SUPER_ADMIN account is created instead.
+   */
   complete: (data: {
     token: string;
-    restaurantName: string;
+    restaurantName?: string;
     password: string;
     logo?: string | null;
   }) =>

@@ -108,11 +108,14 @@ export async function sendInviteEmail({
         <!-- Body -->
         <tr>
           <td style="padding:40px 40px 32px">
+            <div style="display:inline-block;padding:4px 10px;border-radius:6px;background:#ecfdf5;color:#15803d;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">
+              Admin Invitation
+            </div>
             <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827">
-              You've been invited to join ${restaurantName}
+              ${toName}, you've been invited to join ${restaurantName}
             </h1>
             <p style="margin:0 0 24px;font-size:15px;color:#6b7280;line-height:1.6">
-              Hi ${toName}, your manager has invited you to the <strong>${restaurantName}</strong> inventory team on kyru.
+              Hi ${toName}, your manager has invited you as an <strong>Admin</strong> on the <strong>${restaurantName}</strong> inventory team on kyru.
               Click the button below to create your account and get started.
             </p>
 
@@ -126,11 +129,6 @@ export async function sendInviteEmail({
                 </td>
               </tr>
             </table>
-
-            <p style="margin:24px 0 0;font-size:13px;color:#9ca3af;line-height:1.6">
-              Or copy this link into your browser:<br>
-              <a href="${inviteUrl}" style="color:#3dbf8a;word-break:break-all">${inviteUrl}</a>
-            </p>
 
             <p style="margin:20px 0 0;font-size:13px;color:#9ca3af">
               This invitation expires in 7 days. If you didn't expect this email you can safely ignore it.
@@ -166,11 +164,27 @@ export async function sendPartnerInviteEmail({
   to,
   firstName,
   setupUrl,
+  inviteType = "partner",
 }: {
   to: string;
   firstName: string;
   setupUrl: string;
+  /** "partner" — new restaurant setup. "owner" — owner account activation, no restaurant created. */
+  inviteType?: "partner" | "owner";
 }): Promise<string> {
+  const isOwner = inviteType === "owner";
+  const badgeLabel = isOwner ? "Owner Invitation" : "Partner Invitation";
+  const heading = isOwner
+    ? `Welcome to kyru, ${firstName}!`
+    : `Welcome to kyru, ${firstName}!`;
+  const bodyCopy = isOwner
+    ? `You've been invited as an <strong>Owner</strong> on <strong>kyru</strong> — the inventory platform built for modern restaurants. Click the button below to activate your account. This link expires in <strong>72 hours</strong>.`
+    : `You've been invited to set up your restaurant on <strong>kyru</strong> — the inventory platform built for modern restaurants. Click the button below to get started. This link expires in <strong>72 hours</strong>.`;
+  const buttonLabel = isOwner ? "Activate My Account" : "Set Up My Restaurant";
+  const subject = isOwner
+    ? "You're invited to activate your owner account on kyru"
+    : "You're invited to set up your restaurant on kyru";
+
   const html = `
 <!DOCTYPE html>
 <html lang="en">
@@ -203,12 +217,14 @@ export async function sendPartnerInviteEmail({
         <!-- Body -->
         <tr>
           <td style="padding:40px 40px 32px">
+            <div style="display:inline-block;padding:4px 10px;border-radius:6px;background:#ecfdf5;color:#15803d;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:12px">
+              ${badgeLabel}
+            </div>
             <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#111827">
-              Welcome to kyru, ${firstName}!
+              ${heading}
             </h1>
             <p style="margin:0 0 24px;font-size:15px;color:#6b7280;line-height:1.6">
-              You've been invited to set up your restaurant on <strong>kyru</strong> — the inventory platform built for modern restaurants.
-              Click the button below to get started. This link expires in <strong>72 hours</strong>.
+              ${bodyCopy}
             </p>
 
             <table cellpadding="0" cellspacing="0">
@@ -216,16 +232,11 @@ export async function sendPartnerInviteEmail({
                 <td style="border-radius:10px;background:#3dbf8a">
                   <a href="${setupUrl}"
                      style="display:inline-block;padding:13px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px">
-                    Set Up My Restaurant
+                    ${buttonLabel}
                   </a>
                 </td>
               </tr>
             </table>
-
-            <p style="margin:24px 0 0;font-size:13px;color:#9ca3af;line-height:1.6">
-              Or copy this link into your browser:<br>
-              <a href="${setupUrl}" style="color:#3dbf8a;word-break:break-all">${setupUrl}</a>
-            </p>
 
             <p style="margin:20px 0 0;font-size:13px;color:#9ca3af">
               If you didn't expect this email you can safely ignore it.
@@ -251,8 +262,10 @@ export async function sendPartnerInviteEmail({
   return sendMail({
     from: FROM,
     to: `${firstName} <${to}>`,
-    subject: "You're invited to set up your restaurant on kyru",
-    text: `Hi ${firstName},\n\nYou've been invited to set up your restaurant on kyru.\n\nGet started here (expires in 72 hours):\n${setupUrl}\n\n— kyru Advisory`,
+    subject,
+    text: isOwner
+      ? `Hi ${firstName},\n\nYou've been invited as an Owner on kyru.\n\nActivate your account here (expires in 72 hours):\n${setupUrl}\n\n— kyru Advisory`
+      : `Hi ${firstName},\n\nYou've been invited to set up your restaurant on kyru.\n\nGet started here (expires in 72 hours):\n${setupUrl}\n\n— kyru Advisory`,
     html,
   });
 }

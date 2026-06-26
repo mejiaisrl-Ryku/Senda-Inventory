@@ -750,9 +750,12 @@ function CreateOwnerAccountForm({
 
 // ── Users table ───────────────────────────────────────────────────────────────
 
-function UsersTable({ users }: { users: SAUser[] }) {
+function UsersTable({ users, onDeleted }: { users: SAUser[]; onDeleted: (id: string) => void }) {
   const toast = useToast();
   const [sendingReset, setSendingReset] = React.useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<SAUser | null>(null);
+  const [deleting,     setDeleting]     = React.useState(false);
+  const [deleteError,  setDeleteError]  = React.useState("");
 
   async function handleSendReset(u: SAUser) {
     setSendingReset(u.id);
@@ -766,59 +769,120 @@ function UsersTable({ users }: { users: SAUser[] }) {
     }
   }
 
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await superAdminApi.deleteUser(deleteTarget.id);
+      onDeleted(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (err: any) {
+      setDeleteError(err?.response?.data?.error ?? "Delete failed.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (users.length === 0) {
     return <div className="py-10 text-center text-[13px] text-[#444]">No users yet.</div>;
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-[#1a1a1a]">
-            {["User", "Email", "Role", "Partner", ""].map((h) => (
-              <th key={h} className="text-left px-4 py-3 text-[11px] font-medium text-[#444] uppercase tracking-[0.08em] whitespace-nowrap">
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#111]">
-          {users.map((u) => (
-            <tr key={u.id} className="hover:bg-[#0f0f0f] transition-colors">
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center text-[#888] text-[10px] font-bold flex-shrink-0">
-                    {(u.name ?? u.email)[0].toUpperCase()}
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-[#1a1a1a]">
+              {["User", "Email", "Role", "Partner", ""].map((h) => (
+                <th key={h} className="text-left px-4 py-3 text-[11px] font-medium text-[#444] uppercase tracking-[0.08em] whitespace-nowrap">
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[#111]">
+            {users.map((u) => (
+              <tr key={u.id} className="hover:bg-[#0f0f0f] transition-colors">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-full bg-[#1a1a1a] border border-[#2a2a2a] flex items-center justify-center text-[#888] text-[10px] font-bold flex-shrink-0">
+                      {(u.name ?? u.email)[0].toUpperCase()}
+                    </div>
+                    <span className="text-white text-[13px] font-medium">{u.name ?? "—"}</span>
                   </div>
-                  <span className="text-white text-[13px] font-medium">{u.name ?? "—"}</span>
-                </div>
-              </td>
-              <td className="px-4 py-3 text-[#888] text-[13px]">{u.email}</td>
-              <td className="px-4 py-3"><RolePill role={u.role} /></td>
-              <td className="px-4 py-3 text-[#888] text-[13px]">{u.restaurantName ?? <span className="text-[#444]">—</span>}</td>
-              <td className="px-4 py-3 text-right">
-                <button
-                  onClick={() => handleSendReset(u)}
-                  disabled={sendingReset === u.id}
-                  title="Send password reset email"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[11px] text-[#555] hover:text-[#3dbf8a] hover:bg-[#3dbf8a]/10 disabled:opacity-40 border border-transparent hover:border-[#3dbf8a]/20 transition-colors"
-                >
-                  {sendingReset === u.id ? (
-                    <Spinner size="sm" />
-                  ) : (
+                </td>
+                <td className="px-4 py-3 text-[#888] text-[13px]">{u.email}</td>
+                <td className="px-4 py-3"><RolePill role={u.role} /></td>
+                <td className="px-4 py-3 text-[#888] text-[13px]">{u.restaurantName ?? <span className="text-[#444]">—</span>}</td>
+                <td className="px-4 py-3 text-right whitespace-nowrap">
+                  <button
+                    onClick={() => handleSendReset(u)}
+                    disabled={sendingReset === u.id}
+                    title="Send password reset email"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[11px] text-[#555] hover:text-[#3dbf8a] hover:bg-[#3dbf8a]/10 disabled:opacity-40 border border-transparent hover:border-[#3dbf8a]/20 transition-colors"
+                  >
+                    {sendingReset === u.id ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                      </svg>
+                    )}
+                    Reset password
+                  </button>
+                  <button
+                    onClick={() => { setDeleteTarget(u); setDeleteError(""); }}
+                    title="Delete account"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 ml-1 rounded-[6px] text-[11px] text-[#555] hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
+                  >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
-                  )}
-                  Reset password
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+          <div className="bg-[#0a0a0a] border border-[#2a2a2a] rounded-[12px] p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-[16px] font-semibold text-white mb-2">Permanently delete account</h3>
+            <p className="text-[13px] text-[#888] mb-5">
+              This will permanently delete{" "}
+              <span className="text-white font-medium">{deleteTarget.name ?? deleteTarget.email}</span>{" "}
+              ({deleteTarget.email}). This cannot be undone.
+            </p>
+            {deleteError && (
+              <p className="text-red-400 text-[13px] mb-3">{deleteError}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setDeleteTarget(null); setDeleteError(""); }}
+                disabled={deleting}
+                className="flex-1 py-2 rounded-[8px] border border-[#2a2a2a] text-[13px] text-[#888] hover:text-white hover:border-[#444] disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 py-2 rounded-[8px] bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-[13px] font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {deleting && <Spinner size="sm" />}
+                Delete permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -861,6 +925,10 @@ export function SuperAdminDashboard() {
   function onRestaurantDeleted(id: string) {
     setRestaurants((prev) => prev.filter((r) => r.id !== id));
     setUsers((prev) => prev.filter((u) => u.restaurantId !== id));
+  }
+
+  function onUserDeleted(id: string) {
+    setUsers((prev) => prev.filter((u) => u.id !== id));
   }
 
   return (
@@ -951,7 +1019,7 @@ export function SuperAdminDashboard() {
           {loadingU ? (
             <div className="flex items-center justify-center py-12"><Spinner size="lg" /></div>
           ) : (
-            <UsersTable users={users} />
+            <UsersTable users={users} onDeleted={onUserDeleted} />
           )}
         </Card>
       </div>
