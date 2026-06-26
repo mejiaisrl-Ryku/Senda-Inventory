@@ -6,6 +6,15 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["http-server", "landing", "-p", "4321", "-c-1"],
       "port": 4321
+    },
+    {
+      "name": "kyru-consulting",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/israelmejia/Kyru-consulting && npm run dev -- --port 4322"
+      ],
+      "port": 4322
     }
   ]
 }
