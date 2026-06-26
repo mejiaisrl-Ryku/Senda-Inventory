@@ -51,11 +51,18 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 
 /* ── iOS / mobile fixes ───────────────────────────────────────────────────── */
 
-/* Prevent iOS Safari from auto-zooming into inputs (requires 16px font-size) */
-input,
-select,
-textarea {
-  font-size: 16px;
+/* Prevent iOS Safari from auto-zooming into inputs (requires 16px font-size).
+   Tailwind's text-[13px]/text-sm utility classes on individual <input>
+   elements have higher specificity than this plain element selector, so
+   they were silently winning and re-enabling the zoom. !important + a
+   mobile-only media query forces 16px on phones without touching the
+   desktop type scale. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Eliminate scroll bounce / rubber-band on iOS at the app level */

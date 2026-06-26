@@ -15,6 +15,15 @@
         "cd /Users/israelmejia/Kyru-consulting && npm run dev -- --port 4322"
       ],
       "port": 4322
+    },
+    {
+      "name": "senda-frontend",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/israelmejia/senda-inventory/frontend && BROWSER=none npm start"
+      ],
+      "port": 3000
     }
   ]
 }
