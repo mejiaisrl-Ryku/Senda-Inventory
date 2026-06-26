@@ -179,7 +179,7 @@ export async function completePartnerSetup(req: Request, res: Response, next: Ne
         return newUser;
       });
 
-      const tokenPayload = { userId: user.id, role: user.role };
+      const tokenPayload = { userId: user.id, role: user.role, ownerAccountId: user.ownerAccountId! };
 
       console.log(`[completePartnerSetup] ✓ Owner onboarded. userId="${user.id}" ownerAccountId="${user.ownerAccountId}"`);
 
